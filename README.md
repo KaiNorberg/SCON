@@ -21,6 +21,8 @@
 
 The SCON language provides a flexible, simple, efficient and Turing complete way to store and manipulate hierarchical data, all within a single freestanding C99 header.
 
+> SCON is currently very work in progress.
+
 ## Setup and Usage
 
 Included is an example of using SCON as a single header without linking:
