@@ -39,6 +39,10 @@ static inline scon_size_t _scon_hash(const char* str, scon_size_t len)
     return hash;
 }
 
+static inline void _scon_atom_init(scon_t* scon, _scon_atom_t* atom);
+
+static inline void _scon_atom_deinit(scon_t* scon, _scon_atom_t* atom);
+
 static inline scon_bool_t _scon_atom_is_equal(_scon_atom_t* atom, const char* str, scon_size_t len);
 
 static inline _scon_atom_t* _scon_atom_lookup_int(scon_t* scon, scon_int64_t value);

@@ -7,6 +7,8 @@
 #include "parse_api.h"
 #include "parse_internal.h"
 #include "char_internal.h"
+#include "atom_internal.h"
+#include "gc_internal.h"
 
 #define _SCON_PARSE_STACK_MAX 256
 
@@ -86,7 +88,7 @@ static void _scon_parse_quoted_atom(scon_t* scon, scon_parse_ctx_t* ctx)
     node->position = (scon_size_t)(start - ctx->end);
     node->flags |= _SCON_NODE_FLAG_QUOTED;
     
-    _scon_list_append(scon, ctx->stack[ctx->current], _SCON_ITEM_FROM_NODE(node));
+    _scon_list_push_back(scon, ctx->stack[ctx->current], _SCON_ITEM_FROM_NODE(node));
     ctx->ptr++;
 }
 
@@ -107,10 +109,10 @@ static void _scon_parse_unquoted_atom(scon_t* scon, scon_parse_ctx_t* ctx)
     _scon_atom_t* atom = _scon_atom_lookup(scon, start, len);
     _scon_node_t* node = SCON_CONTAINER_OF(atom, _scon_node_t, atom);
     node->position = (scon_size_t)(start - ctx->end + scon->input->length);
-    _scon_list_append(scon, ctx->stack[ctx->current], _SCON_ITEM_FROM_NODE(node));
+    _scon_list_push_back(scon, ctx->stack[ctx->current], _SCON_ITEM_FROM_NODE(node));
 }
 
-SCON_API void scon_parse(scon_t* scon, const char* str, scon_size_t len, const char* path)
+SCON_API scon_item_t scon_parse(scon_t* scon, const char* str, scon_size_t len, const char* path)
 {
     if (scon == SCON_NULL || str == SCON_NULL)
     {
@@ -123,11 +125,17 @@ SCON_API void scon_parse(scon_t* scon, const char* str, scon_size_t len, const c
         SCON_THROW(scon, "out of memory");
     }
 
+    _scon_list_t* root = _scon_list_new(scon, 0);
+    if (root == SCON_NULL)
+    {
+        SCON_THROW(scon, "out of memory");
+    }
+
     scon_parse_ctx_t ctx;
     ctx.ptr = str;
     ctx.end = str + len;
     ctx.current = 0;
-    ctx.stack[0] = scon->root;
+    ctx.stack[0] = root;
 
     while (1)
     {
@@ -152,7 +160,7 @@ SCON_API void scon_parse(scon_t* scon, const char* str, scon_size_t len, const c
             node->input = input;
             node->position = (scon_size_t)(ctx.ptr - str) + 1;
 
-            _scon_list_append(scon, ctx.stack[ctx.current], _SCON_ITEM_FROM_NODE(node));
+            _scon_list_push_back(scon, ctx.stack[ctx.current], _SCON_ITEM_FROM_NODE(node));
             ctx.stack[++ctx.current] = child;
             ctx.ptr++;
         }
@@ -187,9 +195,13 @@ SCON_API void scon_parse(scon_t* scon, const char* str, scon_size_t len, const c
     {
         SCON_THROW_POS(scon, "unexpected end of file, missing ')'", len);
     }
+
+    scon_item_t result = _SCON_ITEM_FROM_NODE(SCON_CONTAINER_OF(root, _scon_node_t, list));
+    scon_gc_retain(scon, result);
+    return result;
 }
 
-SCON_API void scon_parse_file(scon_t* scon, const char* path)
+SCON_API scon_item_t scon_parse_file(scon_t* scon, const char* path)
 {
     scon_file_t file = SCON_FOPEN(path, "rb");
     if (file == SCON_NULL)

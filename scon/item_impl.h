@@ -17,14 +17,14 @@ static inline _scon_node_t* _scon_node_new(scon_t* scon)
     
     }
     
-    _scon_item_block_t* block;
+    _scon_node_block_t* block;
     if (scon->block == SCON_NULL)
     {
         block = &scon->firstBlock;
     }
     else
     {
-        block = SCON_CALLOC(1, sizeof(_scon_item_block_t));
+        block = SCON_CALLOC(1, sizeof(_scon_node_block_t));
         if (block == SCON_NULL)
         {
             SCON_THROW(scon, "out of memory");
@@ -50,19 +50,11 @@ static inline void _scon_node_free(scon_t* scon, _scon_node_t* item)
 {
     if (item->type == SCON_ITEM_ATOM)
     {
-        if (item->length >= _SCON_ATOM_SHORT_MAX && item->atom.longStr != SCON_NULL)
-        {
-            SCON_FREE(item->atom.longStr);
-            item->atom.longStr = SCON_NULL;
-        }
+        _scon_atom_deinit(scon, &item->atom);
     }
     else if (item->type == SCON_ITEM_LIST)
     {
-        if (item->list.capacity > _SCON_LIST_SHORT_MAX && item->list.longItems != SCON_NULL)
-        {
-            SCON_FREE(item->list.longItems);
-            item->list.longItems = SCON_NULL;
-        }
+        _scon_list_deinit(scon, &item->list);
     }
 
     item->type = SCON_ITEM_NONE;
@@ -414,7 +406,7 @@ SCON_API scon_item_t scon_item_get(scon_t* scon, scon_item_t* list, const char* 
     return SCON_NONE;
 }
 
-SCON_API scon_item_t scon_nth(scon_t* scon, scon_item_t* list, scon_size_t n)
+SCON_API scon_item_t scon_item_nth(scon_t* scon, scon_item_t* list, scon_size_t n)
 {
     if (!_SCON_ITEM_IS_NODE(list))
     {

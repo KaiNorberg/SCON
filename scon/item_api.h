@@ -17,15 +17,31 @@ typedef scon_uint16_t scon_item_type_t;
 #define SCON_ITEM_ATOM    1
 #define SCON_ITEM_LIST    2
 
-/**
- * @brief The API representation of a SCON item for tagged pointers and NaN boxing.
- */
-typedef unsigned long long scon_item_t;
+#ifdef SCON_USE_NAN_BOXING
 
-/**
- * @brief Value indicating an invalid or non-existent SCON item.
- */
+typedef uint64_t scon_item_t;
+
 #define SCON_NONE 0xFFFE000000000000ULL
+
+#else
+
+#define _SCON_INTERNAL_TYPE_INT   10
+#define _SCON_INTERNAL_TYPE_FLOAT 11
+#define _SCON_INTERNAL_TYPE_NODE  12
+
+typedef struct 
+{
+    scon_uint16_t internalType;
+    union {
+        scon_int64_t i;
+        scon_float_t f;
+        void* node;
+    } as;
+} scon_item_t;
+
+#define SCON_NONE ((scon_item_t){ .internalType = SCON_ITEM_NONE })
+
+#endif
 
 /**
  * @brief Get the number of items in a list or the number of characters in an atom.
@@ -152,7 +168,6 @@ SCON_API scon_item_t scon_item_get(scon_t* scon, scon_item_t* list, const char* 
  * @param n The index of the item to retrieve.
  * @return A item to the n-th item, or a item with index `SCON_NONE` if not found.
  */
-SCON_API scon_item_t scon_nth(scon_t* scon, scon_item_t* list, scon_size_t n);
-
+SCON_API scon_item_t scon_item_nth(scon_t* scon, scon_item_t* list, scon_size_t n);
 
 #endif

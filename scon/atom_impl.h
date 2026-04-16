@@ -6,6 +6,22 @@
 #include "atom_internal.h"
 #include "core_internal.h"
 
+static inline void _scon_atom_init(scon_t* scon, _scon_atom_t* atom)
+{
+    atom->length = 0;
+    atom->next = SCON_NULL;
+    atom->hash = 0;
+}
+
+static inline void _scon_atom_deinit(scon_t* scon, _scon_atom_t* atom)
+{
+    if (atom->length >= _SCON_ATOM_SHORT_MAX && atom->longStr != SCON_NULL)
+    {
+        SCON_FREE(atom->longStr);
+        atom->longStr = SCON_NULL;
+    }
+}
+
 static inline scon_bool_t _scon_atom_is_equal(_scon_atom_t* atom, const char* str, scon_size_t len)
 {
     if (atom->length != len)

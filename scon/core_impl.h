@@ -28,11 +28,6 @@ static inline _scon_input_t* scon_input_new(scon_t* scon, const char* buffer, sc
     return input;
 }
 
-/*static inline scon_bool_t SCON_CATCH(scon_t* scon)
-{
-    return SCON_SETJMP(scon->jmp);
-}*/
-
 SCON_API scon_t* scon_new(void)
 {
     scon_t* scon = SCON_CALLOC(1, sizeof(scon_t));
@@ -41,7 +36,8 @@ SCON_API scon_t* scon_new(void)
         return SCON_NULL;
     }
 
-    scon->root = _scon_list_new(scon, 0);
+    scon->gcThreshold = _SCON_GC_THRESHOLD_INITIAL;
+    _scon_list_init(scon, &scon->retained);
 
     return scon;
 }
@@ -53,10 +49,12 @@ SCON_API void scon_free(scon_t* scon)
         return;
     }
 
-    _scon_item_block_t* block = scon->block;
+    _scon_list_deinit(scon, &scon->retained);
+
+    _scon_node_block_t* block = scon->block;
     while (block != SCON_NULL)
     {
-        _scon_item_block_t* next = block->next;
+        _scon_node_block_t* next = block->next;
         for (int i = 0; i < _SCON_ITEM_BLOCK_MAX; i++)
         {
             _scon_node_t* node = &block->items[i];

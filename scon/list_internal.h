@@ -21,8 +21,14 @@ typedef struct _scon_list
 
 #define _SCON_LIST_ITEMS(_list) ((_list)->capacity <= _SCON_LIST_SHORT_MAX ? (_list)->shortItems : (_list)->longItems)
 
+static inline void _scon_list_init(scon_t* scon, _scon_list_t* list);
+
+static inline void _scon_list_deinit(scon_t* scon, _scon_list_t* list);
+
 static inline _scon_list_t* _scon_list_new(scon_t* scon, scon_size_t capacity);
 
-static inline void _scon_list_append(scon_t* scon, _scon_list_t* list, scon_item_t item);
+static inline void _scon_list_push_back(scon_t* scon, _scon_list_t* list, scon_item_t item);
+
+static inline void _scon_list_remove_unstable(scon_t* scon, _scon_list_t* list, scon_item_t item);
 
 #endif

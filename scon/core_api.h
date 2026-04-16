@@ -8,12 +8,12 @@
 #endif
 
 #ifndef SCON_FREESTANDING
-
 #include <stdlib.h>
 #include <setjmp.h>
 #include <string.h>
 #include <stdio.h>
-
+#include <stdint.h>
+#include <stddef.h>
 #define SCON_NULL NULL
 
 #define SCON_MALLOC(_size) malloc(_size)
@@ -37,8 +37,22 @@ typedef FILE* scon_file_t;
 #define SCON_FCLOSE(_file) fclose(_file)
 #define SCON_FREAD(_ptr, _size, _nmemb, _file) fread(_ptr, _size, _nmemb, _file)
 
-#else
+typedef int64_t scon_int64_t;
+typedef uint64_t scon_uint64_t;
+typedef int32_t scon_int32_t;
+typedef uint32_t scon_uint32_t;
+typedef int16_t scon_int16_t;
+typedef uint16_t scon_uint16_t;
+typedef size_t scon_size_t;
+typedef double scon_float_t;
+#endif
 
+#if !defined(SCON_USE_NAN_BOXING) && !defined(SCON_USE_TAGGED_UNION)
+#if UINTPTR_MAX == 0xffffffffffffffff
+#define SCON_USE_NAN_BOXING 1
+#else
+#define SCON_USE_TAGGED_UNION 1
+#endif
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -56,13 +70,6 @@ typedef FILE* scon_file_t;
 typedef struct scon scon_t;
 
 /**
- * @brief SCON size type.
- *
- * Equivalent to size_t.
- */
-typedef unsigned long scon_size_t;
-
-/**
  * @brief SCON boolean type.
  * @enum scon_bool_t
  *
@@ -74,40 +81,6 @@ typedef enum
     SCON_FALSE = 0
 } scon_bool_t;
 
-/**
- * @brief SCON signed integer 64bit type.
- */
-typedef signed long scon_int64_t;
-
-/**
- * @brief SCON unsigned integer 64bit type.
- */
-typedef unsigned long scon_uint64_t;
-
-/**
- * @brief SCON signed integer 32bit type.
- */
-typedef signed int scon_int32_t;
-
-/**
- * @brief SCON unsigned integer 32bit type.
- */
-typedef unsigned int scon_uint32_t;
-
-/**
- * @brief SCON signed integer 16bit type.
- */
-typedef signed short scon_int16_t;
-
-/**
- * @brief SCON unsigned integer 16bit type.
- */
-typedef unsigned short scon_uint16_t;
-
-/**
- * @brief SCON float type.
- */
-typedef double scon_float_t;
 
 /**
  * @brief SCON PI constant.

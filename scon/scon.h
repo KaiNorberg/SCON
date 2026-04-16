@@ -10,6 +10,7 @@
 #include "item_impl.h"
 #include "list_impl.h"
 #include "parse_impl.h"
+#include "gc_impl.h"
 #endif
 
 #endif

@@ -343,7 +343,6 @@ When a lambda is executed, it creates a new scope where its arguments are bound 
 
 The following constants are defined by default in the SCON environment:
 
-<div align="center">
 | Constant | Value |
 |----------|-------|
 | `true`   | `true` |
@@ -351,7 +350,6 @@ The following constants are defined by default in the SCON environment:
 | `nil`    | `()` |
 | `pi`     | `3.14159265358979323846` |
 | `e`      | `2.7182818284590452354` |
-</div>
 
 ### Default Primitives
 
