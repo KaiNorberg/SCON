@@ -165,6 +165,12 @@ As such, to install it, copy the `tools/scon-vscode/` directory to `%USERPROFILE
 
 Finally, restart Visual Studio Code.
 
+## Implementation Details
+
+SCON is implemented as a header only cross platform C99 library. It first uses its parser to transform the input text into an Abstract Syntax Tree (AST) consisting of nested lists and atoms. At this point, SCON is perfectly usable as a markup language.
+
+In addition to the parser, SCON includes a bytecode compiler and a virtual machine (VM) to execute the AST. The output of any evaluation is a new AST, which can then be stringified back into SCON text or used directly.
+
 ## Grammar
 
 The grammar of SCON is designed to be as straight forward as possible, the full grammar using [EBNF](https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_form) can be found below.
@@ -252,16 +258,17 @@ string = quoted_atom ;
 number = integer | float ;
 integer = decimal_integer | hex_integer | octal_integer | binary_integer ;
 
-decimal_integer = [ sign ], digit, { digit | "_" } ;
-hex_integer = [ sign ], "0", ( "x" | "X" ), ( hex_digit ), { hex_digit | "_" } ;
-octal_integer = [ sign ], "0", ( "o" | "O" ), ( octal_digit ), { octal_digit | "_" } ;
-binary_integer = [ sign ], "0", ( "b" | "B" ), ( binary_digit ), { binary_digit | "_" } ;
+decimal_integer = [ sign ], digit, { [ "_" ], digit } ;
+hex_integer = [ sign ], "0", ( "x" | "X" ), hex, { [ "_" ], hex } ;
+octal_integer = [ sign ], "0", ( "o" | "O" ), octal, { [ "_" ], octal } ;
+binary_integer = [ sign ], "0", ( "b" | "B" ), binary, { [ "_" ], binary } ;
 
-float = float_number | float_naked_decimal | scientific_number | special_float ;
+float = float_number | float_naked_decimal | float_trailing_decimal | scientific_number | special_float ;
 
-float_number = [ sign ], digit, { digit | "_" }, ".", digit, { digit | "_" }, [ ( "e" | "E" ), [ sign ], digit, { digit | "_" } ] ;
-float_naked_decimal = [ sign ], ".", digit, { digit | "_" }, [ ( "e" | "E" ), [ sign ], digit, { digit | "_" } ] ;
-scientific_number = [ sign ], digit, { digit | "_" }, ( "e" | "E" ), [ sign ], digit, { digit | "_" } ;
+float_number = [ sign ], digit, { [ "_" ], digit }, ".", digit, { [ "_" ], digit }, [ ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ] ;
+float_naked_decimal = [ sign ], ".", digit, { [ "_" ], digit }, [ ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ] ;
+float_trailing_decimal = [ sign ], digit, { [ "_" ], digit }, ".", [ ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ] ;
+scientific_number = [ sign ], digit, { [ "_" ], digit }, ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ;
 special_float = ( [ sign ], ( "i" | "I" ), ( "n" | "N" ), ( "f" | "F" ) ) | ( ( "n" | "N" ), ( "a" | "A" ), ( "n" | "N" ) ) ;
 ```
 
@@ -298,10 +305,10 @@ false = "false" ;
 nil = "(", { white_space }, ")" ;
 
 zero = decimal_zero | hex_zero | octal_zero | binary_zero ;
-decimal_zero = [ sign ], "0", { "0" | "_" }, [ ".", { "0" | "_" } ], [ ( "e" | "E" ), [ sign ], digit, { digit | "_" } ] ;
-hex_zero     = [ sign ], "0", ( "x" | "X" ), "0", { "0" | "_" } ;
-octal_zero   = [ sign ], "0", ( "o" | "O" ), "0", { "0" | "_" } ;
-binary_zero  = [ sign ], "0", ( "b" | "B" ), "0", { "0" | "_" } ;
+decimal_zero = [ sign ], "0", { [ "_" ], "0" }, [ ".", { [ "_" ], "0" } ], [ ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ] ;
+hex_zero     = [ sign ], "0", ( "x" | "X" ), "0", { [ "_" ], "0" } ;
+octal_zero   = [ sign ], "0", ( "o" | "O" ), "0", { [ "_" ], "0" } ;
+binary_zero  = [ sign ], "0", ( "b" | "B" ), "0", { [ "_" ], "0" } ;
 ```
 
 ### Ordering
@@ -351,9 +358,9 @@ The following constants are defined by default in the SCON environment:
 | `pi`     | `3.14159265358979323846` |
 | `e`      | `2.7182818284590452354` |
 
-### Default Primitives
+### Keywords
 
-The primitives below are specified using a format similar to the EBNF format, taking advantage of previously made definitions.
+The keywords below are specified using a format similar to the EBNF format, taking advantage of previously made definitions.
 
 #### Core & Evaluation
 
@@ -369,6 +376,10 @@ Returns a new list containing the results of evaluating each expression.
 
 Evaluates each expression in sequence and returns the result of the last one.
 
+**`(lambda ( {arg: atom} ) <expression> {expression} ) -> <lambda>`**
+
+Returns a user-defined anonymous function. When called, the body expressions are evaluated in sequence, and the result of the last expression is returned.
+
 ---
 
 #### Variables & Scope
@@ -376,10 +387,6 @@ Evaluates each expression in sequence and returns the result of the last one.
 **`(def <name: atom> <value: item>) -> <value: item>`**
   
 Defines a variable with the given name and value within the current scope.
-
-**`(set <name: atom> <value: item>) -> <value: item>`**
-
-Modifies the value of an existing variable with the given name in the closest scope where it is defined.
 
 **`(let ( { ( <name: atom> <value: expression>) } ) <body: expression> {body: expression} ) -> <item>`**
 
@@ -418,50 +425,6 @@ Evaluates arguments left-to-right, returning the first truthy value, or `false` 
 **`(not <item>) -> <true|false>`**
 
 Returns `true` if the argument is falsy, otherwise `false`.
-
----
-
-#### Error Handling
-
-**`(assert <cond: item> <msg: item>)`**
-
-Evaluates `<cond>`. If it is falsy, the evaluation fails and throws an error with `<msg>` as the message.
-
-**`(throw <msg: item>)`**
-
-Throws an error with the given atom being the error message.
-
-**`(catch <expression> <handler: lambda>) -> <item>`**
-
-Evaluates `<expression>`. If an error occurs during evaluation, the `<handler>` lambda is called with the error message as its argument, and its result is returned. If no error occurs, the result of `<expression>` is returned.
-
----
-
-#### Functions & Higher-Order
-
-**`(lambda ( {arg: atom} ) <expression> {expression} ) -> <lambda>`**
-
-Returns a user-defined anonymous function. When called, the body expressions are evaluated in sequence, and the result of the last expression is returned.
-
-**`(map <callable> <list>) -> <list>`**
-
-Returns a new list by applying `<callable>` to each item in `<list>`. The `<callable>` must accept a single argument.
-
-**`(filter <callable> <list>) -> <list>`**
-
-Returns a new list containing only items from `<list>` for which `<callable>` returns a truthy value. The `<callable>` must accept a single argument.
-
-**`(reduce <callable> <initial> <list>) -> <item>`**
-
-Reduces `<list>` to a single value. The `<callable>` must accept two arguments: the `accumulator` (which starts as `<initial>`) and the current `item`, and it should return the new accumulator value.
-
-**`(sort <list> [callable]) -> <list>`**
-
-Returns a new list containing the sorted items of the list. The sort is guaranteed to be stable and to minimize the number of comparisons made.
-
-If a `callable` is provided, it is used as a custom comparator that should accept two arguments and return a truthy value if the first argument should appear before the second.
-
-If no `callable` is specified, then items are sorted in ascending order.
 
 ---
 
@@ -539,35 +502,79 @@ Will stop evaluating arguments as soon as one is not greater than or equal to th
 
 ---
 
-> Primitives below this line will need to have their documentation updated.
-
 #### Bitwise
 
-##### `(& <val1> <val2> ...)`
+**`(& <item> <item> {item})`**
 
 Returns the bitwise AND of all arguments.
 
-##### `(| <val1> <val2> ...)`
+**`(| <item> <item> {item})`**
 
 Returns the bitwise OR of all arguments.
 
-##### `(^ <val1> <val2> ...)`
+**`(^ <item> <item> {item})`**
 
 Returns the bitwise XOR of all arguments.
 
-##### `(~ <val>)`
+**`(~ <item>)`**
 
 Returns the bitwise NOT of the argument.
 
-##### `(<< <val> <shift>)`
+**`(<< <val> <shift>)`**
 
 Returns the value bitwise shifted left.
 
-##### `(>> <val> <shift>)`
+**`(>> <val> <shift>)`**
 
 Returns the value bitwise shifted right.
 
 ---
+
+### Builtins
+
+The builtins below are specified using a format similar to the EBNF format, taking advantage of previously made definitions.
+
+#### Error Handling
+
+**`(assert <cond: item> <msg: item>)`**
+
+Evaluates `<cond>`. If it is falsy, the evaluation fails and throws an error with `<msg>` as the message.
+
+**`(throw <msg: item>)`**
+
+Throws an error with the given atom being the error message.
+
+**`(catch <expression> <handler: lambda>) -> <item>`**
+
+Evaluates `<expression>`. If an error occurs during evaluation, the `<handler>` lambda is called with the error message as its argument, and its result is returned. If no error occurs, the result of `<expression>` is returned.
+
+---
+
+#### Functions & Higher-Order
+
+**`(map <callable> <list>) -> <list>`**
+
+Returns a new list by applying `<callable>` to each item in `<list>`. The `<callable>` must accept a single argument.
+
+**`(filter <callable> <list>) -> <list>`**
+
+Returns a new list containing only items from `<list>` for which `<callable>` returns a truthy value. The `<callable>` must accept a single argument.
+
+**`(reduce <callable> <initial> <list>) -> <item>`**
+
+Reduces `<list>` to a single value. The `<callable>` must accept two arguments: the `accumulator` (which starts as `<initial>`) and the current `item`, and it should return the new accumulator value.
+
+**`(sort <list> [callable]) -> <list>`**
+
+Returns a new list containing the sorted items of the list. The sort is guaranteed to be stable and to minimize the number of comparisons made.
+
+If a `callable` is provided, it is used as a custom comparator that should accept two arguments and return a truthy value if the first argument should appear before the second.
+
+If no `callable` is specified, then items are sorted in ascending order.
+
+---
+
+> Stuff below this line will need to have their documentation updated.
 
 #### Math & Trigonometry
 
@@ -687,7 +694,7 @@ Reads the file at the given path and returns its contents as a raw string atom w
 
 Prints the string representation of all arguments to the standard output.
 
-**(println { item } )**
+**`(println { item } )`**
 
 Prints the string representation of all arguments to the standard output, followed by a newline.
 

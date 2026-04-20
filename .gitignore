@@ -56,3 +56,4 @@ tools/scon/build
 tests/build
 tests/lua/build
 temp*
+.cache

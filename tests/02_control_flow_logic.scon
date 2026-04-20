@@ -3,26 +3,20 @@
     (assert (= (if false 10 20) 20) "if should return the 'else' branch when condition is falsy")
     (assert (= (if false 10) ()) "if should return an empty list '()' when condition is falsy and no 'else' is provided")
 
-    (def w 0)
-    (assert (= (when true (set w 1) (set w 2)) 2) "when should return the result of the last expression")
-    (assert (= w 2) "when should execute its body sequentially when true")
+    (assert (= (when true 1 2) 2) "when should return the result of the last expression")
+    (assert (= (when false (assert false "when should not execute its body when false")) false) "when should return false if the condition is falsy")
 
-    (assert (= (when false (set w 3)) false) "when should return false if the condition is falsy")
-    (assert (= w 2) "when should not execute its body when false")
-
-    (assert (= (unless false (set w 4)) 4) "unless should return the result of the last expression if falsy")
-    (assert (= w 4) "unless should execute its body sequentially when false")
-
-    (assert (= (unless true (set w 5)) ()) "unless should return '()' if the condition is truthy")
-    (assert (= w 4) "unless should not execute its body when true")
+    (assert (= (unless false 3 4) 4) "unless should return the result of the last expression if falsy")
+    (assert (= (unless true (assert false "unless should not execute its body when true")) ()) "unless should return '()' if the condition is truthy")
 
     (assert (= (cond (false 1) (true 2) (true 3)) 2) "cond should return the value of the first truthy condition")
     (assert (= (cond (false 1) (0 2)) ()) "cond should return '()' if no conditions are truthy")
 
     (assert (= (and 1 2 3) 3) "and should return the last truthy value")
-    (assert (= (and 1 false 3) false) "and should return the first falsy value")
+    (assert (= (and 1 false (assert false "and should short-circuit")) false) "and should return the first falsy value")
 
     (assert (= (or false 2 3) 2) "or should return the first truthy value")
+    (assert (= (or true (assert false "or should short-circuit")) true) "or should return the first truthy value")
     (assert (= (or false 0 "") false) "or should return false if all values are falsy")
 
     (assert (= (not false) true) "not false should be true")

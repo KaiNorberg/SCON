@@ -1,49 +1,42 @@
-#include "char_internal.h"
-#include "core_api.h"
+#include "char.h"
+#include "core.h"
 #ifndef SCON_ATOM_IMPL_H
 #define SCON_ATOM_IMPL_H 1
 
-#include "atom_internal.h"
-#include "core_internal.h"
+#include "atom.h"
+#include "core.h"
 
-static inline void _scon_atom_init(scon_t* scon, _scon_atom_t* atom)
+SCON_API void scon_atom_deinit(scon_t* scon, scon_atom_t* atom)
 {
-    atom->length = 0;
-    atom->next = SCON_NULL;
-    atom->hash = 0;
-}
-
-static inline void _scon_atom_deinit(scon_t* scon, _scon_atom_t* atom)
-{
-    if (atom->length >= _SCON_ATOM_SHORT_MAX && atom->longStr != SCON_NULL)
+    scon_size_t bucket = atom->hash % SCON_BUCKETS_MAX;
+    scon_atom_t** current = &scon->atomBuckets[bucket];
+    while (*current)
     {
-        SCON_FREE(atom->longStr);
-        atom->longStr = SCON_NULL;
+        if (*current == atom)
+        {
+            *current = atom->next;
+            break;
+        }
+        current = &(*current)->next;
+    }
+
+    if (atom->length >= SCON_ATOM_SMALL_MAX)
+    {
+        SCON_FREE(atom->string);
     }
 }
 
-static inline scon_bool_t _scon_atom_is_equal(_scon_atom_t* atom, const char* str, scon_size_t len)
+SCON_API scon_bool_t scon_atom_is_equal(scon_atom_t* atom, const char* str, scon_size_t len)
 {
     if (atom->length != len)
     {
         return SCON_FALSE;
     }
 
-    if (atom->length < _SCON_ATOM_SHORT_MAX)
-    {
-        scon_uint64_t value = 0;
-        for (scon_size_t i = 0; i < len; i++)
-        {
-            value |= (scon_uint64_t)((unsigned char)str[i]) << (i * 8ULL);
-        }
-
-        return value == atom->shortStr.value;
-    }
-
-    return memcmp(str, atom->longStr, len) == 0;
+    return memcmp(str, atom->string, len) == 0;
 }
 
-static inline _scon_atom_t* _scon_atom_lookup_int(scon_t* scon, scon_int64_t value)
+SCON_API scon_atom_t* scon_atom_lookup_int(scon_t* scon, scon_int64_t value)
 {
     char buf[32];
     scon_size_t len = 0;
@@ -76,14 +69,14 @@ static inline _scon_atom_t* _scon_atom_lookup_int(scon_t* scon, scon_int64_t val
     }
 
     const char* str = buf + sizeof(buf) - len;
-    _scon_atom_t* atom = _scon_atom_lookup(scon, str, len);
+    scon_atom_t* atom = scon_atom_lookup(scon, str, len);
     atom->integerValue = value;
-    _scon_node_t* item = SCON_CONTAINER_OF(atom, _scon_node_t, atom);
-    item->flags |= _SCON_NODE_FLAG_INT_SHAPED;
+    scon_item_t* item = SCON_CONTAINER_OF(atom, scon_item_t, atom);
+    item->flags |= SCON_ITEM_FLAG_INT_SHAPED;
     return atom;
 }
 
-static inline _scon_atom_t* _scon_atom_lookup_float(scon_t* scon, scon_float_t value)
+SCON_API scon_atom_t* scon_atom_lookup_float(scon_t* scon, scon_float_t value)
 {
     char buf[64];
     char sign = 1;
@@ -143,64 +136,61 @@ static inline _scon_atom_t* _scon_atom_lookup_float(scon_t* scon, scon_float_t v
         len--;
     }
 
-    _scon_atom_t* atom = _scon_atom_lookup(scon, res, len);
+    scon_atom_t* atom = scon_atom_lookup(scon, res, len);
     atom->floatValue = value;
-    _scon_node_t* item = SCON_CONTAINER_OF(atom, _scon_node_t, atom);
-    item->flags |= _SCON_NODE_FLAG_FLOAT_SHAPED;
+    scon_item_t* item = SCON_CONTAINER_OF(atom, scon_item_t, atom);
+    item->flags |= SCON_ITEM_FLAG_FLOAT_SHAPED;
     return atom;
 }
 
-static inline _scon_atom_t* _scon_atom_lookup(scon_t* scon, const char* str, scon_size_t len)
+SCON_API scon_atom_t* scon_atom_lookup(scon_t* scon, const char* str, scon_size_t len)
 {
-    scon_size_t hash = _scon_hash(str, len);
-    scon_size_t bucket = hash % _SCON_BUCKETS_MAX;
+    scon_size_t hash = scon_hash(str, len);
+    scon_size_t bucket = hash % SCON_BUCKETS_MAX;
 
-    _scon_atom_t* current = scon->atomBuckets[bucket];
+    scon_atom_t* current = scon->atomBuckets[bucket];
     while (current)
     {
-        _scon_atom_t* atom = current;
-        if (atom->hash == hash && _scon_atom_is_equal(atom, str, len))
+        scon_atom_t* atom = current;
+        if (atom->hash == hash && scon_atom_is_equal(atom, str, len))
         {
             return atom;
         }
         current = current->next;
     }
 
-    _scon_node_t* node = _scon_node_new(scon);
-    node->type = SCON_ITEM_ATOM;
-    _scon_atom_t* atom = &node->atom;
+    scon_item_t* item = scon_item_new(scon);
+    item->type = SCON_ITEM_TYPE_ATOM;
+    scon_atom_t* atom = &item->atom;
     atom->length = len;
     atom->hash = hash;
+    atom->keyword = SCON_KEYWORD_NONE;
     atom->next = scon->atomBuckets[bucket];
     scon->atomBuckets[bucket] = atom;
 
-    if (len < _SCON_ATOM_SHORT_MAX)
+    if (len < SCON_ATOM_SMALL_MAX)
     {
-        atom->shortStr.value = 0;
-        SCON_MEMCPY(atom->shortStr.raw, str, len);
+        SCON_MEMCPY(atom->small, str, len);
+        atom->small[len] = '\0';
+        atom->string = atom->small;
     }
     else
     {
-        atom->longStr = SCON_MALLOC(len + 1);
-        if (atom->longStr == SCON_NULL)
+        atom->string = SCON_MALLOC(len + 1);
+        if (atom->string == SCON_NULL)
         {
             SCON_THROW(scon, "out of memory");
         }
-        SCON_MEMCPY(atom->longStr, str, len);
-        atom->longStr[len] = '\0';
-    }
-
-    if (len == 0)
-    {
-        node->flags |= _SCON_NODE_FLAG_FALSY;
+        SCON_MEMCPY(atom->string, str, len);
+        atom->string[len] = '\0';
     }
 
     return atom;
 }
 
-static inline void _scon_atom_normalize_escape(scon_t* scon, _scon_atom_t* atom)
+static inline void scon_atom_normalize_escape(scon_t* scon, scon_atom_t* atom)
 {
-    char* str = _SCON_ATOM_STRING(atom);
+    char* str = atom->string;
     scon_size_t len = atom->length;
     scon_size_t j = 0;
     for (scon_size_t i = 0; i < len; i++)
@@ -208,7 +198,7 @@ static inline void _scon_atom_normalize_escape(scon_t* scon, _scon_atom_t* atom)
         if (str[i] == '\\' && i + 1 < len)
         {
             i++;
-            const _scon_char_info_t* info = &_sconCharTable[str[i]];
+            const scon_char_info_t* info = &sconCharTable[str[i]];
             if (info->decodeEscape != 0)
             {
                 str[j++] = info->decodeEscape;
@@ -216,9 +206,9 @@ static inline void _scon_atom_normalize_escape(scon_t* scon, _scon_atom_t* atom)
             }
             else if (str[i] == 'x' && i + 2 < len)
             {
-                unsigned char high = _sconCharTable[(unsigned char)str[i + 1]].integer;
-                unsigned char low = _sconCharTable[(unsigned char)str[i + 2]].integer;
-                str[j++] = (char)((high << 4) | low);                
+                unsigned char high = sconCharTable[(unsigned char)str[i + 1]].integer;
+                unsigned char low = sconCharTable[(unsigned char)str[i + 2]].integer;
+                str[j++] = (char)((high << 4) | low);
                 i += 2;
                 continue;
             }
@@ -229,13 +219,286 @@ static inline void _scon_atom_normalize_escape(scon_t* scon, _scon_atom_t* atom)
         }
     }
     atom->length = j;
-    if (atom->length < _SCON_ATOM_SHORT_MAX)
+    if (atom->length < SCON_ATOM_SMALL_MAX)
     {
         str[j] = '\0';
     }
     else
     {
-        atom->longStr[j] = '\0';
+        atom->string[j] = '\0';
+    }
+}
+
+SCON_API void scon_atom_normalize(scon_t* scon, scon_atom_t* atom)
+{
+    scon_item_t* item = SCON_CONTAINER_OF(atom, scon_item_t, atom);
+    if (atom->length == 0)
+    {
+        item->flags |= SCON_ITEM_FLAG_FALSY;
+        return;
+    }
+
+    if (item->flags & SCON_ITEM_FLAG_QUOTED)
+    {
+        scon_atom_normalize_escape(scon, atom);
+        if (atom->length == 0)
+        {
+            item->flags |= SCON_ITEM_FLAG_FALSY;
+        }
+        return;
+    }
+
+    const char* p = atom->string;
+    const char* end = p + atom->length;
+    const char* start = p;
+    int sign = 1;
+
+    if (p < end && (*p == '+' || *p == '-'))
+    {
+        if (*p == '-')
+        {
+            sign = -1;
+        }
+        p++;
+    }
+
+    if (p == end)
+    {
+        return;
+    }
+
+    if (end - p == 3)
+    {
+        if (SCON_CHAR_TO_LOWER(p[0]) == 'i' && SCON_CHAR_TO_LOWER(p[1]) == 'n' && SCON_CHAR_TO_LOWER(p[2]) == 'f')
+        {
+            item->flags |= SCON_ITEM_FLAG_FLOAT_SHAPED;
+            atom->floatValue = sign > 0 ? SCON_INF : -SCON_INF;
+            return;
+        }
+        if (p == start && SCON_CHAR_TO_LOWER(p[0]) == 'n' && SCON_CHAR_TO_LOWER(p[1]) == 'a' &&
+            SCON_CHAR_TO_LOWER(p[2]) == 'n')
+        {
+            item->flags |= SCON_ITEM_FLAG_FLOAT_SHAPED;
+            atom->floatValue = SCON_NAN;
+            return;
+        }
+    }
+
+    int base = 10;
+    if (p + 1 < end && *p == '0')
+    {
+        char l = SCON_CHAR_TO_LOWER(p[1]);
+        if (l == 'x')
+        {
+            base = 16;
+            p += 2;
+        }
+        else if (l == 'o')
+        {
+            base = 8;
+            p += 2;
+        }
+        else if (l == 'b')
+        {
+            base = 2;
+            p += 2;
+        }
+    }
+
+    scon_bool_t hasDigits = SCON_FALSE;
+    scon_bool_t sectionHasDigits = SCON_FALSE;
+    scon_bool_t valid = SCON_TRUE;
+
+    if (base != 10)
+    {
+        scon_uint64_t intValue = 0;
+        while (p < end)
+        {
+            if (*p == '_')
+            {
+                if (!sectionHasDigits)
+                {
+                    valid = SCON_FALSE;
+                    break;
+                }
+                p++;
+                continue;
+            }
+
+            int d = -1;
+            unsigned char c = (unsigned char)*p;
+            if (SCON_CHAR_IS_HEX_DIGIT(c))
+            {
+                d = sconCharTable[c].integer;
+            }
+
+            if (d >= 0 && d < base)
+            {
+                intValue = intValue * base + d;
+                hasDigits = SCON_TRUE;
+                sectionHasDigits = SCON_TRUE;
+            }
+            else
+            {
+                valid = SCON_FALSE;
+                break;
+            }
+            p++;
+        }
+        if (valid && hasDigits && p == end && *(end - 1) != '_')
+        {
+            item->flags |= SCON_ITEM_FLAG_INT_SHAPED;
+            atom->integerValue = sign * (scon_int64_t)intValue;
+            if (atom->integerValue == 0)
+            {
+                item->flags |= SCON_ITEM_FLAG_FALSY;
+            }
+        }
+        return;
+    }
+
+    scon_bool_t isFloat = SCON_FALSE;
+    scon_uint64_t intValue = 0;
+    double floatValue = 0.0;
+    double fractionDiv = 10.0;
+    scon_bool_t inFraction = SCON_FALSE;
+    scon_bool_t inExponent = SCON_FALSE;
+    int expSign = 1;
+    int expValue = 0;
+    int fractionDigits = 0;
+    int exponentDigits = 0;
+
+    if (*p == '.')
+    {
+        isFloat = SCON_TRUE;
+        inFraction = SCON_TRUE;
+        p++;
+    }
+
+    while (p < end)
+    {
+        if (*p == '_')
+        {
+            if (!sectionHasDigits)
+            {
+                valid = SCON_FALSE;
+                break;
+            }
+            p++;
+            continue;
+        }
+
+        unsigned char c = (unsigned char)*p;
+        if (SCON_CHAR_IS_DIGIT(c))
+        {
+            hasDigits = SCON_TRUE;
+            sectionHasDigits = SCON_TRUE;
+            if (inExponent)
+            {
+                expValue = expValue * 10 + sconCharTable[c].integer;
+                exponentDigits++;
+            }
+            else if (inFraction)
+            {
+                floatValue = floatValue + sconCharTable[c].integer / fractionDiv;
+                fractionDiv *= 10.0;
+                fractionDigits++;
+            }
+            else
+            {
+                intValue = intValue * 10 + sconCharTable[c].integer;
+                floatValue = floatValue * 10.0 + sconCharTable[c].integer;
+            }
+        }
+        else if (c == '.' && !inFraction && !inExponent)
+        {
+            if (*(p - 1) == '_')
+            {
+                valid = SCON_FALSE;
+                break;
+            }
+            isFloat = SCON_TRUE;
+            inFraction = SCON_TRUE;
+            sectionHasDigits = SCON_FALSE;
+        }
+        else if (SCON_CHAR_TO_LOWER(c) == 'e' && !inExponent && hasDigits)
+        {
+            if (*(p - 1) == '_')
+            {
+                valid = SCON_FALSE;
+                break;
+            }
+            isFloat = SCON_TRUE;
+            inExponent = SCON_TRUE;
+            sectionHasDigits = SCON_FALSE;
+            p++;
+            if (p < end && (*p == '+' || *p == '-'))
+            {
+                if (*p == '-')
+                {
+                    expSign = -1;
+                }
+                p++;
+            }
+            continue;
+        }
+        else
+        {
+            valid = SCON_FALSE;
+            break;
+        }
+        p++;
+    }
+
+    if (inExponent && exponentDigits == 0)
+    {
+        valid = SCON_FALSE;
+    }
+
+    if (valid && hasDigits && p == end && *(end - 1) != '_')
+    {
+        if (isFloat)
+        {
+            item->flags |= SCON_ITEM_FLAG_FLOAT_SHAPED;
+            double finalVal = floatValue;
+            if (inExponent && expValue != 0)
+            {
+                double eMult = 1.0;
+                double baseMult = 10.0;
+                int e = expValue;
+                while (e > 0)
+                {
+                    if (e % 2 != 0)
+                    {
+                        eMult *= baseMult;
+                    }
+                    baseMult *= baseMult;
+                    e /= 2;
+                }
+                if (expSign < 0)
+                {
+                    finalVal /= eMult;
+                }
+                else
+                {
+                    finalVal *= eMult;
+                }
+            }
+            atom->floatValue = sign * finalVal;
+            if (atom->floatValue == 0.0)
+            {
+                item->flags |= SCON_ITEM_FLAG_FALSY;
+            }
+        }
+        else
+        {
+            item->flags |= SCON_ITEM_FLAG_INT_SHAPED;
+            atom->integerValue = sign * (scon_int64_t)intValue;
+            if (atom->integerValue == 0)
+            {
+                item->flags |= SCON_ITEM_FLAG_FALSY;
+            }
+        }
     }
 }
 

@@ -17,6 +17,7 @@ int main(int argc, char **argv)
     
     int result = 0;
     int shouldStringify = 0;
+    int shouldDump = 0;
     const char* evalExpr = NULL;
     const char* filename = NULL;
 
@@ -38,6 +39,10 @@ int main(int argc, char **argv)
                 result = 1;
                 goto cleanup;
             }
+        }
+        else if (strcmp(argv[i], "-d") == 0)
+        {
+            shouldDump = 1;
         }
         else if (argv[i][0] == '-')
         {
@@ -68,13 +73,23 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
+    scon_handle_t ast;
     if (evalExpr != NULL)
     {
-        scon_parse(scon, evalExpr, strlen(evalExpr), "<eval>");
+        ast = scon_parse(scon, evalExpr, strlen(evalExpr), "<eval>");
     }
     else if (filename != NULL)
     {
-        scon_parse_file(scon, filename);
+        ast = scon_parse_file(scon, filename);
+    }
+
+    scon_builtin_register(scon, SCON_BUILTIN_ALL);
+
+    scon_function_t* function = scon_compile(scon, &ast);
+
+    if (shouldDump)
+    {
+        scon_disasm(scon, function, stdout);
     }
 
     /*if (shouldStringify)
