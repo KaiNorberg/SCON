@@ -6,4 +6,4 @@ function fib(n)
     end
 end
 
-print("Fibonacci of 30 is:", fib(30))
+print("Fibonacci of 35 is:", fib(35))

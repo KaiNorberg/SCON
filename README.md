@@ -18,7 +18,7 @@
 </div>
 <br>
 
-The SCON language provides a flexible, simple, efficient and Turing complete way to store and manipulate hierarchical data, all as a freestanding C99 header-only library.
+SCON is a functional, immutable, and S-expression based configuration and scripting language. It aims to provide a flexible, simple, efficient and Turing complete way to store and manipulate hierarchical data, all as a freestanding C99 header-only library.
 
 > SCON is currently very work in progress.
 
@@ -31,7 +31,6 @@ Included is an example of using SCON as a single header without linking:
 
 #define SCON_INLINE
 #include "scon.h"
-#include "scon_libc.h" // Provides scon_libc_callbacks() for using SCON with libc
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,35 +39,29 @@ char buffer[0x10000];
 
 int main(int argc, char **argv)
 {    
-    scon_callbacks_t callbacks = scon_libc_callbacks();
-    scon_t* scon = scon_new(&callbacks);
+    scon_t* scon = scon_new();
     if (scon == NULL) 
     {
         return 1;
     }
     
-    int result = 0;
-    if (!scon_parse_file(scon, "my_file.scon"))
+    if (SCON_CATCH(scon))
     {
-        printf(scon_error_get(scon));
-        result = 1;
-        goto cleanup;
+        printf("%s\n", scon_error_get(scon));
+        scon_free(scon);
+        return 1;
     }
 
-    if (!scon_eval(scon))
-    {
-        printf(scon_error_get(scon));
-        result = 1;
-        goto cleanup;
-    }
+    scon_handle_t ast = scon_parse_file(scon, "my_file.scon");
 
-    scon_stringify(scon, buffer, sizeof(buffer));
+    scon_function_t* function = scon_compile(scon, &ast);
+
+    scon_handle_t result = scon_eval(scon, function);
+    scon_stringify(scon, &result, buffer, sizeof(buffer));
     printf("%s\n", buffer);
 
-cleanup:
     scon_free(scon);
-
-    return result;
+    return 0;
 }
 ```
 
@@ -78,7 +71,6 @@ Included is another example of using SCON with linking where an additional imple
 // my_file.c
 
 #include "scon.h"
-#include "scon_libc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -104,25 +96,15 @@ For examples on how to write SCON, see the `bench/` and `tests/` directories.
 
 Included below are the results of example benchmarks comparing SCON with python 3.14.3 and Lua 5.4.8 using hyperfine, all benchmarks performed in Fedora 43 (6.19.11-200.fc43.x86_64).
 
-### Fib20
+### Fib35
 
-Benchmark to find the 20th Fibonacci number.
-
-| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
-|:---|---:|---:|---:|---:|
-| `python bench/fib20.py` | 15.0 ± 1.3 | 13.1 | 24.6 | 9.02 ± 2.35 |
-| `scon bench/fib20.scon` | 5.7 ± 0.6 | 4.9 | 8.8 | 3.44 ± 0.92 |
-| `lua bench/fib20.lua` | 1.7 ± 0.4 | 1.2 | 4.4 | 1.00 |
-
-### Fib30
-
-Benchmark to find the 30th Fibonacci number.
+Benchmark to find the 35th Fibonacci number.
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `python bench/fib30.py` | 119.2 ± 6.5 | 108.7 | 135.1 | 1.59 ± 0.13 |
-| `scon bench/fib30.scon` | 545.3 ± 10.1 | 531.2 | 566.9 | 7.28 ± 0.45 |
-| `lua bench/fib30.lua` | 74.9 ± 4.4 | 70.5 | 92.8 | 1.00 |
+| `scon bench/fib35.scon` | 689.4 ± 20.4 | 667.8 | 737.2 | 1.00 |
+| `lua bench/fib35.lua` | 808.1 ± 27.0 | 773.5 | 868.6 | 1.17 ± 0.05 |
+| `python bench/fib35.py` | 1133.3 ± 58.3 | 1062.1 | 1228.5 | 1.64 ± 0.10 |
 
 ## Tools
 
@@ -133,7 +115,8 @@ A simple CLI tool is provided to evaluate SCON files or expressions directly fro
 ```bash
 scon my_file.scon
 scon -e "(+ 1 2 3)"
-scon -s my_file.scon # output the final heirarchical data
+scon -d my_file.scon # output the compiled bytecode
+scon -s my_file.scon # silent mode, wont output the result of the evaluation
 ```
 
 #### Setup
@@ -298,8 +281,8 @@ falsy  = falsy_list | falsy_atom | zero ;
 falsy_list = nil ;
 falsy_atom = '""' | false ;
 
-true = "true" ;
-false = "false" ;
+true = "1" ;
+false = "0" ;
 
 nil = "(", { white_space }, ")" ;
 
@@ -351,8 +334,8 @@ The following constants are defined by default in the SCON environment:
 
 | Constant | Value |
 |----------|-------|
-| `true`   | `true` |
-| `false`  | `false` |
+| `true`   | `1` |
+| `false`  | `0` |
 | `nil`    | `()` |
 | `pi`     | `3.14159265358979323846` |
 | `e`      | `2.7182818284590452354` |
@@ -429,25 +412,25 @@ Returns `true` if the argument is falsy, otherwise `false`.
 
 #### Arithmetic
 
-**`(+ {item})`**
+**`(+ <number> {number}) -> <number>`**
 
 Returns the sum of all arguments. If only one argument is provided, returns its self.
 
-**`(- {item})`**
+**`(- <number> {number}) -> <number>`**
 
 Returns the result of subtracting the sum of all arguments from the first argument. If only one argument is provided, returns its negation.
 
-**`(* {item})`**
+**`(* <number> {number}) -> <number>`**
 
 Returns the product of all arguments. If only one argument is provided, returns its self.
 
-**`(/ {item})`**
+**`(/ <number> {number}) -> <number>`**
 
 Returns the result of dividing the first argument by the subsequent arguments. If only one argument is provided, returns its reciprocal.
 
 If a division by zero occurs, the evaluation fails.
 
-**`(% <item> <item>)`**
+**`(% <number> <number>) -> <number>`**
 
 Returns the remainder of dividing the first argument by the second (modulo).
 
@@ -457,43 +440,49 @@ If a division by zero occurs, the evaluation fails.
 
 #### Comparison
 
-**`(= <item> <item> {item} )`**
+**`(= <item> <item> {item}) -> <true|false>`**
 
 Returns `true` if all arguments are equal (numerically if all are numbers, otherwise by string comparison), otherwise `false`.
 
 Will stop evaluating arguments as soon as one is not equal.
 
-**`(== <item> <item> {item} )`**
+**`(!= <item> <item> {item}) -> <true|false>`**
+
+Returns `true` if any arguments are not equal, otherwise `false`.
+
+Will stop evaluating arguments as soon as one is equal.
+
+**`(== <item> <item> {item}) -> <true|false>`**
 
 Returns `true` if all arguments are exactly equal using string comparison, otherwise `false`.
 
 Will stop evaluating arguments as soon as one is not equal.
 
-**`(!= <item> <item> {item} )`**
+**`(!== <item> <item> {item}) -> <true|false>`**
 
-Returns `true` if any two adjacent arguments are not equal, otherwise `false`.
+Returns `true` if any arguments are not exactly equal using string comparison, otherwise `false`.
 
 Will stop evaluating arguments as soon as one is equal.
 
-**`(< <item> <item> {item})`**
+**`(< <item> <item> {item}) -> <true|false>`**
 
 Returns `true` if each argument is less than the next, otherwise `false`.
 
 Will stop evaluating arguments as soon as one is not less than the next.
 
-**`(<= <item> <item> {item})`**
+**`(<= <item> <item> {item}) -> <true|false>`**
 
 Returns `true` if each argument is less than or equal to the next, otherwise `false`.
 
 Will stop evaluating arguments as soon as one is not less than or equal to the next.
 
-**`(> <item> <item> {item})`**
+**`(> <item> <item> {item}) -> <true|false>`**
 
 Returns `true` if each argument is greater than the next, otherwise `false`.
 
 Will stop evaluating arguments as soon as one is not greater than the next.
 
-**`(>= <item> <item> {item})`**
+**`(>= <item> <item> {item}) -> <true|false>`**
 
 Returns `true` if each argument is greater than or equal to the next, otherwise `false`.
 
@@ -503,27 +492,27 @@ Will stop evaluating arguments as soon as one is not greater than or equal to th
 
 #### Bitwise
 
-**`(& <item> <item> {item})`**
+**`(& <integer> <integer> {integer}) -> <integer>`**
 
 Returns the bitwise AND of all arguments.
 
-**`(| <item> <item> {item})`**
+**`(| <integer> <integer> {integer}) -> <integer>`**
 
 Returns the bitwise OR of all arguments.
 
-**`(^ <item> <item> {item})`**
+**`(^ <integer> <integer> {integer}) -> <integer>`**
 
 Returns the bitwise XOR of all arguments.
 
-**`(~ <item>)`**
+**`(~ <integer>) -> <integer>`**
 
 Returns the bitwise NOT of the argument.
 
-**`(<< <val> <shift>)`**
+**`(<< <val: integer> <shift: integer>) -> <integer>`**
 
 Returns the value bitwise shifted left.
 
-**`(>> <val> <shift>)`**
+**`(>> <val: integer> <shift: integer>) -> <integer>`**
 
 Returns the value bitwise shifted right.
 
@@ -535,17 +524,13 @@ The builtins below are specified using a format similar to the EBNF format, taki
 
 #### Error Handling
 
-**`(assert <cond: item> <msg: item>)`**
+**`(assert <cond: item> <msg: item>) -> <cond: item>`**
 
 Evaluates `<cond>`. If it is falsy, the evaluation fails and throws an error with `<msg>` as the message.
 
-**`(throw <msg: item>)`**
+**`(throw <msg: atom>)`**
 
 Throws an error with the given atom being the error message.
-
-**`(catch <expression> <handler: lambda>) -> <item>`**
-
-Evaluates `<expression>`. If an error occurs during evaluation, the `<handler>` lambda is called with the error message as its argument, and its result is returned. If no error occurs, the result of `<expression>` is returned.
 
 ---
 
@@ -573,131 +558,25 @@ If no `callable` is specified, then items are sorted in ascending order.
 
 ---
 
-> Stuff below this line will need to have their documentation updated.
-
-#### Math & Trigonometry
-
-##### `(min <val1> <val2> ...)`
-
-Returns the smallest of all arguments.
-
-##### `(max <val1> <val2> ...)`
-
-Returns the largest of all arguments.
-
-##### `(clamp <val> <min> <max>)`
-
-Restricts a value to be between the given minimum and maximum.
-
-##### `(abs <val>)`
-
-Returns the absolute value of the argument.
-
-##### `(floor <val>)`
-
-Returns the largest integer less than or equal to the argument.
-
-##### `(ceil <val>)`
-
-Returns the smallest integer greater than or equal to the argument.
-
-##### `(round <val>)`
-
-Returns the argument rounded to the nearest integer.
-
-##### `(pow <base> <exp>)`
-
-Returns the base raised to the power of the exponent.
-
-##### `(log <val> [base])`
-
-Returns the natural logarithm of the argument, or the specified logarithm of the argument.
-
-##### `(sqrt <val>)`
-
-Returns the square root of the argument.
-
-##### `(sin <val>)`
-
-Returns the sine of the argument.
-
-##### `(cos <val>)`
-
-Returns the cosine of the argument.
-
-##### `(tan <val>)`
-
-Returns the tangent of the argument.
-
-##### `(asin <val>)`
-
-Returns the arcsine of the argument.
-
-##### `(acos <val>)`
-
-Returns the arccosine of the argument.
-
-##### `(atan <val>)`
-
-Returns the arctangent of the argument.
-
-##### `(atan2 <y> <x>)`
-
-Returns the arctangent of the quotient of its arguments.
-
-##### `(sinh <val>)`
-
-Returns the hyperbolic sine of the argument.
-
-##### `(cosh <val>)`
-
-Returns the hyperbolic cosine of the argument.
-
-##### `(tanh <val>)`
-
-Returns the hyperbolic tangent of the argument.
-
-##### `(asinh <val>)`
-
-Returns the inverse hyperbolic sine of the argument.
-
-##### `(acosh <val>)`
-
-Returns the inverse hyperbolic cosine of the argument.
-
-##### `(atanh <val>)`
-
-Returns the inverse hyperbolic tangent of the argument.
-
-##### `(rand <min> <max>)`
-
-Returns a random number between the given range.
-
-##### `(seed <val>)`
-
-Seeds the random number generator.
-
----
-
 #### System & Environment
 
-##### `(include <path>)`
+**`(include <path: string>) -> <item>`**
 
 Returns the result of evaluating the SCON file at the given path, variables defined in the included file will be available in the current scope.
 
-##### `(read-file <path>)`
+**`(read-file <path: string>) -> <string>`**
 
 Reads the file at the given path and returns its contents as a raw string atom without evaluating it.
 
-**`(print { item } )`**
+**`(print {item}) -> nil`**
 
 Prints the string representation of all arguments to the standard output.
 
-**`(println { item } )`**
+**`(println {item}) -> nil`**
 
 Prints the string representation of all arguments to the standard output, followed by a newline.
 
-##### `(format <format> <item1> <item2> ...)`
+**`(format <format: string> {item}) -> <string>`**
 
 Returns a formatted string using python-like formatting, where `{}` is used as a placeholder for the provided arguments.
 Positional arguments can be used to specify the index of the argument to be used, for example `{0}`.
@@ -707,111 +586,51 @@ Positional arguments can be used to specify the index of the argument to be used
 (format "{1} {0}" "World" "Hello") // Returns "Hello World"
 ```
 
-##### `(time)`
+**`(time) -> <number>`**
 
 Returns the current time in seconds since the Unix epoch.
 
-##### `(env <name>)`
+**`(env <name: string>) -> <string>`**
 
 Returns the value of the environment variable as an atom, or an empty string if it is not set.
 
 ---
 
-#### Type Checking & Introspection
-
-##### `(len <item>)`
-
-Returns the number of items in a list or the number of characters in an atom.
-
-##### `(atom? <item>)`
-
-Returns `true` if the item is an atom, otherwise `false`.
-
-##### `(int? <item>)`
-
-Returns `true` if the item is an integer shaped atom, otherwise `false`.
-
-##### `(float? <item>)`
-
-Returns `true` if the item is a float shaped atom, otherwise `false`.
-
-##### `(number? <item>)`
-
-Returns `true` if the item is an integer or float shaped atom, otherwise `false`.
-
-##### `(lambda? <item>)`
-
-Returns `true` if the item is a lambda, otherwise `false`.
-
-##### `(primitive? <item>)`
-
-Returns `true` if the item is a primitive, otherwise `false`.
-
-##### `(callable? <item>)`
-
-Returns `true` if the item is a lambda or primitive, otherwise `false`.
-
-##### `(list? <item>)`
-
-Returns `true` if the item is a list, otherwise `false`.
-
-##### `(empty? <item>)`
-
-Returns `true` if the item is an empty list `()`, or an empty atom `""`, otherwise `false`.
-
----
-
-#### Type Casting
-
-##### `(int <atom>)`
-
-Returns the integer shaped representation of the atom.
-
-##### `(float <atom>)`
-
-Returns the float shaped representation of the atom.
-
----
-
 #### Sequences (Lists & Strings)
 
-##### `(list <item1> <item2> ...)`
-
-Returns a new list with the provided items.
-
-##### `(concat <item1> <item2> ...)`
+**`(concat {item}) -> <item>`**
 
 Returns a new atom or list by concatenating all items, can also be utilized for "append" or "prepend" operations. If any of the items is a list, the result will be a list, otherwise it will be an atom.
 
-##### `(first <item>)`
+**`(first <item>) -> <atom>`**
 
 Returns the first item of a list or the first character of an atom as a new atom.
 
-##### `(last <item>)`
+**`(last <item>) -> <atom>`**
 
 Returns the last item of a list or the last character of an atom as a new atom.
 
-##### `(rest <item>)`
+**`(rest <item>) -> <item>`**
 
 Returns a new list containing all except the first item of a list or an atom containing all except the first character of an atom.
 
-##### `(init <item>)`
+**`(init <item>) -> <item>`**
 
 Returns a new list containing all but the last item of a list or an atom containing all but the last character of an atom.
 
-##### `(nth <item> <n>)`
+**`(nth <item> <n: number>) -> <atom>`**
 
 Returns the n-th item of a list or the n-th character of an atom as a new atom, if n is negative, it returns the n-th item from the end.
 
-##### `(index <item> <subitem>)`
+**`(index <item> <subitem: item>) -> <number>`**
 
 Returns the index of the first occurrence of the subitem in the item.
 
-##### `(reverse <item>)`
+**`(reverse <item>) -> <item>`**
 
 Returns a new list containing the items of `<item>` in reverse order or an atom containing the characters of `<item>` in reverse order.
 
-##### `(slice <item> <start> <end>)`
+**`(slice <item> <start: number> <end: number>) -> <item>`**
 
 Returns a sub-list or sub-atom of `<item>` starting from the `<start>` index to the `<end>` index.
 
@@ -819,66 +638,226 @@ Returns a sub-list or sub-atom of `<item>` starting from the `<start>` index to 
 
 #### String Manipulation
 
-##### `(starts-with? <item> <prefix>)`
+**`(starts-with? <item> <prefix: item>) -> <true|false>`**
 
 Returns `true` if the provided item is an atom that starts with the prefix or a list whose first item starts with the prefix, otherwise `false`.
 
-##### `(ends-with? <item> <suffix>)`
+**`(ends-with? <item> <suffix: item>) -> <true|false>`**
 
 Returns `true` if the provided item is an atom that ends with the suffix or a list whose first item ends with the suffix, otherwise `false`.
 
-##### `(contains? <item> <subitem>)`
+**`(contains? <item> <subitem: item>) -> <true|false>`**
 
 Returns `true` if the provided item is an atom that contains the subitem as a substring or a list that contains an item equal to the subitem, otherwise `false`.
 
-##### `(replace <item> <old> <new>)`
+**`(replace <item> <old: item> <new: item>) -> <item>`**
 
 Returns a new atom or list with all occurrences of `<old>` replaced by `<new>`.
 
-##### `(join <list> <separator>)`
+**`(join <list> <separator: string>) -> <string>`**
 
 Returns a new atom created by joining all items in `<list>` with `<separator>`.
 
-##### `(split <atom> <separator>)`
+**`(split <atom: string> <separator: string>) -> <list>`**
 
 Returns a new list by splitting `<atom>` into sub-atoms at each occurrence of `<separator>`.
 
-##### `(upper <atom>)`
+**`(upper <atom: string>) -> <string>`**
 
 Returns a new atom with all characters converted to uppercase.
 
-##### `(lower <atom>)`
+**`(lower <atom: string>) -> <string>`**
 
 Returns a new atom with all characters converted to lowercase.
 
-##### `(trim <atom>)`
+**`(trim <atom: string>) -> <string>`**
 
 Returns a new atom with leading and trailing whitespace removed.
 
 ---
 
+#### Type Checking & Introspection
+
+**`(len <item>) -> <number>`**
+
+Returns the number of items in a list or the number of characters in an atom.
+
+**`(atom? <item>) -> <true|false>`**
+
+Returns `true` if the item is an atom, otherwise `false`.
+
+**`(int? <item>) -> <true|false>`**
+
+Returns `true` if the item is an integer shaped atom, otherwise `false`.
+
+**`(float? <item>) -> <true|false>`**
+
+Returns `true` if the item is a float shaped atom, otherwise `false`.
+
+**`(number? <item>) -> <true|false>`**
+
+Returns `true` if the item is an integer or float shaped atom, otherwise `false`.
+
+**`(lambda? <item>) -> <true|false>`**
+
+Returns `true` if the item is a lambda, otherwise `false`.
+
+**`(primitive? <item>) -> <true|false>`**
+
+Returns `true` if the item is a primitive, otherwise `false`.
+
+**`(callable? <item>) -> <true|false>`**
+
+Returns `true` if the item is a lambda or primitive, otherwise `false`.
+
+**`(list? <item>) -> <true|false>`**
+
+Returns `true` if the item is a list, otherwise `false`.
+
+**`(empty? <item>) -> <true|false>`**
+
+Returns `true` if the item is an empty list `()`, or an empty atom `""`, otherwise `false`.
+
+---
+
+#### Type Casting
+
+**`(int <atom>) -> <number>`**
+
+Returns the integer shaped representation of the atom.
+
+**`(float <atom>) -> <number>`**
+
+Returns the float shaped representation of the atom.
+
+---
+
 #### Association Lists (Dictionaries)
 
-##### `(get <list> <name>)`
+**`(get <list> <name: item>) -> <item>`**
 
 Returns the second item of the first sub-list whose first item evaluates to `<name>`.
 
-##### `(keys <list>)`
+**`(keys <list>) -> <list>`**
 
 Returns a new list containing the first item of every sub-list.
 
-##### `(values <list>)`
+**`(values <list>) -> <list>`**
 
 Returns a new list containing all but the first item of every sub-list.
 
-##### `(assoc <list> <key> <value>)`
+**`(assoc <list> <key: item> <value: item>) -> <list>`**
 
 Returns a new list with the sub-list whose first item is `<key>` having the second item replaced or added with `<value>`.
 
-##### `(dissoc <list> <key>)`
+**`(dissoc <list> <key: item>) -> <list>`**
 
 Returns a new list with the sub-list whose first item is `<key>` removed.
 
-##### `(update <list> <key> <lambda>)`
+**`(update <list> <key: item> <lambda>) -> <list>`**
 
 Returns a new list with the sub-list whose first item is `<key>` having its second item updated by applying `<lambda>` to it.
+
+---
+
+#### Math & Trigonometry
+
+**`(min <val: number> {number}) -> <number>`**
+
+Returns the smallest of all arguments.
+
+**`(max <val: number> {number}) -> <number>`**
+
+Returns the largest of all arguments.
+
+**`(clamp <val: number> <min: number> <max: number>) -> <number>`**
+
+Restricts a value to be between the given minimum and maximum.
+
+**`(abs <val: number>) -> <number>`**
+
+Returns the absolute value of the argument.
+
+**`(floor <val: number>) -> <number>`**
+
+Returns the largest integer less than or equal to the argument.
+
+**`(ceil <val: number>) -> <number>`**
+
+Returns the smallest integer greater than or equal to the argument.
+
+**`(round <val: number>) -> <number>`**
+
+Returns the argument rounded to the nearest integer.
+
+**`(pow <base: number> <exp: number>) -> <number>`**
+
+Returns the base raised to the power of the exponent.
+
+**`(log <val: number> [base: number]) -> <number>`**
+
+Returns the natural logarithm of the argument, or the specified logarithm of the argument.
+
+**`(sqrt <val: number>) -> <number>`**
+
+Returns the square root of the argument.
+
+**`(sin <val: number>) -> <number>`**
+
+Returns the sine of the argument.
+
+**`(cos <val: number>) -> <number>`**
+
+Returns the cosine of the argument.
+
+**`(tan <val: number>) -> <number>`**
+
+Returns the tangent of the argument.
+
+**`(asin <val: number>) -> <number>`**
+
+Returns the arcsine of the argument.
+
+**`(acos <val: number>) -> <number>`**
+
+Returns the arccosine of the argument.
+
+**`(atan <val: number>) -> <number>`**
+
+Returns the arctangent of the argument.
+
+**`(atan2 <y: number> <x: number>) -> <number>`**
+
+Returns the arctangent of the quotient of its arguments.
+
+**`(sinh <val: number>) -> <number>`**
+
+Returns the hyperbolic sine of the argument.
+
+**`(cosh <val: number>) -> <number>`**
+
+Returns the hyperbolic cosine of the argument.
+
+**`(tanh <val: number>) -> <number>`**
+
+Returns the hyperbolic tangent of the argument.
+
+**`(asinh <val: number>) -> <number>`**
+
+Returns the inverse hyperbolic sine of the argument.
+
+**`(acosh <val: number>) -> <number>`**
+
+Returns the inverse hyperbolic cosine of the argument.
+
+**`(atanh <val: number>) -> <number>`**
+
+Returns the inverse hyperbolic tangent of the argument.
+
+**`(rand <min: number> <max: number>) -> <number>`**
+
+Returns a random number between the given range.
+
+**`(seed <val: number>)`**
+
+Seeds the random number generator.

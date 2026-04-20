@@ -17,9 +17,9 @@ SCON_API scon_t* scon_new(void)
     scon->gcThreshold = SCON_GC_THRESHOLD_INITIAL;
     scon_list_init(scon, &scon->retained);
 
-    scon->trueItem = SCON_CONTAINER_OF(scon_atom_lookup(scon, "true", 4), scon_item_t, atom);
-    scon->falseItem = SCON_CONTAINER_OF(scon_atom_lookup(scon, "false", 5), scon_item_t, atom);
-    scon->nilItem = SCON_CONTAINER_OF(scon_atom_lookup(scon, "nil", 3), scon_item_t, atom);
+    scon->trueItem = SCON_CONTAINER_OF(scon_atom_lookup_int(scon, 1), scon_item_t, atom);
+    scon->falseItem = SCON_CONTAINER_OF(scon_atom_lookup_int(scon, 0), scon_item_t, atom);
+    scon->nilItem = SCON_CONTAINER_OF(scon_list_new(scon, 0), scon_item_t, list);
     scon->piItem = SCON_CONTAINER_OF(scon_atom_lookup_float(scon, SCON_PI), scon_item_t, atom);
     scon->eItem = SCON_CONTAINER_OF(scon_atom_lookup_float(scon, SCON_E), scon_item_t, atom);
 
@@ -27,11 +27,11 @@ SCON_API scon_t* scon_new(void)
     scon->nilItem->flags |= SCON_ITEM_FLAG_FALSY;
     scon->trueItem->flags &= ~SCON_ITEM_FLAG_FALSY;
 
-    scon_gc_retain_item(scon, scon->trueItem);
-    scon_gc_retain_item(scon, scon->falseItem);
-    scon_gc_retain_item(scon, scon->nilItem);
-    scon_gc_retain_item(scon, scon->piItem);
-    scon_gc_retain_item(scon, scon->eItem);
+    scon_constant_register(scon, "true", scon->trueItem);
+    scon_constant_register(scon, "false", scon->falseItem);
+    scon_constant_register(scon, "nil", scon->nilItem);
+    scon_constant_register(scon, "pi", scon->piItem);
+    scon_constant_register(scon, "e", scon->eItem);
 
     scon_keyword_register_all(scon);
 
@@ -77,6 +77,24 @@ SCON_API void scon_free(scon_t* scon)
     }
 
     SCON_FREE(scon);
+}
+
+SCON_API void scon_constant_register(scon_t* scon, const char* name, scon_item_t* item)
+{
+    if (scon->constantCount >= SCON_CONSTANTS_MAX)
+    {
+        SCON_THROW(scon, "too many constants");
+    }
+
+    scon_size_t len = SCON_STRLEN(name);
+    scon_atom_t* atom = scon_atom_lookup(scon, name, len);
+
+    scon->constants[scon->constantCount].name = atom;
+    scon->constants[scon->constantCount].item = item;
+    scon->constantCount++;
+
+    scon_gc_retain_item(scon, SCON_CONTAINER_OF(atom, scon_item_t, atom));
+    scon_gc_retain_item(scon, item);
 }
 
 static void scon_error_set_char(char* buf, scon_size_t* len, scon_size_t max, char c)

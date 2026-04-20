@@ -2,6 +2,7 @@
 #define SCON_ITEM_H 1
 
 #include "atom.h"
+#include "closure.h"
 #include "defs.h"
 #include "function.h"
 #include "list.h"
@@ -59,6 +60,7 @@ typedef struct scon_item
         scon_atom_t atom;     ///< An atom.
         scon_list_t list;     ///< A list.
         scon_function_t function; ///< A function.
+        scon_closure_t closure;   ///< A closure.
         struct scon_item* free;   ///< The next free item in the free list.
     };
 } scon_item_t;

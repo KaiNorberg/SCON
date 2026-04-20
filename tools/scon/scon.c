@@ -16,16 +16,16 @@ int main(int argc, char **argv)
     }
     
     int result = 0;
-    int shouldStringify = 0;
+    int isSilent = 0;
     int shouldDump = 0;
     const char* evalExpr = NULL;
     const char* filename = NULL;
 
     for (int i = 1; i < argc; ++i)
     {
-        if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--stringify") == 0)
+        if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--silent") == 0)
         {
-            shouldStringify = 1;
+            isSilent = 1;
         }
         else if (strcmp(argv[i], "-e") == 0)
         {
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "Usage: %s [options] <filename>\n", argv[0]);
         fprintf(stderr, "Options:\n");
         fprintf(stderr, "  -e <expr>      Evaluate the given expression\n");
-        fprintf(stderr, "  -s, --stringify Print the stringified evaluation result\n");
+        fprintf(stderr, "  -s, --silent   Do not print the evaluation result\n");
         result = 1;
         goto cleanup;
     }
@@ -76,7 +76,12 @@ int main(int argc, char **argv)
     scon_handle_t ast;
     if (evalExpr != NULL)
     {
-        ast = scon_parse(scon, evalExpr, strlen(evalExpr), "<eval>");
+        char* exprBuf = malloc(strlen(evalExpr) + 1);
+        if (exprBuf != NULL) 
+        {
+            strcpy(exprBuf, evalExpr);
+            ast = scon_parse(scon, exprBuf, strlen(exprBuf), "<eval>");
+        }
     }
     else if (filename != NULL)
     {
@@ -91,12 +96,15 @@ int main(int argc, char **argv)
     {
         scon_disasm(scon, function, stdout);
     }
-
-    /*if (shouldStringify)
+    else
     {
-        scon_stringify(scon, buffer, sizeof(buffer));
-        printf("%s\n", buffer);
-    }*/
+        scon_handle_t result = scon_eval(scon, function);
+        if (!isSilent)
+        {
+            scon_stringify(scon, &result, buffer, sizeof(buffer));
+            printf("%s\n", buffer);
+        }
+    }
 
 cleanup:
     scon_free(scon);

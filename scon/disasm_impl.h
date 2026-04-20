@@ -11,7 +11,6 @@ static void scon_disasm_internal(scon_t* scon, scon_function_t* function, scon_f
         return;
     }
 
-
     SCON_FPRINTF(out, "================================================================================\n");
     SCON_FPRINTF(out, "Function: %p\n", (void*)function);
     SCON_FPRINTF(out, "Arity: %u\n", (unsigned int)function->arity);
@@ -38,44 +37,47 @@ static void scon_disasm_internal(scon_t* scon, scon_function_t* function, scon_f
         case SCON_OPCODE_JMP:
             opName = "JMP";
             break;
-        case SCON_OPCODE_JMP_FALSE:
-            opName = "JMP_FALSE";
+        case SCON_OPCODE_JMPF:
+            opName = "JMPF";
             break;
-        case SCON_OPCODE_JMP_TRUE:
-            opName = "JMP_TRUE";
+        case SCON_OPCODE_JMPT:
+            opName = "JMPT";
             break;
         case SCON_OPCODE_CALL:
             opName = "CALL";
             break;
-        case SCON_OPCODE_RETURN:
-            opName = "RETURN";
+        case SCON_OPCODE_RET:
+            opName = "RET";
             break;
         case SCON_OPCODE_APPEND:
             opName = "APPEND";
             break;
-        case SCON_OPCODE_MOVE:
-            opName = "MOVE";
+        case SCON_OPCODE_MOV:
+            opName = "MOV";
             break;
-        case SCON_OPCODE_EQUAL:
-            opName = "EQUAL";
+        case SCON_OPCODE_EQ:
+            opName = "EQ";
             break;
-        case SCON_OPCODE_NOT_EQUAL:
-            opName = "NOT_EQUAL";
+        case SCON_OPCODE_NEQ:
+            opName = "NEQ";
             break;
-        case SCON_OPCODE_STRICT_EQUAL:
-            opName = "STRICT_EQ";
+        case SCON_OPCODE_SEQ:
+            opName = "SEQ";
             break;
-        case SCON_OPCODE_LESS:
-            opName = "LESS";
+        case SCON_OPCODE_SNEQ:
+            opName = "SNEQ";
             break;
-        case SCON_OPCODE_LESS_EQUAL:
-            opName = "LESS_EQ";
+        case SCON_OPCODE_LT:
+            opName = "LT";
             break;
-        case SCON_OPCODE_GREATER:
-            opName = "GREATER";
+        case SCON_OPCODE_LE:
+            opName = "LE";
             break;
-        case SCON_OPCODE_GREATER_EQUAL:
-            opName = "GREATER_EQ";
+        case SCON_OPCODE_GT:
+            opName = "GT";
+            break;
+        case SCON_OPCODE_GE:
+            opName = "GE";
             break;
         case SCON_OPCODE_ADD:
             opName = "ADD";
@@ -92,23 +94,23 @@ static void scon_disasm_internal(scon_t* scon, scon_function_t* function, scon_f
         case SCON_OPCODE_MOD:
             opName = "MOD";
             break;
-        case SCON_OPCODE_BIT_AND:
-            opName = "BIT_AND";
+        case SCON_OPCODE_BAND:
+            opName = "BAND";
             break;
-        case SCON_OPCODE_BIT_OR:
-            opName = "BIT_OR";
+        case SCON_OPCODE_BOR:
+            opName = "BOR";
             break;
-        case SCON_OPCODE_BIT_XOR:
-            opName = "BIT_XOR";
+        case SCON_OPCODE_BXOR:
+            opName = "BXOR";
             break;
-        case SCON_OPCODE_BIT_NOT:
-            opName = "BIT_NOT";
+        case SCON_OPCODE_BNOT:
+            opName = "BNOT";
             break;
-        case SCON_OPCODE_BIT_SHL:
-            opName = "BIT_SHL";
+        case SCON_OPCODE_SHL:
+            opName = "SHL";
             break;
-        case SCON_OPCODE_BIT_SHR:
-            opName = "BIT_SHR";
+        case SCON_OPCODE_SHR:
+            opName = "SHR";
             break;
         case SCON_OPCODE_CLOSURE:
             opName = "CLOSURE";
@@ -130,20 +132,20 @@ static void scon_disasm_internal(scon_t* scon, scon_function_t* function, scon_f
         case SCON_OPCODE_JMP:
             SCON_FPRINTF(out, "%-6d %-6s %-6s", sbx, "", "");
             break;
-        case SCON_OPCODE_JMP_FALSE:
-        case SCON_OPCODE_JMP_TRUE:
+        case SCON_OPCODE_JMPF:
+        case SCON_OPCODE_JMPT:
             SCON_FPRINTF(out, "R%-5u %-6d %-6s", a, sbx, "");
             break;
         case SCON_OPCODE_CALL:
         case SCON_OPCODE_CAPTURE:
             SCON_FPRINTF(out, "R%-5u %-6u %c%-5u", a, b, isConst ? 'K' : 'R', c);
             break;
-        case SCON_OPCODE_RETURN:
+        case SCON_OPCODE_RET:
             SCON_FPRINTF(out, "%c%-5u %-6s %-6s", isConst ? 'K' : 'R', c, "", "");
             break;
         case SCON_OPCODE_APPEND:
-        case SCON_OPCODE_MOVE:
-        case SCON_OPCODE_BIT_NOT:
+        case SCON_OPCODE_MOV:
+        case SCON_OPCODE_BNOT:
             SCON_FPRINTF(out, "R%-5u %-6s %c%-5u", a, "", isConst ? 'K' : 'R', c);
             break;
         case SCON_OPCODE_CLOSURE:
@@ -160,7 +162,7 @@ static void scon_disasm_internal(scon_t* scon, scon_function_t* function, scon_f
             hasInlineConst = SCON_TRUE;
         }
 
-        if (op == SCON_OPCODE_JMP || op == SCON_OPCODE_JMP_FALSE || op == SCON_OPCODE_JMP_TRUE)
+        if (op == SCON_OPCODE_JMP || op == SCON_OPCODE_JMPF || op == SCON_OPCODE_JMPT)
         {
             int target = (int)i + 1 + sbx;
             SCON_FPRINTF(out, " ; -> [%04u]\n", target);

@@ -1,9 +1,9 @@
 #ifndef SCON_NATIVE_H
 #define SCON_NATIVE_H 1
 
-#include "core.h"
 #include "defs.h"
-#include "handle.h"
+
+struct scon;
 
 /**
  * @brief SCON native function registration.
@@ -23,7 +23,7 @@
  * @param argv The array of arguments.
  * @return The result of the function.
  */
-typedef scon_handle_t (*scon_native_fn)(scon_t* scon, scon_size_t argc, scon_handle_t* argv);
+typedef scon_handle_t (*scon_native_fn)(struct scon* scon, scon_size_t argc, scon_handle_t* argv);
 
 /**
  * @brief Native function definition structure.
@@ -41,7 +41,7 @@ typedef struct
  * @param array An array of native function definitions.
  * @param count The number of functions in the array.
  */
-SCON_API void scon_native_register(scon_t* scon, scon_native_t* array, scon_size_t count);
+SCON_API void scon_native_register(struct scon* scon, scon_native_t* array, scon_size_t count);
 
 /** @} */
 

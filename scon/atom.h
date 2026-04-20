@@ -3,6 +3,7 @@
 
 #include "defs.h"
 #include "keyword.h"
+#include "native.h"
 
 struct scon;
 
@@ -43,7 +44,8 @@ typedef struct scon_atom
     union {
         scon_int64_t integerValue; ///< Pre-computed integer value, item must have `SCON_ITEM_FLAG_INT_SHAPED`.
         scon_float_t floatValue;   ///< Pre-computed float value, item must have `SCON_ITEM_FLAG_FLOAT_SHAPED`.
-        scon_keyword_t keyword;    ///< Pre-computed keyword, item must have `SCON_ITEM_FLAG_KEYWORD`.
+        scon_keyword_t keyword;    ///< Cached keyword, item must have `SCON_ITEM_FLAG_KEYWORD`.
+        scon_native_fn native;     ///< Native function, item must have `SCON_ITEM_FLAG_NATIVE`.
     };
     struct scon_atom* next; ///< Pointer to the next atom in the hash map.
 } scon_atom_t;

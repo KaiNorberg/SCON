@@ -24,8 +24,6 @@ struct scon_atom;
  * @{
  */
 
-#define SCON_FUNCTION_SMALL_MAX 4 ///< Maximum number of instructions in a small function.
-
 /**
  * @brief SCON constant slot type.
  * @typedef scon_const_slot_type_t
@@ -77,14 +75,14 @@ typedef scon_uint16_t scon_const_t;
  */
 typedef struct scon_function
 {
-    scon_uint32_t instCount;                    ///< Number of instructions.
-    scon_uint32_t instCapacity;                 ///< Capacity of the instruction array.
-    scon_inst_t* insts;                         ///< An array of instructions.
-    scon_const_slot_t* constants;               ///< The array of constant slots forming the constant template.
-    scon_uint16_t constantCount;                ///< Number of constants.
-    scon_uint16_t constantCapacity;             ///< Capacity of the constant array.
-    scon_uint8_t arity;                         ///< The number of arguments the function expects.
-    scon_inst_t small[SCON_FUNCTION_SMALL_MAX]; ///< Small function instructions.
+    scon_uint32_t instCount;        ///< Number of instructions.
+    scon_uint32_t instCapacity;     ///< Capacity of the instruction array.
+    scon_inst_t* insts;             ///< An array of instructions.
+    scon_const_slot_t* constants;   ///< The array of constant slots forming the constant template.
+    scon_uint16_t constantCount;    ///< Number of constants.
+    scon_uint16_t constantCapacity; ///< Capacity of the constant array.
+    scon_uint16_t registerCount;    ///< The number of registers the function uses.
+    scon_uint8_t arity;             ///< The number of arguments the function expects.
 } scon_function_t;
 
 /**
@@ -142,51 +140,6 @@ static inline void scon_function_emit(struct scon* scon, scon_function_t* func, 
  * @return The index of the constant in the constant template.
  */
 SCON_API scon_const_t scon_function_lookup_constant(struct scon* scon, scon_function_t* func, scon_const_slot_t* slot);
-
-/**
- * @brief Get the index of the true constant in a function's constant pool, adding it if it doesn't exist.
- *
- * @param scon The SCON structure.
- * @param func The function.
- * @return The index of the true constant in the constant pool.
- */
-SCON_API scon_const_t scon_const_true(struct scon* scon, scon_function_t* func);
-
-/**
- * @brief Get the index of the false constant in a function's constant pool, adding it if it doesn't exist.
- *
- * @param scon The SCON structure.
- * @param func The function.
- * @return The index of the false constant in the constant pool.
- */
-SCON_API scon_const_t scon_const_false(struct scon* scon, scon_function_t* func);
-
-/**
- * @brief Get the index of the nil constant in a function's constant pool, adding it if it doesn't exist.
- *
- * @param scon The SCON structure.
- * @param func The function.
- * @return The index of the nil constant in the constant pool.
- */
-SCON_API scon_const_t scon_const_nil(struct scon* scon, scon_function_t* func);
-
-/**
- * @brief Get the index of the pi constant in a function's constant pool, adding it if it doesn't exist.
- *
- * @param scon The SCON structure.
- * @param func The function.
- * @return The index of the pi constant in the constant pool.
- */
-SCON_API scon_const_t scon_const_pi(struct scon* scon, scon_function_t* func);
-
-/**
- * @brief Get the index of the e constant in a function's constant pool, adding it if it doesn't exist.
- *
- * @param scon The SCON structure.
- * @param func The function.
- * @return The index of the e constant in the constant pool.
- */
-SCON_API scon_const_t scon_const_e(struct scon* scon, scon_function_t* func);
 
 /** @} */
 

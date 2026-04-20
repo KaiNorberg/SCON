@@ -7,11 +7,24 @@ struct scon_item;
 #include "item.h"
 #include "list.h"
 
-#define SCON_ERROR_MAX_LEN 512
-#define SCON_BUCKETS_MAX 512
+/**
+ * @brief Core SCON definitions and structures.
+ * @defgroup core
+ * @file core.h
+ *
+ * @{
+ */
 
-#define SCON_GC_THRESHOLD_INITIAL 1024
+#define SCON_ERROR_MAX_LEN 512 ///< Maximum length of an error string.
+#define SCON_BUCKETS_MAX 512   ///< Amount of buckets used for intering atoms.
+#define SCON_CONSTANTS_MAX 64  ///< Maximum amount of predefined constants.
 
+#define SCON_GC_THRESHOLD_INITIAL 1024 ///< Initial blocks allocated threshold for garbage collection.
+
+/**
+ * @brief SCON input structure.
+ * @struct scon_input
+ */
 typedef struct scon_input
 {
     struct scon_input* prev;
@@ -19,6 +32,16 @@ typedef struct scon_input
     scon_size_t length;
     char path[SCON_PATH_MAX];
 } scon_input_t;
+
+/**
+ * @brief SCON constant structure.
+ * @struct scon_constant_t
+ */
+typedef struct scon_constant
+{
+    struct scon_atom* name;
+    struct scon_item* item;
+} scon_constant_t;
 
 /**
  * @brief SCON state structure.
@@ -41,6 +64,8 @@ typedef struct scon
     scon_item_t* piItem;
     scon_item_t* eItem;
     struct scon_atom* atomBuckets[SCON_BUCKETS_MAX];
+    scon_constant_t constants[SCON_CONSTANTS_MAX];
+    scon_uint32_t constantCount;
     char error[SCON_ERROR_MAX_LEN];
 } scon_t;
 
@@ -53,13 +78,20 @@ typedef struct scon
 SCON_API scon_t* scon_new(void);
 
 /**
- * @brief Free a the SCON structure.
- *
- * @note Will not free the input buffer.
+ * @brief Free the SCON structure.
  *
  * @param scon Pointer to the SCON structure to free.
  */
 SCON_API void scon_free(scon_t* scon);
+
+/**
+ * @brief Register a constant in a SCON structure.
+ *
+ * @param scon Pointer to the SCON structure.
+ * @param name The name of the constant.
+ * @param item The item associated with the constant.
+ */
+SCON_API void scon_constant_register(scon_t* scon, const char* name, struct scon_item* item);
 
 /**
  * @brief Set the error message for a SCON structure.
@@ -190,5 +222,7 @@ SCON_API const char* scon_input_get_path(scon_t* scon);
  * @return A pointer to the newly created input structure.
  */
 SCON_API scon_input_t* scon_input_new(scon_t* scon, const char* buffer, scon_size_t length, const char* path);
+
+/** @} */
 
 #endif

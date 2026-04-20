@@ -26,39 +26,40 @@ struct scon_expr;
  */
 typedef enum
 {
-    SCON_KEYWORD_NONE = 0,      ///< None
-    SCON_KEYWORD_QUOTE,         ///< Quote
-    SCON_KEYWORD_LIST,          ///< List
-    SCON_KEYWORD_DO,            ///< Do
-    SCON_KEYWORD_LAMBDA,        ///< Lambda
-    SCON_KEYWORD_DEF,           ///< Def
-    SCON_KEYWORD_LET,           ///< Let
-    SCON_KEYWORD_IF,            ///< If
-    SCON_KEYWORD_WHEN,          ///< When
-    SCON_KEYWORD_UNLESS,        ///< Unless
-    SCON_KEYWORD_COND,          ///< Cond
-    SCON_KEYWORD_AND,           ///< And
-    SCON_KEYWORD_OR,            ///< Or
-    SCON_KEYWORD_NOT,           ///< Not
-    SCON_KEYWORD_ADD,           ///< Add
-    SCON_KEYWORD_SUB,           ///< Sub
-    SCON_KEYWORD_MUL,           ///< Mul
-    SCON_KEYWORD_DIV,           ///< Div
-    SCON_KEYWORD_MOD,           ///< Mod
-    SCON_KEYWORD_EQUAL,         ///< Equal
-    SCON_KEYWORD_STRICT_EQUAL,  ///< Strict Equal
-    SCON_KEYWORD_NOT_EQUAL,     ///< Not Equal
-    SCON_KEYWORD_LESS,          ///< Less
-    SCON_KEYWORD_LESS_EQUAL,    ///< Less Equal
-    SCON_KEYWORD_GREATER,       ///< Greater
-    SCON_KEYWORD_GREATER_EQUAL, ///< Greater Equal
-    SCON_KEYWORD_BIT_AND,       ///< Bitwise And
-    SCON_KEYWORD_BIT_OR,        ///< Bitwise Or
-    SCON_KEYWORD_BIT_XOR,       ///< Bitwise Xor
-    SCON_KEYWORD_BIT_NOT,       ///< Bitwise Not
-    SCON_KEYWORD_BIT_SHL,       ///< Bitwise Shift Left
-    SCON_KEYWORD_BIT_SHR,       ///< Bitwise Shift Right
-    SCON_KEYWORD_MAX            ///< The amount of keywords
+    SCON_KEYWORD_NONE = 0, ///< None
+    SCON_KEYWORD_QUOTE,    ///< Quote
+    SCON_KEYWORD_LIST,     ///< List
+    SCON_KEYWORD_DO,       ///< Do
+    SCON_KEYWORD_LAMBDA,   ///< Lambda
+    SCON_KEYWORD_DEF,      ///< Def
+    SCON_KEYWORD_LET,      ///< Let
+    SCON_KEYWORD_IF,       ///< If
+    SCON_KEYWORD_WHEN,     ///< When
+    SCON_KEYWORD_UNLESS,   ///< Unless
+    SCON_KEYWORD_COND,     ///< Cond
+    SCON_KEYWORD_AND,      ///< And
+    SCON_KEYWORD_OR,       ///< Or
+    SCON_KEYWORD_NOT,      ///< Not
+    SCON_KEYWORD_ADD,      ///< Add
+    SCON_KEYWORD_SUB,      ///< Sub
+    SCON_KEYWORD_MUL,      ///< Mul
+    SCON_KEYWORD_DIV,      ///< Div
+    SCON_KEYWORD_MOD,      ///< Mod
+    SCON_KEYWORD_EQ,       ///< Equal
+    SCON_KEYWORD_NEQ,      ///< Not Equal
+    SCON_KEYWORD_SEQ,      ///< Strict Equal
+    SCON_KEYWORD_SNEQ,     ///< Strict Not Equal
+    SCON_KEYWORD_LT,       ///< Less
+    SCON_KEYWORD_LE,       ///< Less Equal
+    SCON_KEYWORD_GT,       ///< Greater
+    SCON_KEYWORD_GE,       ///< Greater Equal
+    SCON_KEYWORD_BAND,     ///< Bitwise And
+    SCON_KEYWORD_BOR,      ///< Bitwise Or
+    SCON_KEYWORD_BXOR,     ///< Bitwise Xor
+    SCON_KEYWORD_BNOT,     ///< Bitwise Not
+    SCON_KEYWORD_SHL,      ///< Bitwise Shift Left
+    SCON_KEYWORD_SHR,      ///< Bitwise Shift Right
+    SCON_KEYWORD_MAX       ///< The amount of keywords
 } scon_keyword_t;
 
 /**

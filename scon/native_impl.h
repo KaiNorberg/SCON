@@ -18,7 +18,7 @@ SCON_API void scon_native_register(scon_t* scon, scon_native_t* array, scon_size
         scon_item_t* item = SCON_CONTAINER_OF(atom, scon_item_t, atom);
 
         item->flags |= SCON_ITEM_FLAG_NATIVE;
-        atom->integerValue = (scon_int64_t)(uintptr_t)native->fn;
+        atom->native = native->fn;
 
         scon_gc_retain_item(scon, item);
     }

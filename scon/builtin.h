@@ -24,7 +24,8 @@ struct scon;
 typedef enum
 {
     SCON_BUILTIN_ERROR = (1 << 0),
-    SCON_BUILTIN_SYSTEM = (1 << 1),
+    SCON_BUILTIN_HIGHER_ORDER = (1 << 1),
+    SCON_BUILTIN_SYSTEM = (1 << 2),
     SCON_BUILTIN_ALL = 0xFFFF,
 } scon_builtins_t;
 

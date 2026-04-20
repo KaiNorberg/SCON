@@ -39,6 +39,7 @@ typedef FILE* scon_file_t;
 #define SCON_FREAD(_ptr, _size, _nmemb, _file) fread(_ptr, _size, _nmemb, _file)
 #define SCON_FWRITE(_ptr, _size, _nmemb, _file) fwrite(_ptr, _size, _nmemb, _file)
 #define SCON_FPRINTF fprintf
+#define SCON_SNPRINTF snprintf
 #define SCON_STDIN stdin
 #define SCON_STDOUT stdout
 #define SCON_STDERR stderr
@@ -57,10 +58,14 @@ typedef double scon_float_t;
 
 #if defined(__GNUC__) || defined(__clang__)
 #define SCON_NORETURN __attribute__((noreturn))
+#define SCON_ALWAYS_INLINE __attribute__((always_inline))
+#define SCON_HAS_COMPUTED_GOTO
 #elif defined(_MSC_VER)
 #define SCON_NORETURN __declspec(noreturn)
+#define SCON_ALWAYS_INLINE __forceinline
 #else
 #define SCON_NORETURN
+#define SCON_ALWAYS_INLINE
 #endif
 
 /**
@@ -120,5 +125,10 @@ typedef enum
  * @param _member The name of the member.
  */
 #define SCON_CONTAINER_OF(_ptr, _type, _member) ((_type*)((char*)(_ptr) - (scon_size_t) & ((_type*)0)->_member))
+
+/**
+ * @brief SCON handle type.
+ */
+typedef scon_uint64_t scon_handle_t;
 
 #endif

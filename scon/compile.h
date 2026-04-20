@@ -65,6 +65,36 @@ typedef struct scon_expr
 #define SCON_EXPR_TARGET(_reg) ((scon_expr_t){.mode = SCON_MODE_TARGET, .reg = (_reg)})
 
 /**
+ * @brief Create a `SCON_MODE_CONST` mode expression for the true constant.
+ *
+ * @param _scon The SCON structure.
+ * @param _func The function.
+ */
+#define SCON_EXPR_TRUE(_scon, _func) \
+    SCON_EXPR_CONST(scon_function_lookup_constant((_scon), (_func), \
+        &(scon_const_slot_t){.type = SCON_CONST_SLOT_ITEM, .item = (_scon)->trueItem}))
+
+/**
+ * @brief Create a `SCON_MODE_CONST` mode expression for the false constant.
+ *
+ * @param _scon The SCON structure.
+ * @param _func The function.
+ */
+#define SCON_EXPR_FALSE(_scon, _func) \
+    SCON_EXPR_CONST(scon_function_lookup_constant((_scon), (_func), \
+        &(scon_const_slot_t){.type = SCON_CONST_SLOT_ITEM, .item = (_scon)->falseItem}))
+
+/**
+ * @brief Create a `SCON_MODE_CONST` mode expression for the nil constant.
+ *
+ * @param _scon The SCON structure.
+ * @param _func The function.
+ */
+#define SCON_EXPR_NIL(_scon, _func) \
+    SCON_EXPR_CONST(scon_function_lookup_constant((_scon), (_func), \
+        &(scon_const_slot_t){.type = SCON_CONST_SLOT_ITEM, .item = (_scon)->nilItem}))
+
+/**
  * @brief SCON local structure.
  * @struct scon_local_t
  */
@@ -96,7 +126,15 @@ typedef struct scon_compiler
  * @param _compiler The compiler instance.
  * @param _reg The register to set as allocated.
  */
-#define SCON_REG_SET_ALLOCATED(_compiler, _reg) ((_compiler)->regAlloc[(_reg) / 64] |= (1ULL << ((_reg) % 64)))
+#define SCON_REG_SET_ALLOCATED(_compiler, _reg) \
+    do \
+    { \
+        (_compiler)->regAlloc[(_reg) / 64] |= (1ULL << ((_reg) % 64)); \
+        if ((_reg) + 1 > (_compiler)->function->registerCount) \
+        { \
+            (_compiler)->function->registerCount = (_reg) + 1; \
+        } \
+    } while (0)
 
 /**
  * @brief Clear a register's allocation status.
@@ -121,6 +159,14 @@ typedef struct scon_compiler
  * @param _reg The register to set as a local.
  */
 #define SCON_REG_SET_LOCAL(_compiler, _reg) ((_compiler)->regLocal[(_reg) / 64] |= (1ULL << ((_reg) % 64)))
+
+/**
+ * @brief Clear a register's local status.
+ *
+ * @param _compiler The compiler instance.
+ * @param _reg The register to clear.
+ */
+#define SCON_REG_CLEAR_LOCAL(_compiler, _reg) ((_compiler)->regLocal[(_reg) / 64] &= ~(1ULL << ((_reg) % 64)))
 
 /**
  * @brief Check if a register is a local.
@@ -324,14 +370,15 @@ static inline void scon_compile_call(scon_compiler_t* compiler, scon_reg_t targe
  */
 static inline void scon_compile_move(scon_compiler_t* compiler, scon_reg_t target, scon_expr_t* expr)
 {
-    scon_compile_inst(compiler, SCON_INST_MAKE_ABC((scon_opcode_t)(SCON_OPCODE_MOVE | expr->mode), target, 0, expr->value));
+    scon_compile_inst(compiler,
+        SCON_INST_MAKE_ABC((scon_opcode_t)(SCON_OPCODE_MOV | expr->mode), target, 0, expr->value));
 }
 
 /**
  * @brief Emits a jump instruction without a target offset.
  *
  * @param compiler The compiler context.
- * @param op The jump opcode (e.g., `SCON_OPCODE_JMP`, `SCON_OPCODE_JMP_TRUE`, `SCON_OPCODE_JMP_FALSE`).
+ * @param op The jump opcode (e.g., `SCON_OPCODE_JMP`, `SCON_OPCODE_JMPT`, `SCON_OPCODE_JMPF`).
  * @param a The register to test (if not `SCON_OPCODE_JMP`).
  * @return The index of the emitted instruction to be patched later.
  */
@@ -384,13 +431,13 @@ static inline void scon_compile_return(scon_compiler_t* compiler, scon_expr_t* e
 {
     if (expr->mode == SCON_MODE_NONE)
     {
+        scon_expr_t nilExpr = SCON_EXPR_NIL(compiler->scon, compiler->function);
         scon_function_emit(compiler->scon, compiler->function,
-            SCON_INST_MAKE_ABC(SCON_OPCODE_RETURN | SCON_MODE_CONST, 0, 0,
-                scon_const_nil(compiler->scon, compiler->function)));
+            SCON_INST_MAKE_ABC(SCON_OPCODE_RET | SCON_MODE_CONST, 0, 0, nilExpr.constant));
         return;
     }
 
-    scon_compile_inst(compiler, SCON_INST_MAKE_ABC((scon_opcode_t)(SCON_OPCODE_RETURN | expr->mode), 0, 0, expr->value));
+    scon_compile_inst(compiler, SCON_INST_MAKE_ABC((scon_opcode_t)(SCON_OPCODE_RET | expr->mode), 0, 0, expr->value));
 }
 
 /**
@@ -402,20 +449,21 @@ static inline void scon_compile_return(scon_compiler_t* compiler, scon_expr_t* e
  */
 static inline void scon_compile_append(scon_compiler_t* compiler, scon_reg_t target, scon_expr_t* expr)
 {
-    scon_compile_inst(compiler, SCON_INST_MAKE_ABC((scon_opcode_t)(SCON_OPCODE_APPEND | expr->mode), target, 0, expr->value));
+    scon_compile_inst(compiler,
+        SCON_INST_MAKE_ABC((scon_opcode_t)(SCON_OPCODE_APPEND | expr->mode), target, 0, expr->value));
 }
 
 /**
  * @brief Emits a comparison, arithmetic or bitwise instruction.
  *
  * @param compiler The compiler context.
- * @param opBase The base opcode (without a mode) for the operation (e.g, `SCON_OPCODE_ADD`, `SCON_OPCODE_EQUAL`).
+ * @param opBase The base opcode (without a mode) for the operation (e.g, `SCON_OPCODE_ADD`, `SCON_OPCODE_EQ`).
  * @param target The target register.
  * @param left The left operand register.
  * @param right The right operand expression.
  */
-static inline void scon_compile_binary(scon_compiler_t* compiler, scon_opcode_t opBase, scon_reg_t target, scon_reg_t left,
-    scon_expr_t* right)
+static inline void scon_compile_binary(scon_compiler_t* compiler, scon_opcode_t opBase, scon_reg_t target,
+    scon_reg_t left, scon_expr_t* right)
 {
     scon_compile_inst(compiler, SCON_INST_MAKE_ABC((scon_opcode_t)(opBase | right->mode), target, left, right->value));
 }

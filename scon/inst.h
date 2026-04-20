@@ -37,9 +37,9 @@ typedef enum
 {
     SCON_MODE_NONE = -1,      ///< Invalid mode.
     SCON_MODE_TARGET = -2,    ///< Compilation target hint mode.
-    SCON_MODE_SELF = -3,  ///< Only used by `scon_keyword_lambda` to handle recursive lambdas.
+    SCON_MODE_SELF = -3,      ///< Only used by `scon_keyword_lambda` to handle recursive lambdas.
     SCON_MODE_REG = 0,        ///< Register operand mode.
-    SCON_MODE_CONST = 1 << 6, ///< Constant operand mode.
+    SCON_MODE_CONST = 1 << 5, ///< Constant operand mode.
 } scon_mode_t;
 
 /**
@@ -49,34 +49,35 @@ typedef enum
 typedef enum
 {
     SCON_OPCODE_NONE,
-    SCON_OPCODE_LIST,          ///< (A) Create a new list and store it in R(A).
-    SCON_OPCODE_JMP,           ///< (sBx) Unconditional jump by relative offset sBx.
-    SCON_OPCODE_JMP_FALSE,     ///< (A, sBx) Jump by sBx if R(A) is falsy.
-    SCON_OPCODE_JMP_TRUE,      ///< (A, sBx) Jump by sBx if R(A) is truthy.
-    SCON_OPCODE_CALL,          ///< (A, B, C) Call callable in R/K(C) with B args starting from R(A). Result in R(A).
-    SCON_OPCODE_MOVE,          ///< (A, C) Move value in R/K(C) to R(A).
-    SCON_OPCODE_RETURN,        ///< (C) Return value in R/K(C).
-    SCON_OPCODE_APPEND,        ///< (A, C) Append value in R/K(C) to the back of the list in R(A).
-    SCON_OPCODE_EQUAL,         ///< (A, B, C) If R(B) == R/K(C) store true in R(A), else false.
-    SCON_OPCODE_NOT_EQUAL,     ///< (A, B, C) If R(B) != R/K(C) store true in R(A), else false.
-    SCON_OPCODE_STRICT_EQUAL,  ///< (A, B, C) If R(B) === R/K(C) store true in R(A), else false.
-    SCON_OPCODE_LESS,          ///< (A, B, C) If R(B) < R/K(C) store true in R(A), else false.
-    SCON_OPCODE_LESS_EQUAL,    ///< (A, B, C) If R(B) <= R/K(C) store true in R(A), else false.
-    SCON_OPCODE_GREATER,       ///< (A, B, C) If R(B) > R/K(C) store true in R(A), else false.
-    SCON_OPCODE_GREATER_EQUAL, ///< (A, B, C) If R(B) >= R/K(C) store true in R(A), else false.
-    SCON_OPCODE_ADD,           ///< (A, B, C) R(A) = R(B) + R/K(C)
-    SCON_OPCODE_SUB,           ///< (A, B, C) R(A) = R(B) - R/K(C)
-    SCON_OPCODE_MUL,           ///< (A, B, C) R(A) = R(B) * R/K(C)
-    SCON_OPCODE_DIV,           ///< (A, B, C) R(A) = R(B) / R/K(C)
-    SCON_OPCODE_MOD,           ///< (A, B, C) R(A) = R(B) % R/K(C)
-    SCON_OPCODE_BIT_AND,       ///< (A, B, C) R(A) = R(B) & R/K(C)
-    SCON_OPCODE_BIT_OR,        ///< (A, B, C) R(A) = R(B) | R/K(C)
-    SCON_OPCODE_BIT_XOR,       ///< (A, B, C) R(A) = R(B) ^ R/K(C)
-    SCON_OPCODE_BIT_NOT,       ///< (A, C) R(A) = ~R/K(C)
-    SCON_OPCODE_BIT_SHL,       ///< (A, B, C) R(A) = R(B) << R/K(C)
-    SCON_OPCODE_BIT_SHR,       ///< (A, B, C) R(A) = R(B) >> R/K(C)
-    SCON_OPCODE_CLOSURE,       ///< (A, C) Wrap the function prototype in K(C) in a closure and store in R(A).
-    SCON_OPCODE_CAPTURE,       ///< (A, B, C) Capture R/K(C) into constant slot B in closure R(A).
+    SCON_OPCODE_LIST,    ///< (A) Create a new list and store it in R(A).
+    SCON_OPCODE_JMP,     ///< (sBx) Unconditional jump by relative offset sBx.
+    SCON_OPCODE_JMPF,    ///< (A, sBx) Jump by sBx if R(A) is falsy.
+    SCON_OPCODE_JMPT,    ///< (A, sBx) Jump by sBx if R(A) is truthy.
+    SCON_OPCODE_CALL,    ///< (A, B, C) Call callable in R/K(C) with B args starting from R(A). Result in R(A).
+    SCON_OPCODE_MOV,     ///< (A, C) Move value in R/K(C) to R(A).
+    SCON_OPCODE_RET,     ///< (C) Return value in R/K(C).
+    SCON_OPCODE_APPEND,  ///< (A, C) Append value in R/K(C) to the back of the list in R(A).
+    SCON_OPCODE_EQ,      ///< (A, B, C) If R(B) == R/K(C) store true in R(A), else false.
+    SCON_OPCODE_NEQ,     ///< (A, B, C) If R(B) != R/K(C) store true in R(A), else false.
+    SCON_OPCODE_SEQ,     ///< (A, B, C) If R(B) === R/K(C) store true in R(A), else false.
+    SCON_OPCODE_SNEQ,    ///< (A, B, C) If R(B) !== R/K(C) store true in R(A), else false.
+    SCON_OPCODE_LT,      ///< (A, B, C) If R(B) < R/K(C) store true in R(A), else false.
+    SCON_OPCODE_LE,      ///< (A, B, C) If R(B) <= R/K(C) store true in R(A), else false.
+    SCON_OPCODE_GT,      ///< (A, B, C) If R(B) > R/K(C) store true in R(A), else false.
+    SCON_OPCODE_GE,      ///< (A, B, C) If R(B) >= R/K(C) store true in R(A), else false.
+    SCON_OPCODE_ADD,     ///< (A, B, C) R(A) = R(B) + R/K(C)
+    SCON_OPCODE_SUB,     ///< (A, B, C) R(A) = R(B) - R/K(C)
+    SCON_OPCODE_MUL,     ///< (A, B, C) R(A) = R(B) * R/K(C)
+    SCON_OPCODE_DIV,     ///< (A, B, C) R(A) = R(B) / R/K(C)
+    SCON_OPCODE_MOD,     ///< (A, B, C) R(A) = R(B) % R/K(C)
+    SCON_OPCODE_BAND,    ///< (A, B, C) R(A) = R(B) & R/K(C)
+    SCON_OPCODE_BOR,     ///< (A, B, C) R(A) = R(B) | R/K(C)
+    SCON_OPCODE_BXOR,    ///< (A, B, C) R(A) = R(B) ^ R/K(C)
+    SCON_OPCODE_BNOT,    ///< (A, C) R(A) = ~R/K(C)
+    SCON_OPCODE_SHL,     ///< (A, B, C) R(A) = R(B) << R/K(C)
+    SCON_OPCODE_SHR,     ///< (A, B, C) R(A) = R(B) >> R/K(C)
+    SCON_OPCODE_CLOSURE, ///< (A, C) Wrap the function prototype in K(C) in a closure and store in R(A).
+    SCON_OPCODE_CAPTURE, ///< (A, B, C) Capture R/K(C) into constant slot B in closure R(A).
 } scon_opcode_t;
 
 /**
@@ -89,10 +90,10 @@ typedef scon_uint16_t scon_reg_t;
  */
 typedef scon_uint32_t scon_inst_t;
 
-#define SCON_INST_WIDTH_OPCODE 7                                    ///< Opcode width in bits.
+#define SCON_INST_WIDTH_OPCODE 6                                    ///< Opcode width in bits.
 #define SCON_INST_WIDTH_A 8                                         ///< A operand width in bits.
 #define SCON_INST_WIDTH_B 8                                         ///< B operand width in bits.
-#define SCON_INST_WIDTH_C 9                                         ///< C operand width in bits.
+#define SCON_INST_WIDTH_C 10                                        ///< C operand width in bits.
 #define SCON_INST_WIDTH_SBX (SCON_INST_WIDTH_B + SCON_INST_WIDTH_C) ///< SBx operand width in bits.
 
 /**
@@ -149,11 +150,11 @@ typedef scon_uint32_t scon_inst_t;
 #define SCON_INST_GET_OP(_inst) (((_inst) >> SCON_INST_POS_OPCODE) & SCON_INST_MASK_OPCODE)
 
 /**
- * @brief Get the opcode base (without `scon_mode_t`) from an instruction.
+ * @brief Get the opcode base (without `scon_mode_t`) from an instruction. Mask clears the `SCON_MODE_CONST` bit.
  *
  * @param _inst Instruction.
  */
-#define SCON_INST_GET_OP_BASE(_inst) (((_inst) >> SCON_INST_POS_OPCODE) & 0x3F)
+#define SCON_INST_GET_OP_BASE(_inst) (((_inst) >> SCON_INST_POS_OPCODE) & (SCON_INST_MASK_OPCODE & ~SCON_MODE_CONST))
 
 /**
  * @brief Get the A operand from an instruction.

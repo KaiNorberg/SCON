@@ -1,8 +1,8 @@
-#include "item.h"
 #ifndef SCON_KEYWORD_IMPL_H
 #define SCON_KEYWORD_IMPL_H 1
 
 #include "compile.h"
+#include "item.h"
 #include "keyword.h"
 
 static void scon_keyword_quote(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
@@ -34,7 +34,8 @@ static void scon_keyword_list(scon_compiler_t* compiler, scon_item_t* list, scon
     *out = SCON_EXPR_REG(target);
 }
 
-static void scon_keyword_block_generic(scon_compiler_t* compiler, scon_item_t* list, scon_uint32_t startIdx, scon_expr_t* out)
+static void scon_keyword_block_generic(scon_compiler_t* compiler, scon_item_t* list, scon_uint32_t startIdx,
+    scon_expr_t* out)
 {
     if (startIdx >= list->length)
     {
@@ -157,6 +158,11 @@ static void scon_keyword_def(scon_compiler_t* compiler, scon_item_t* list, scon_
     scon_expr_t valExpr = SCON_EXPR_NONE();
     scon_expr_compile(compiler, list->list.items[2], &valExpr);
 
+    if (valExpr.mode == SCON_MODE_REG)
+    {
+        SCON_REG_SET_LOCAL(compiler, valExpr.reg);
+    }
+
     local->expr = valExpr;
 
     scon_expr_done(compiler, &valExpr);
@@ -176,6 +182,8 @@ static void scon_keyword_let(scon_compiler_t* compiler, scon_item_t* list, scon_
     {
         SCON_THROW_ITEM(compiler->scon, "let bindings must be a list", bindings);
     }
+
+    scon_uint16_t initialLocalCount = compiler->localCount;
 
     for (scon_uint32_t i = 0; i < bindings->length; i++)
     {
@@ -223,6 +231,8 @@ static void scon_keyword_let(scon_compiler_t* compiler, scon_item_t* list, scon_
     {
         *out = SCON_EXPR_NONE();
     }
+
+    compiler->localCount = initialLocalCount;
 }
 
 static inline scon_bool_t scon_expr_is_known_truthy(scon_compiler_t* compiler, scon_expr_t* expr, scon_bool_t* isTruthy)
@@ -235,7 +245,7 @@ static inline scon_bool_t scon_expr_is_known_truthy(scon_compiler_t* compiler, s
         }
 
         scon_handle_t item = SCON_HANDLE_FROM_ITEM(compiler->function->constants[expr->constant].item);
-        *isTruthy = scon_handle_is_truthy(compiler->scon, &item);
+        *isTruthy = SCON_HANDLE_IS_TRUTHY(compiler->scon, &item);
         return SCON_TRUE;
     }
     return SCON_FALSE;
@@ -265,7 +275,7 @@ static void scon_keyword_if(scon_compiler_t* compiler, scon_item_t* list, scon_e
         }
         else
         {
-            *out = SCON_EXPR_CONST(scon_const_nil(compiler->scon, compiler->function));
+            *out = SCON_EXPR_NIL(compiler->scon, compiler->function);
         }
         return;
     }
@@ -273,7 +283,7 @@ static void scon_keyword_if(scon_compiler_t* compiler, scon_item_t* list, scon_e
     scon_reg_t target = scon_expr_get_reg(compiler, out);
 
     scon_reg_t condReg = scon_compile_move_or_alloc(compiler, &condExpr);
-    scon_size_t jumpElse = scon_compile_jump(compiler, SCON_OPCODE_JMP_FALSE, condReg);
+    scon_size_t jumpElse = scon_compile_jump(compiler, SCON_OPCODE_JMPF, condReg);
     scon_expr_done(compiler, &condExpr);
 
     scon_expr_t thenExpr = SCON_EXPR_TARGET(target);
@@ -305,7 +315,7 @@ static void scon_keyword_if(scon_compiler_t* compiler, scon_item_t* list, scon_e
     }
     else
     {
-        scon_expr_t nilExpr = SCON_EXPR_CONST(scon_const_nil(compiler->scon, compiler->function));
+        scon_expr_t nilExpr = SCON_EXPR_NIL(compiler->scon, compiler->function);
         scon_compile_move(compiler, target, &nilExpr);
     }
 
@@ -313,7 +323,7 @@ static void scon_keyword_if(scon_compiler_t* compiler, scon_item_t* list, scon_e
 }
 
 static void scon_keyword_when_unless(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out,
-    scon_opcode_t jumpOp, scon_const_t defaultVal)
+    scon_opcode_t jumpOp, scon_expr_t defaultExpr)
 {
     if (list->length < 2)
     {
@@ -328,7 +338,7 @@ static void scon_keyword_when_unless(scon_compiler_t* compiler, scon_item_t* lis
     if (scon_expr_is_known_truthy(compiler, &condExpr, &isTruthy))
     {
         scon_expr_done(compiler, &condExpr);
-        scon_bool_t shouldEval = (jumpOp == SCON_OPCODE_JMP_FALSE) ? isTruthy : !isTruthy;
+        scon_bool_t shouldEval = (jumpOp == SCON_OPCODE_JMPF) ? isTruthy : !isTruthy;
 
         if (shouldEval)
         {
@@ -336,14 +346,13 @@ static void scon_keyword_when_unless(scon_compiler_t* compiler, scon_item_t* lis
         }
         else
         {
-            *out = SCON_EXPR_CONST(defaultVal);
+            *out = defaultExpr;
         }
         return;
     }
 
     scon_reg_t target = scon_expr_get_reg(compiler, out);
 
-    scon_expr_t defaultExpr = SCON_EXPR_CONST(defaultVal);
     scon_compile_move(compiler, target, &defaultExpr);
     scon_reg_t condReg = scon_compile_move_or_alloc(compiler, &condExpr);
     scon_size_t jumpEnd = scon_compile_jump(compiler, jumpOp, condReg);
@@ -364,21 +373,20 @@ static void scon_keyword_when_unless(scon_compiler_t* compiler, scon_item_t* lis
 
 static void scon_keyword_when(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_when_unless(compiler, list, out, SCON_OPCODE_JMP_FALSE,
-        scon_const_false(compiler->scon, compiler->function));
+    scon_keyword_when_unless(compiler, list, out, SCON_OPCODE_JMPF,
+        SCON_EXPR_FALSE(compiler->scon, compiler->function));
 }
 
 static void scon_keyword_unless(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_when_unless(compiler, list, out, SCON_OPCODE_JMP_TRUE,
-        scon_const_nil(compiler->scon, compiler->function));
+    scon_keyword_when_unless(compiler, list, out, SCON_OPCODE_JMPT, SCON_EXPR_NIL(compiler->scon, compiler->function));
 }
 
 static void scon_keyword_cond(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
     if (list->length < 2)
     {
-        *out = SCON_EXPR_CONST(scon_const_nil(compiler->scon, compiler->function));
+        *out = SCON_EXPR_NIL(compiler->scon, compiler->function);
         return;
     }
 
@@ -439,7 +447,7 @@ static void scon_keyword_cond(scon_compiler_t* compiler, scon_item_t* list, scon
         }
 
         scon_reg_t condReg = scon_compile_move_or_alloc(compiler, &condExpr);
-        scon_size_t jumpNext = scon_compile_jump(compiler, SCON_OPCODE_JMP_FALSE, condReg);
+        scon_size_t jumpNext = scon_compile_jump(compiler, SCON_OPCODE_JMPF, condReg);
         scon_expr_done(compiler, &condExpr);
 
         scon_expr_t valExpr = SCON_EXPR_TARGET(target);
@@ -461,13 +469,13 @@ static void scon_keyword_cond(scon_compiler_t* compiler, scon_item_t* list, scon
 
     if (target == (scon_reg_t)-1)
     {
-        *out = SCON_EXPR_CONST(scon_const_nil(compiler->scon, compiler->function));
+        *out = SCON_EXPR_NIL(compiler->scon, compiler->function);
         return;
     }
 
     if (!alwaysHit)
     {
-        scon_expr_t nilConst = SCON_EXPR_CONST(scon_const_nil(compiler->scon, compiler->function));
+        scon_expr_t nilConst = SCON_EXPR_NIL(compiler->scon, compiler->function);
         scon_compile_move(compiler, target, &nilConst);
     }
 
@@ -479,12 +487,11 @@ static void scon_keyword_cond(scon_compiler_t* compiler, scon_item_t* list, scon
     *out = SCON_EXPR_REG(target);
 }
 
-static void scon_keyword_and_or(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out,
-    scon_opcode_t jumpOp)
+static void scon_keyword_and_or(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out, scon_opcode_t jumpOp)
 {
     if (list->length < 2)
     {
-        *out = SCON_EXPR_CONST(scon_const_false(compiler->scon, compiler->function));
+        *out = SCON_EXPR_FALSE(compiler->scon, compiler->function);
         return;
     }
 
@@ -506,7 +513,7 @@ static void scon_keyword_and_or(scon_compiler_t* compiler, scon_item_t* list, sc
         scon_bool_t isTruthy;
         if (scon_expr_is_known_truthy(compiler, &argExpr, &isTruthy))
         {
-            scon_bool_t shortCircuits = (jumpOp == SCON_OPCODE_JMP_TRUE) ? isTruthy : !isTruthy;
+            scon_bool_t shortCircuits = (jumpOp == SCON_OPCODE_JMPT) ? isTruthy : !isTruthy;
 
             if (shortCircuits || i == list->length - 1)
             {
@@ -530,7 +537,8 @@ static void scon_keyword_and_or(scon_compiler_t* compiler, scon_item_t* list, sc
             target = (targetHint != (scon_reg_t)-1) ? targetHint : scon_reg_alloc(compiler);
         }
 
-        if (argExpr.mode != SCON_MODE_REG || argExpr.reg != target) {
+        if (argExpr.mode != SCON_MODE_REG || argExpr.reg != target)
+        {
             scon_compile_move(compiler, target, &argExpr);
             scon_expr_done(compiler, &argExpr);
         }
@@ -555,12 +563,12 @@ static void scon_keyword_and_or(scon_compiler_t* compiler, scon_item_t* list, sc
 
 static void scon_keyword_and(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_and_or(compiler, list, out, SCON_OPCODE_JMP_FALSE);
+    scon_keyword_and_or(compiler, list, out, SCON_OPCODE_JMPF);
 }
 
 static void scon_keyword_or(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_and_or(compiler, list, out, SCON_OPCODE_JMP_TRUE);
+    scon_keyword_and_or(compiler, list, out, SCON_OPCODE_JMPT);
 }
 
 static void scon_keyword_not(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
@@ -579,22 +587,22 @@ static void scon_keyword_not(scon_compiler_t* compiler, scon_item_t* list, scon_
     if (scon_expr_is_known_truthy(compiler, &argExpr, &isTruthy))
     {
         scon_expr_done(compiler, &argExpr);
-        *out = SCON_EXPR_CONST(isTruthy ? scon_const_false(compiler->scon, compiler->function)
-                                        : scon_const_true(compiler->scon, compiler->function));
+        *out = isTruthy ? SCON_EXPR_FALSE(compiler->scon, compiler->function)
+                        : SCON_EXPR_TRUE(compiler->scon, compiler->function);
         return;
     }
 
     scon_reg_t argReg = scon_compile_move_or_alloc(compiler, &argExpr);
-    scon_size_t jumpTrue = scon_compile_jump(compiler, SCON_OPCODE_JMP_TRUE, argReg);
+    scon_size_t jumpTrue = scon_compile_jump(compiler, SCON_OPCODE_JMPT, argReg);
     scon_expr_done(compiler, &argExpr);
 
-    scon_expr_t trueExpr = SCON_EXPR_CONST(scon_const_true(compiler->scon, compiler->function));
+    scon_expr_t trueExpr = SCON_EXPR_TRUE(compiler->scon, compiler->function);
     scon_compile_move(compiler, target, &trueExpr);
 
     scon_size_t jumpEnd = scon_compile_jump(compiler, SCON_OPCODE_JMP, 0);
 
     scon_compile_jump_patch(compiler, jumpTrue);
-    scon_expr_t falseExpr = SCON_EXPR_CONST(scon_const_false(compiler->scon, compiler->function));
+    scon_expr_t falseExpr = SCON_EXPR_FALSE(compiler->scon, compiler->function);
     scon_compile_move(compiler, target, &falseExpr);
 
     scon_compile_jump_patch(compiler, jumpEnd);
@@ -623,25 +631,28 @@ static scon_bool_t scon_fold_comparison(scon_t* scon, scon_opcode_t opBase, scon
     scon_int64_t cmp = scon_handle_compare(scon, &left, &right);
     switch (opBase)
     {
-    case SCON_OPCODE_EQUAL:
+    case SCON_OPCODE_EQ:
         *result = (cmp == 0);
         return SCON_TRUE;
-    case SCON_OPCODE_NOT_EQUAL:
+    case SCON_OPCODE_NEQ:
         *result = (cmp != 0);
         return SCON_TRUE;
-    case SCON_OPCODE_STRICT_EQUAL:
+    case SCON_OPCODE_SEQ:
         *result = scon_handle_is_equal(scon, &left, &right);
         return SCON_TRUE;
-    case SCON_OPCODE_LESS:
+    case SCON_OPCODE_SNEQ:
+        *result = !scon_handle_is_equal(scon, &left, &right);
+        return SCON_TRUE;
+    case SCON_OPCODE_LT:
         *result = (cmp < 0);
         return SCON_TRUE;
-    case SCON_OPCODE_LESS_EQUAL:
+    case SCON_OPCODE_LE:
         *result = (cmp <= 0);
         return SCON_TRUE;
-    case SCON_OPCODE_GREATER:
+    case SCON_OPCODE_GT:
         *result = (cmp > 0);
         return SCON_TRUE;
-    case SCON_OPCODE_GREATER_EQUAL:
+    case SCON_OPCODE_GE:
         *result = (cmp >= 0);
         return SCON_TRUE;
     default:
@@ -689,7 +700,7 @@ static void scon_keyword_comparison_generic(scon_compiler_t* compiler, scon_item
 
                     if (jumpCount > 0)
                     {
-                        scon_expr_t falseExpr = SCON_EXPR_CONST(scon_const_false(compiler->scon, compiler->function));
+                        scon_expr_t falseExpr = SCON_EXPR_FALSE(compiler->scon, compiler->function);
                         scon_compile_move(compiler, target, &falseExpr);
                         for (scon_size_t j = 0; j < jumpCount; j++)
                         {
@@ -703,7 +714,7 @@ static void scon_keyword_comparison_generic(scon_compiler_t* compiler, scon_item
                         {
                             scon_reg_free(compiler, target);
                         }
-                        *out = SCON_EXPR_CONST(scon_const_false(compiler->scon, compiler->function));
+                        *out = SCON_EXPR_FALSE(compiler->scon, compiler->function);
                     }
                     return;
                 }
@@ -728,7 +739,7 @@ static void scon_keyword_comparison_generic(scon_compiler_t* compiler, scon_item
             {
                 SCON_THROW_ITEM(compiler->scon, "too many arguments for comparison", list);
             }
-            jumps[jumpCount++] = scon_compile_jump(compiler, SCON_OPCODE_JMP_FALSE, target);
+            jumps[jumpCount++] = scon_compile_jump(compiler, SCON_OPCODE_JMPF, target);
 
             scon_expr_done(compiler, &leftExpr);
             leftExpr = rightExpr;
@@ -753,7 +764,7 @@ static void scon_keyword_comparison_generic(scon_compiler_t* compiler, scon_item
     }
     else if (target == (scon_reg_t)-1)
     {
-        *out = SCON_EXPR_CONST(scon_const_true(compiler->scon, compiler->function));
+        *out = SCON_EXPR_TRUE(compiler->scon, compiler->function);
     }
     else
     {
@@ -763,37 +774,42 @@ static void scon_keyword_comparison_generic(scon_compiler_t* compiler, scon_item
 
 static void scon_keyword_equal(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_EQUAL);
+    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_EQ);
 }
 
 static void scon_keyword_strict_equal(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_STRICT_EQUAL);
+    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_SEQ);
 }
 
 static void scon_keyword_not_equal(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_NOT_EQUAL);
+    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_NEQ);
+}
+
+static void scon_keyword_strict_not_equal(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
+{
+    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_SNEQ);
 }
 
 static void scon_keyword_less(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_LESS);
+    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_LT);
 }
 
 static void scon_keyword_less_equal(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_LESS_EQUAL);
+    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_LE);
 }
 
 static void scon_keyword_greater(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_GREATER);
+    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_GT);
 }
 
 static void scon_keyword_greater_equal(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_GREATER_EQUAL);
+    scon_keyword_comparison_generic(compiler, list, out, SCON_OPCODE_GE);
 }
 
 static scon_bool_t scon_fold_binary_expr(scon_compiler_t* compiler, scon_opcode_t opBase, scon_expr_t* leftExpr,
@@ -813,7 +829,7 @@ static scon_bool_t scon_fold_binary_expr(scon_compiler_t* compiler, scon_opcode_
     scon_item_t* leftNode = compiler->function->constants[leftExpr->constant].item;
     scon_item_t* rightNode = compiler->function->constants[rightExpr->constant].item;
 
-    scon_bool_t isBitwise = (opBase >= SCON_OPCODE_BIT_AND && opBase <= SCON_OPCODE_BIT_SHR);
+    scon_bool_t isBitwise = (opBase >= SCON_OPCODE_BAND && opBase <= SCON_OPCODE_SHR);
 
     if (isBitwise)
     {
@@ -828,23 +844,23 @@ static scon_bool_t scon_fold_binary_expr(scon_compiler_t* compiler, scon_opcode_
 
         switch (opBase)
         {
-        case SCON_OPCODE_BIT_AND:
+        case SCON_OPCODE_BAND:
             result = scon_atom_lookup_int(compiler->scon, li & ri);
             break;
-        case SCON_OPCODE_BIT_OR:
+        case SCON_OPCODE_BOR:
             result = scon_atom_lookup_int(compiler->scon, li | ri);
             break;
-        case SCON_OPCODE_BIT_XOR:
+        case SCON_OPCODE_BXOR:
             result = scon_atom_lookup_int(compiler->scon, li ^ ri);
             break;
-        case SCON_OPCODE_BIT_SHL:
+        case SCON_OPCODE_SHL:
             if (ri < 0 || ri >= 64)
             {
                 return SCON_FALSE;
             }
             result = scon_atom_lookup_int(compiler->scon, li << ri);
             break;
-        case SCON_OPCODE_BIT_SHR:
+        case SCON_OPCODE_SHR:
             if (ri < 0 || ri >= 64)
             {
                 return SCON_FALSE;
@@ -927,6 +943,10 @@ static scon_bool_t scon_fold_binary_expr(scon_compiler_t* compiler, scon_opcode_
             result = scon_atom_lookup_float(compiler->scon, lf * rf);
             break;
         case SCON_OPCODE_DIV:
+            if (rf == 0.0)
+            {
+                return SCON_FALSE;
+            }
             result = scon_atom_lookup_float(compiler->scon, lf / rf);
             break;
         case SCON_OPCODE_MOD:
@@ -975,14 +995,14 @@ static scon_bool_t scon_fold_binary_expr(scon_compiler_t* compiler, scon_opcode_
 static void scon_keyword_binary_generic(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out,
     scon_opcode_t opBase)
 {
-    if (opBase == SCON_OPCODE_MOD || opBase == SCON_OPCODE_BIT_SHL || opBase == SCON_OPCODE_BIT_SHR)
+    if (opBase == SCON_OPCODE_MOD || opBase == SCON_OPCODE_SHL || opBase == SCON_OPCODE_SHR)
     {
         if (list->length != 3)
         {
             SCON_THROW_ITEM(compiler->scon, "operator requires exactly two arguments", list);
         }
     }
-    else if (opBase >= SCON_OPCODE_BIT_AND && opBase <= SCON_OPCODE_BIT_XOR)
+    else if (opBase >= SCON_OPCODE_BAND && opBase <= SCON_OPCODE_BXOR)
     {
         if (list->length < 3)
         {
@@ -1074,17 +1094,17 @@ static void scon_keyword_binary_generic(scon_compiler_t* compiler, scon_item_t* 
 
 static void scon_keyword_bit_and(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_binary_generic(compiler, list, out, SCON_OPCODE_BIT_AND);
+    scon_keyword_binary_generic(compiler, list, out, SCON_OPCODE_BAND);
 }
 
 static void scon_keyword_bit_or(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_binary_generic(compiler, list, out, SCON_OPCODE_BIT_OR);
+    scon_keyword_binary_generic(compiler, list, out, SCON_OPCODE_BOR);
 }
 
 static void scon_keyword_bit_xor(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_binary_generic(compiler, list, out, SCON_OPCODE_BIT_XOR);
+    scon_keyword_binary_generic(compiler, list, out, SCON_OPCODE_BXOR);
 }
 
 static void scon_keyword_bit_not(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
@@ -1112,19 +1132,19 @@ static void scon_keyword_bit_not(scon_compiler_t* compiler, scon_item_t* list, s
 
     scon_reg_t target = scon_expr_get_reg(compiler, out);
     scon_compile_inst(compiler,
-        SCON_INST_MAKE_ABC((scon_opcode_t)(SCON_OPCODE_BIT_NOT | argExpr.mode), target, 0, argExpr.value));
+        SCON_INST_MAKE_ABC((scon_opcode_t)(SCON_OPCODE_BNOT | argExpr.mode), target, 0, argExpr.value));
     scon_expr_done(compiler, &argExpr);
     *out = SCON_EXPR_REG(target);
 }
 
 static void scon_keyword_bit_shl(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_binary_generic(compiler, list, out, SCON_OPCODE_BIT_SHL);
+    scon_keyword_binary_generic(compiler, list, out, SCON_OPCODE_SHL);
 }
 
 static void scon_keyword_bit_shr(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
 {
-    scon_keyword_binary_generic(compiler, list, out, SCON_OPCODE_BIT_SHR);
+    scon_keyword_binary_generic(compiler, list, out, SCON_OPCODE_SHR);
 }
 
 static void scon_keyword_add(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
@@ -1171,20 +1191,21 @@ scon_keyword_handler_t sconKeywordHandlers[SCON_KEYWORD_MAX] = {
     [SCON_KEYWORD_OR] = scon_keyword_or,
     [SCON_KEYWORD_NOT] = scon_keyword_not,
 
-    [SCON_KEYWORD_EQUAL] = scon_keyword_equal,
-    [SCON_KEYWORD_STRICT_EQUAL] = scon_keyword_strict_equal,
-    [SCON_KEYWORD_NOT_EQUAL] = scon_keyword_not_equal,
-    [SCON_KEYWORD_LESS] = scon_keyword_less,
-    [SCON_KEYWORD_LESS_EQUAL] = scon_keyword_less_equal,
-    [SCON_KEYWORD_GREATER] = scon_keyword_greater,
-    [SCON_KEYWORD_GREATER_EQUAL] = scon_keyword_greater_equal,
+    [SCON_KEYWORD_EQ] = scon_keyword_equal,
+    [SCON_KEYWORD_NEQ] = scon_keyword_not_equal,
+    [SCON_KEYWORD_SNEQ] = scon_keyword_strict_not_equal,
+    [SCON_KEYWORD_SEQ] = scon_keyword_strict_equal,
+    [SCON_KEYWORD_LT] = scon_keyword_less,
+    [SCON_KEYWORD_LE] = scon_keyword_less_equal,
+    [SCON_KEYWORD_GT] = scon_keyword_greater,
+    [SCON_KEYWORD_GE] = scon_keyword_greater_equal,
 
-    [SCON_KEYWORD_BIT_AND] = scon_keyword_bit_and,
-    [SCON_KEYWORD_BIT_OR] = scon_keyword_bit_or,
-    [SCON_KEYWORD_BIT_XOR] = scon_keyword_bit_xor,
-    [SCON_KEYWORD_BIT_NOT] = scon_keyword_bit_not,
-    [SCON_KEYWORD_BIT_SHL] = scon_keyword_bit_shl,
-    [SCON_KEYWORD_BIT_SHR] = scon_keyword_bit_shr,
+    [SCON_KEYWORD_BAND] = scon_keyword_bit_and,
+    [SCON_KEYWORD_BOR] = scon_keyword_bit_or,
+    [SCON_KEYWORD_BXOR] = scon_keyword_bit_xor,
+    [SCON_KEYWORD_BNOT] = scon_keyword_bit_not,
+    [SCON_KEYWORD_SHL] = scon_keyword_bit_shl,
+    [SCON_KEYWORD_SHR] = scon_keyword_bit_shr,
 
     [SCON_KEYWORD_ADD] = scon_keyword_add,
     [SCON_KEYWORD_SUB] = scon_keyword_sub,
@@ -1213,19 +1234,20 @@ const char* sconKeywords[SCON_KEYWORD_MAX] = {
     [SCON_KEYWORD_MUL] = "*",
     [SCON_KEYWORD_DIV] = "/",
     [SCON_KEYWORD_MOD] = "%",
-    [SCON_KEYWORD_EQUAL] = "=",
-    [SCON_KEYWORD_STRICT_EQUAL] = "==",
-    [SCON_KEYWORD_NOT_EQUAL] = "!=",
-    [SCON_KEYWORD_LESS] = "<",
-    [SCON_KEYWORD_LESS_EQUAL] = "<=",
-    [SCON_KEYWORD_GREATER] = ">",
-    [SCON_KEYWORD_GREATER_EQUAL] = ">=",
-    [SCON_KEYWORD_BIT_AND] = "&",
-    [SCON_KEYWORD_BIT_OR] = "|",
-    [SCON_KEYWORD_BIT_XOR] = "^",
-    [SCON_KEYWORD_BIT_NOT] = "~",
-    [SCON_KEYWORD_BIT_SHL] = "<<",
-    [SCON_KEYWORD_BIT_SHR] = ">>",
+    [SCON_KEYWORD_SEQ] = "==",
+    [SCON_KEYWORD_SNEQ] = "!==",
+    [SCON_KEYWORD_EQ] = "=",
+    [SCON_KEYWORD_NEQ] = "!=",
+    [SCON_KEYWORD_LT] = "<",
+    [SCON_KEYWORD_LE] = "<=",
+    [SCON_KEYWORD_GT] = ">",
+    [SCON_KEYWORD_GE] = ">=",
+    [SCON_KEYWORD_BAND] = "&",
+    [SCON_KEYWORD_BOR] = "|",
+    [SCON_KEYWORD_BXOR] = "^",
+    [SCON_KEYWORD_BNOT] = "~",
+    [SCON_KEYWORD_SHL] = "<<",
+    [SCON_KEYWORD_SHR] = ">>",
 };
 
 static inline void scon_keyword_register(scon_t* scon, scon_keyword_t keyword)

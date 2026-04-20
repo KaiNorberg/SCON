@@ -4,4 +4,4 @@ def fib(n):
     else:
         return fib(n - 1) + fib(n - 2)
 
-print("Fibonacci of 30 is:", fib(30))
+print("Fibonacci of 35 is:", fib(35))

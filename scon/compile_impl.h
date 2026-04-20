@@ -24,14 +24,25 @@ SCON_API scon_function_t* scon_compile(scon_t* scon, scon_handle_t* ast)
 
     scon_expr_t lastExpr = SCON_EXPR_NONE();
 
-    for (scon_size_t i = 0; i < astNode->length; ++i)
+    if (astNode->length > 1)
     {
-        scon_item_t* item = astNode->list.items[i];
-        scon_expr_compile(&compiler, item, &lastExpr);
-        if (i != astNode->length - 1)
+        scon_reg_t target = scon_reg_alloc(&compiler);
+        scon_compile_list(&compiler, target);
+
+        for (scon_size_t i = 0; i < astNode->length; ++i)
         {
-            scon_expr_done(&compiler, &lastExpr);
+            scon_item_t* item = astNode->list.items[i];
+            scon_expr_t argExpr = SCON_EXPR_NONE();
+            scon_expr_compile(&compiler, item, &argExpr);
+            scon_compile_append(&compiler, target, &argExpr);
+            scon_expr_done(&compiler, &argExpr);
         }
+
+        lastExpr = SCON_EXPR_REG(target);
+    }
+    else
+    {
+        scon_expr_compile(&compiler, astNode->list.items[0], &lastExpr);
     }
 
     scon_compile_return(&compiler, &lastExpr);
@@ -78,34 +89,14 @@ static inline void scon_expr_compile_atom(scon_compiler_t* compiler, scon_item_t
         return;
     }
 
-    if (atom == compiler->scon->trueItem)
+    for (scon_uint32_t i = 0; i < compiler->scon->constantCount; i++)
     {
-        *out = SCON_EXPR_CONST(scon_const_true(compiler->scon, compiler->function));
-        return;
-    }
-
-    if (atom == compiler->scon->falseItem)
-    {
-        *out = SCON_EXPR_CONST(scon_const_false(compiler->scon, compiler->function));
-        return;
-    }
-
-    if (atom == compiler->scon->nilItem)
-    {
-        *out = SCON_EXPR_CONST(scon_const_nil(compiler->scon, compiler->function));
-        return;
-    }
-
-    if (atom == compiler->scon->piItem)
-    {
-        *out = SCON_EXPR_CONST(scon_const_pi(compiler->scon, compiler->function));
-        return;
-    }
-
-    if (atom == compiler->scon->eItem)
-    {
-        *out = SCON_EXPR_CONST(scon_const_e(compiler->scon, compiler->function));
-        return;
+        if (&atom->atom == compiler->scon->constants[i].name)
+        {
+            scon_const_slot_t slot = SCON_CONST_SLOT_ITEM(compiler->scon->constants[i].item);
+            *out = SCON_EXPR_CONST(scon_function_lookup_constant(compiler->scon, compiler->function, &slot));
+            return;
+        }
     }
 
     SCON_THROW_ITEM(compiler->scon, "undefined variable", SCON_COMPILER_ERR_ITEM(compiler, atom));

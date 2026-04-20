@@ -20,11 +20,6 @@ struct scon;
  */
 
 /**
- * @brief SCON handle type.
- */
-typedef scon_uint64_t scon_handle_t;
-
-/**
  * @brief SCON invalid handle constant.
  */
 #define SCON_HANDLE_NONE 0xFFFE000000000000ULL
@@ -41,7 +36,7 @@ typedef scon_uint64_t scon_handle_t;
  * @param _val The integer value.
  * @return The handle.
  */
-#define SCON_HANDLE_FROM_INT(_val) (SCON_HANDLE_TAG_INT | ((scon_handle_t)(scon_uint32_t)(_val)))
+#define SCON_HANDLE_FROM_INT(_val) (SCON_HANDLE_TAG_INT | ((scon_handle_t)(_val) & SCON_HANDLE_MASK_VAL))
 
 /**
  * @brief Create a handle from a float.
@@ -81,6 +76,22 @@ typedef scon_uint64_t scon_handle_t;
 #define SCON_HANDLE_FROM_LIST(_list) SCON_HANDLE_FROM_ITEM(SCON_CONTAINER_OF(_list, scon_item_t, list))
 
 /**
+ * @brief Create a handle from a function pointer.
+ *
+ * @param _func The pointer to the scon_function_t.
+ * @return The handle.
+ */
+#define SCON_HANDLE_FROM_FUNCTION(_func) SCON_HANDLE_FROM_ITEM(SCON_CONTAINER_OF(_func, scon_item_t, function))
+
+/**
+ * @brief Create a handle from a closure pointer.
+ *
+ * @param _closure The pointer to the scon_closure_t.
+ * @return The handle.
+ */
+#define SCON_HANDLE_FROM_CLOSURE(_closure) SCON_HANDLE_FROM_ITEM(SCON_CONTAINER_OF(_closure, scon_item_t, closure))
+
+/**
  * @brief Check if a handle is an integer.
  *
  * @param _handle Pointer to the handle.
@@ -110,7 +121,7 @@ typedef scon_uint64_t scon_handle_t;
  * @param _handle Pointer to the handle.
  * @return The integer value.
  */
-#define SCON_HANDLE_TO_INT(_handle) ((scon_int64_t)((*(_handle)) & SCON_HANDLE_MASK_VAL))
+#define SCON_HANDLE_TO_INT(_handle) (((scon_int64_t)((*(_handle)) << 16)) >> 16)
 
 /**
  * @brief Get the float value of a handle.
@@ -132,6 +143,75 @@ typedef scon_uint64_t scon_handle_t;
  * @return The item pointer.
  */
 #define SCON_HANDLE_TO_ITEM(_handle) ((scon_item_t*)(void*)((*(_handle)) & SCON_HANDLE_MASK_VAL))
+
+#define SCON_HANDLE_FALSE() SCON_HANDLE_FROM_INT(0) ///< Constant false handle.
+
+#define SCON_HANDLE_TRUE() SCON_HANDLE_FROM_INT(1) ///< Constant true handle.
+
+/**
+ * @brief Compare two handles using a given operator with a fast path for integers and floats.
+ *
+ * @param _scon The SCON structure.
+ * @param _a The first handle.
+ * @param _b The second handle.
+ * @param _op The comparison operator (e.g., <, >, <=, >=, etc.).
+ * @return The result of the comparison.
+ */
+#define SCON_HANDLE_COMPARE_FAST(_scon, _a, _b, _op) \
+    (SCON_HANDLE_IS_INT(_a) && SCON_HANDLE_IS_INT(_b)) ? (SCON_HANDLE_TO_INT(_a) _op SCON_HANDLE_TO_INT(_b)) \
+        : (SCON_HANDLE_IS_FLOAT(_a) && SCON_HANDLE_IS_FLOAT(_b)) \
+        ? (SCON_HANDLE_TO_FLOAT(_a) _op SCON_HANDLE_TO_FLOAT(_b)) \
+        : scon_handle_compare(_scon, _a, _b)
+
+/**
+ * @brief Perform a arithmetic operation on two handles with a fast path for integers and floats.
+ *
+ * @param _scon The SCON structure.
+ * @param _a The target handle.
+ * @param _b The first handle.
+ * @param _c The second handle
+ * @param _op The arithmetic operator, (e.g., +, -, *, etc.)
+ */
+#define SCON_HANDLE_ARITHMETIC_FAST(_scon, _a, _b, _c, _op) \
+    do \
+    { \
+        if (SCON_HANDLE_IS_INT(_b) && SCON_HANDLE_IS_INT(_c)) \
+        { \
+            *(_a) = SCON_HANDLE_FROM_INT(SCON_HANDLE_TO_INT(_b) _op SCON_HANDLE_TO_INT(_c)); \
+        } \
+        else if (SCON_HANDLE_IS_FLOAT(_b) && SCON_HANDLE_IS_FLOAT(_c)) \
+        { \
+            *(_a) = SCON_HANDLE_FROM_FLOAT(SCON_HANDLE_TO_FLOAT(_b) _op SCON_HANDLE_TO_FLOAT(_c)); \
+        } \
+        else \
+        { \
+            scon_promotion_t prom; \
+            scon_handle_promote(_scon, _b, _c, &prom); \
+            if (prom.type == SCON_PROMOTION_TYPE_INT) \
+            { \
+                *(_a) = SCON_HANDLE_FROM_INT(prom.a.intVal _op prom.b.intVal); \
+            } \
+            else \
+            { \
+                *(_a) = SCON_HANDLE_FROM_FLOAT(prom.a.floatVal _op prom.b.floatVal); \
+            } \
+        } \
+    } while (0)
+
+/**
+ * @brief Check if a handle is truthy.
+ *
+ * @param scon The SCON structure.
+ * @param handle Pointer to the handle.
+ * @return `SCON_TRUE` if the handle is truthy, `SCON_FALSE` otherwise.
+ */
+#define SCON_HANDLE_IS_TRUTHY(_scon, _handle) \
+    (SCON_HANDLE_IS_INT(_handle) \
+            ? SCON_HANDLE_TO_INT(_handle) != 0 \
+            : (SCON_HANDLE_IS_FLOAT(_handle) \
+                      ? SCON_HANDLE_TO_FLOAT(_handle) != 0.0 \
+                      : (SCON_HANDLE_IS_ITEM(_handle) ? !(SCON_HANDLE_TO_ITEM(_handle)->flags & SCON_ITEM_FLAG_FALSY) \
+                                                      : SCON_FALSE)))
 
 /**
  * @brief Get the number of items in a list or the number of characters in an atom.
@@ -182,6 +262,47 @@ SCON_API scon_int64_t scon_handle_get_int(struct scon* scon, scon_handle_t* hand
 SCON_API scon_float_t scon_handle_get_float(struct scon* scon, scon_handle_t* handle);
 
 /**
+ * @brief Promotion types for numeric operations.
+ * @enum scon_promotion_type_t
+ */
+typedef enum
+{
+    SCON_PROMOTION_TYPE_NONE = 0,
+    SCON_PROMOTION_TYPE_INT = 1,
+    SCON_PROMOTION_TYPE_FLOAT = 2
+} scon_promotion_type_t;
+
+/**
+ * @brief Promotion result for numeric operations.
+ * @struct scon_promotion_t
+ */
+typedef struct
+{
+    scon_promotion_type_t type;
+    union {
+        scon_int64_t intVal;
+        scon_float_t floatVal;
+    } a;
+    union {
+        scon_int64_t intVal;
+        scon_float_t floatVal;
+    } b;
+} scon_promotion_t;
+
+/**
+ * @brief Promote two handles to a common numeric type.
+ *
+ * If both handles are numeric, they are promoted to the highest precision type (float if either is a float, otherwise
+ * integer).
+ *
+ * @param scon The SCON structure.
+ * @param a The first handle.
+ * @param b The second handle.
+ * @param out The promotion result structure.
+ */
+SCON_API void scon_handle_promote(struct scon* scon, scon_handle_t* a, scon_handle_t* b, scon_promotion_t* out);
+
+/**
  * @brief Check if an handle is number-shaped (integer or float).
  *
  * @param scon The SCON structure.
@@ -207,15 +328,6 @@ SCON_API scon_bool_t scon_handle_is_int(struct scon* scon, scon_handle_t* handle
  * @return `SCON_TRUE` if the handle is a float, `SCON_FALSE` otherwise.
  */
 SCON_API scon_bool_t scon_handle_is_float(struct scon* scon, scon_handle_t* handle);
-
-/**
- * @brief Check if an handle is considered truthy.
- *
- * @param scon The SCON structure.
- * @param handle The handle to check.
- * @return `SCON_TRUE` if the handle is truthy, `SCON_FALSE` otherwise.
- */
-SCON_API scon_bool_t scon_handle_is_truthy(struct scon* scon, scon_handle_t* handle);
 
 /**
  * @brief Check if two items are exactly equal string-wise or structurally.
@@ -261,22 +373,6 @@ SCON_API scon_handle_t scon_handle_get(struct scon* scon, scon_handle_t* list, c
  * @return A handle to the n-th handle, or a handle with index `SCON_HANDLE_NONE` if not found.
  */
 SCON_API scon_handle_t scon_handle_nth(struct scon* scon, scon_handle_t* list, scon_size_t n);
-
-/**
- * @brief Get the constant true handle.
- *
- * @param scon Pointer to the SCON structure.
- * @return The true handle.
- */
-SCON_API scon_handle_t scon_handle_true(struct scon* scon);
-
-/**
- * @brief Get the constant false handle.
- *
- * @param scon Pointer to the SCON structure.
- * @return The false handle.
- */
-SCON_API scon_handle_t scon_handle_false(struct scon* scon);
 
 /**
  * @brief Get the constant nil handle.

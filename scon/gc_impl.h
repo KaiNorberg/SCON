@@ -7,21 +7,54 @@
 #include "item.h"
 #include "list.h"
 
-static void scon_gc_mark(scon_t* scon, scon_item_t* item)
-{
-    if (item->flags & SCON_ITEM_FLAG_GC_MARK)
-    {
-        return;
-    }
-
-    item->flags |= SCON_ITEM_FLAG_GC_MARK;
-}
+static void scon_gc_mark(scon_t* scon, scon_item_t* item);
 
 static void scon_gc_mark_list(scon_t* scon, scon_list_t* list)
 {
     for (scon_uint32_t i = 0; i < list->length; i++)
     {
         scon_gc_mark(scon, list->items[i]);
+    }
+}
+
+static void scon_gc_mark(scon_t* scon, scon_item_t* item)
+{
+    if (item == SCON_NULL || (item->flags & SCON_ITEM_FLAG_GC_MARK))
+    {
+        return;
+    }
+
+    item->flags |= SCON_ITEM_FLAG_GC_MARK;
+
+    if (item->type == SCON_ITEM_TYPE_LIST)
+    {
+        scon_gc_mark_list(scon, &item->list);
+    }
+    else if (item->type == SCON_ITEM_TYPE_FUNCTION)
+    {
+        for (scon_uint16_t i = 0; i < item->function.constantCount; i++)
+        {
+            if (item->function.constants[i].type == SCON_CONST_SLOT_ITEM)
+            {
+                scon_gc_mark(scon, item->function.constants[i].item);
+            }
+            else if (item->function.constants[i].type == SCON_CONST_SLOT_CAPTURE)
+            {
+                scon_gc_mark(scon, SCON_CONTAINER_OF(item->function.constants[i].capture, scon_item_t, atom));
+            }
+        }
+    }
+    else if (item->type == SCON_ITEM_TYPE_CLOSURE)
+    {
+        scon_gc_mark(scon, SCON_CONTAINER_OF(item->closure.function, scon_item_t, function));
+        for (scon_uint16_t i = 0; i < item->closure.function->constantCount; i++)
+        {
+            scon_handle_t handle = item->closure.constants[i];
+            if (SCON_HANDLE_IS_ITEM(&handle))
+            {
+                scon_gc_mark(scon, SCON_HANDLE_TO_ITEM(&handle));
+            }
+        }
     }
 }
 
