@@ -1,0 +1,37 @@
+(do
+    (def nums (list 1 2 3 4 5))
+    (def text "hello")
+
+    (assert! (= (concat nums (list 6 7)) (list 1 2 3 4 5 6 7)) "concat should join lists")
+    (assert! (= (concat "he" "llo") "hello") "concat should join strings")
+    (assert! (= (concat nums 6) (list 1 2 3 4 5 6)) "concat should append an atom to a list")
+    (assert! (= (concat 0 nums) (list 0 1 2 3 4 5)) "concat should prepend an atom to a list")
+
+    (assert! (= (first nums) 1) "first should return the first item of a list")
+    (assert! (= (first text) "h") "first should return the first character of a string")
+
+    (assert! (= (last nums) 5) "last should return the last item of a list")
+    (assert! (= (last text) "o") "last should return the last character of a string")
+
+    (assert! (= (rest nums) (list 2 3 4 5)) "rest should return all but the first item of a list")
+    (assert! (= (rest text) "ello") "rest should return all but the first character of a string")
+
+    (assert! (= (init nums) (list 1 2 3 4)) "init should return all but the last item of a list")
+    (assert! (= (init text) "hell") "init should return all but the last character of a string")
+
+    (assert! (= (nth nums 2) 3) "nth should return the n-th item of a list")
+    (assert! (= (nth text 1) "e") "nth should return the n-th character of a string")
+    (assert! (= (nth nums -1) 5) "nth should return the n-th item from the end of a list")
+    (assert! (= (nth text -2) "l") "nth should return the n-th character from the end of a string")
+
+    (assert! (= (index nums 3) 2) "index should return the first occurrence of an item in a list")
+    (assert! (= (index text "l") 2) "index should return the first occurrence of a character/subitem in a string")
+    (assert! (= (index text "lo") 3) "index should return the first occurrence of a substring in a string")
+
+    (assert! (= (reverse nums) (list 5 4 3 2 1)) "reverse should return the list in reverse order")
+    (assert! (= (reverse text) "olleh") "reverse should return the string in reverse order")
+
+    (assert! (= (slice nums 1 4) (list 2 3 4)) "slice should return a sub-list from start to end index")
+    (assert! (= (slice text 1 4) "ell") "slice should return a substring from start to end index")
+    (assert! (= (slice nums 0 2) (list 1 2)) "slice should return a sub-list starting from 0")
+)

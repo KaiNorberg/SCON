@@ -594,44 +594,6 @@ If no `callable` is specified, then items are sorted in ascending order.
 
 ---
 
-#### System & Environment
-
-**`(include <path: string>) -> <item>`**
-
-Returns the result of evaluating the SCON file at the given path, variables defined in the included file will be available in the current scope.
-
-**`(read-file <path: string>) -> <string>`**
-
-Reads the file at the given path and returns its contents as a raw string atom without evaluating it.
-
-**`(print! {item}) -> nil`**
-
-Prints the string representation of all arguments to the standard output.
-
-**`(println! {item}) -> nil`**
-
-Prints the string representation of all arguments to the standard output, followed by a newline.
-
-**`(format <format: string> {item}) -> <string>`**
-
-Returns a formatted string using python-like formatting, where `{}` is used as a placeholder for the provided arguments.
-Positional arguments can be used to specify the index of the argument to be used, for example `{0}`.
-
-```lisp
-(format "Hello, {}!" "World") // Returns "Hello, World!"
-(format "{1} {0}" "World" "Hello") // Returns "Hello World"
-```
-
-**`(time) -> <number>`**
-
-Returns the current time in seconds since the Unix epoch.
-
-**`(env <name: string>) -> <string>`**
-
-Returns the value of the environment variable as an atom, or an empty string if it is not set.
-
----
-
 #### Sequences (Lists & Strings)
 
 **`(concat {item}) -> <item>`**
@@ -658,17 +620,21 @@ Returns a new list containing all but the last item of a list or an atom contain
 
 Returns the n-th item of a list or the n-th character of an atom as a new atom, if n is negative, it returns the n-th item from the end.
 
+If the index is out of bounds, returns nil.
+
 **`(index <item> <subitem: item>) -> <number>`**
 
 Returns the index of the first occurrence of the subitem in the item.
+
+If the subitem is not found, returns nil.
 
 **`(reverse <item>) -> <item>`**
 
 Returns a new list containing the items of `<item>` in reverse order or an atom containing the characters of `<item>` in reverse order.
 
-**`(slice <item> <start: number> <end: number>) -> <item>`**
+**`(slice <item> <start: number> [end: number]) -> <item>`**
 
-Returns a sub-list or sub-atom of `<item>` starting from the `<start>` index to the `<end>` index.
+Returns a sub-list or sub-atom of `<item>` starting from the `<start>` index to the `<end>` index. If `<end>` is not provided, it slices to the end of the item. Negative indices can be used to count from the end.
 
 ---
 
@@ -793,6 +759,44 @@ Returns a new list with the sub-list whose first item is `<key>` removed.
 **`(update <list> <key: item> <lambda>) -> <list>`**
 
 Returns a new list with the sub-list whose first item is `<key>` having its second item updated by applying `<lambda>` to it.
+
+---
+
+#### System & Environment
+
+**`(include <path: string>) -> <item>`**
+
+Returns the result of evaluating the SCON file at the given path, variables defined in the included file will be available in the current scope.
+
+**`(read-file <path: string>) -> <string>`**
+
+Reads the file at the given path and returns its contents as a raw string atom without evaluating it.
+
+**`(print! {item}) -> nil`**
+
+Prints the string representation of all arguments to the standard output.
+
+**`(println! {item}) -> nil`**
+
+Prints the string representation of all arguments to the standard output, followed by a newline.
+
+**`(format <format: string> {item}) -> <string>`**
+
+Returns a formatted string using python-like formatting, where `{}` is used as a placeholder for the provided arguments.
+Positional arguments can be used to specify the index of the argument to be used, for example `{0}`.
+
+```lisp
+(format "Hello, {}!" "World") // Returns "Hello, World!"
+(format "{1} {0}" "World" "Hello") // Returns "Hello World"
+```
+
+**`(time) -> <number>`**
+
+Returns the current time in seconds since the Unix epoch.
+
+**`(env <name: string>) -> <string>`**
+
+Returns the value of the environment variable as an atom, or an empty string if it is not set.
 
 ---
 

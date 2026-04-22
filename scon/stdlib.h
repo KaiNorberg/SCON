@@ -25,7 +25,8 @@ typedef enum
 {
     SCON_STDLIB_ERROR = (1 << 0),
     SCON_STDLIB_HIGHER_ORDER = (1 << 1),
-    SCON_STDLIB_SYSTEM = (1 << 2),
+    SCON_STDLIB_SEQUENCES = (1 << 2),
+    SCON_STDLIB_SYSTEM = (1 << 3),
     SCON_STDLIB_ALL = 0xFFFF,
 } scon_stdlib_sets_t;
 

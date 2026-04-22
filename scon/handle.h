@@ -136,7 +136,7 @@ struct scon;
  * @param _handle Pointer to the handle.
  * @return The integer value.
  */
-#define SCON_HANDLE_TO_INT(_handle) (((scon_int64_t)((*(_handle)) & SCON_HANDLE_MASK_VAL)))
+#define SCON_HANDLE_TO_INT(_handle) (((scon_int64_t)((*(_handle)) << 16)) >> 16)
 
 /**
  * @brief Get the float value of a handle.
@@ -196,7 +196,7 @@ struct scon;
  */
 #define SCON_HANDLE_COMPARE_FAST(_scon, _a, _b, _op) \
     (((((*(_a)) ^ SCON_HANDLE_TAG_INT) | ((*(_b)) ^ SCON_HANDLE_TAG_INT)) & SCON_HANDLE_MASK_TAG) == 0 \
-        ? (((scon_int64_t)((*(_a)) & SCON_HANDLE_MASK_VAL)) _op ((scon_int64_t)((*(_b)) & SCON_HANDLE_MASK_VAL))) \
+        ? (SCON_HANDLE_TO_INT(_a) _op SCON_HANDLE_TO_INT(_b)) \
         : (((*(_a)) >= SCON_HANDLE_OFFSET_FLOAT && (*(_b)) >= SCON_HANDLE_OFFSET_FLOAT) \
             ? (SCON_HANDLE_TO_FLOAT(_a) _op SCON_HANDLE_TO_FLOAT(_b)) \
             : (scon_handle_compare(_scon, _a, _b) _op 0)))
@@ -217,7 +217,7 @@ struct scon;
         scon_handle_t _cVal = *(_c); \
         if (SCON_LIKELY((((_bVal ^ SCON_HANDLE_TAG_INT) | (_cVal ^ SCON_HANDLE_TAG_INT)) & SCON_HANDLE_MASK_TAG) == 0)) \
         { \
-            *(_a) = SCON_HANDLE_FROM_INT(((scon_int64_t)(_bVal & SCON_HANDLE_MASK_VAL)) _op ((scon_int64_t)(_cVal & SCON_HANDLE_MASK_VAL))); \
+            *(_a) = SCON_HANDLE_FROM_INT(SCON_HANDLE_TO_INT(_b) _op SCON_HANDLE_TO_INT(_c)); \
         } \
         else if (_bVal >= SCON_HANDLE_OFFSET_FLOAT && _cVal >= SCON_HANDLE_OFFSET_FLOAT) \
         { \
@@ -252,6 +252,16 @@ struct scon;
             : (((*(_handle)) & SCON_HANDLE_MASK_TAG) == SCON_HANDLE_TAG_ITEM \
                 ? ((*(_handle)) != SCON_HANDLE_NONE && !((*(_handle)) & SCON_ITEM_FLAG_FALSY)) \
                 : SCON_FALSE)))
+
+/**
+ * @brief Ensure that a handle is an item handle.
+ *
+ * If the handle is an integer or float, it will be upgraded to an item handle by looking up a corresponding atom.
+ *
+ * @param scon The SCON structure.
+ * @param handle The handle to ensure.
+ */
+SCON_API void scon_handle_ensure_item(struct scon* scon, scon_handle_t* handle);
 
 /**
  * @brief Get the number of handles in a list or the number of characters in an atom.

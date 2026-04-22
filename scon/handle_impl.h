@@ -6,7 +6,7 @@
 #include "handle.h"
 #include "item.h"
 
-static void scon_handle_ensure_item(scon_t* scon, scon_handle_t* handle)
+SCON_API void scon_handle_ensure_item(scon_t* scon, scon_handle_t* handle)
 {
     SCON_ASSERT(scon != SCON_NULL);
     SCON_ASSERT(handle != SCON_NULL);
