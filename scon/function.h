@@ -124,6 +124,8 @@ SCON_API void scon_function_grow(struct scon* scon, scon_function_t* func);
  */
 static inline void scon_function_emit(struct scon* scon, scon_function_t* func, scon_inst_t inst)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(func != SCON_NULL);
     if (func->instCount >= func->instCapacity)
     {
         scon_function_grow(scon, func);

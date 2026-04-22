@@ -6,5 +6,5 @@
         )
     )
 
-    (println "Fibonacci of 5 is:" (fib 5))
+    (println! "Fibonacci of 35 is:" (fib 35))
 )

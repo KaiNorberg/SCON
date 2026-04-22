@@ -10,6 +10,8 @@
  * @defgroup gc Garbage Collection
  * @file gc.h
  *
+ * @todo The Garbage collector really needs to be optimized.
+ *
  * @{
  */
 
@@ -33,7 +35,17 @@ SCON_API void scon_gc_if_needed(scon_t* scon);
  * @param scon The SCON structure.
  * @param item The item to retain, must be a item.
  */
-SCON_API void scon_gc_retain(scon_t* scon, scon_handle_t item);
+#define SCON_GC_RETAIN(_scon, _handle) \
+    do \
+    { \
+        (void)(_scon); \
+        scon_handle_t __handle = (_handle); \
+        if (SCON_HANDLE_IS_ITEM(&__handle)) \
+        { \
+            scon_item_t* __item = SCON_HANDLE_TO_ITEM(&__handle); \
+            __item->retainCount++; \
+        } \
+    } while (0)
 
 /**
  * @brief Retain a item, preventing it from being collected by the GC.
@@ -41,10 +53,13 @@ SCON_API void scon_gc_retain(scon_t* scon, scon_handle_t item);
  * @param scon The SCON structure.
  * @param item The item to retain.
  */
-SCON_API void scon_gc_retain_item(scon_t* scon, scon_item_t* item)
-{
-    scon_gc_retain(scon, SCON_HANDLE_FROM_ITEM(item));
-}
+#define SCON_GC_RETAIN_ITEM(_scon, _item) \
+    do \
+    { \
+        (void)(_scon); \
+        scon_item_t* __item = (_item); \
+        __item->retainCount++; \
+    } while (0)
 
 /**
  * @brief Release a previously retained item, allowing it to be collected by the GC.
@@ -52,7 +67,17 @@ SCON_API void scon_gc_retain_item(scon_t* scon, scon_item_t* item)
  * @param scon The SCON structure.
  * @param item The item to release.
  */
-SCON_API void scon_gc_release(scon_t* scon, scon_handle_t item);
+#define SCON_GC_RELEASE(_scon, _handle) \
+    do \
+    { \
+        (void)(_scon); \
+        scon_handle_t __handle = (_handle); \
+        if (SCON_HANDLE_IS_ITEM(&__handle)) \
+        { \
+            scon_item_t* __item = SCON_HANDLE_TO_ITEM(&__handle); \
+            __item->retainCount--; \
+        } \
+    } while (0)
 
 /** @} */
 

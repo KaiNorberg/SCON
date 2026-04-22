@@ -1,25 +1,25 @@
 (do
-    (assert (= (if true 10 20) 10) "if should return the 'then' branch when condition is truthy")
-    (assert (= (if false 10 20) 20) "if should return the 'else' branch when condition is falsy")
-    (assert (= (if false 10) ()) "if should return an empty list '()' when condition is falsy and no 'else' is provided")
+    (assert! (= (if true 10 20) 10) "if should return the 'then' branch when condition is truthy")
+    (assert! (= (if false 10 20) 20) "if should return the 'else' branch when condition is falsy")
+    (assert! (= (if false 10) ()) "if should return an empty list '()' when condition is falsy and no 'else' is provided")
 
-    (assert (= (when true 1 2) 2) "when should return the result of the last expression")
-    (assert (= (when false (assert false "when should not execute its body when false")) false) "when should return false if the condition is falsy")
+    (assert! (= (when true 1 2) 2) "when should return the result of the last expression")
+    (assert! (= (when false (assert! false "when should not execute its body when false")) false) "when should return false if the condition is falsy")
 
-    (assert (= (unless false 3 4) 4) "unless should return the result of the last expression if falsy")
-    (assert (= (unless true (assert false "unless should not execute its body when true")) ()) "unless should return '()' if the condition is truthy")
+    (assert! (= (unless false 3 4) 4) "unless should return the result of the last expression if falsy")
+    (assert! (= (unless true (assert! false "unless should not execute its body when true")) ()) "unless should return '()' if the condition is truthy")
 
-    (assert (= (cond (false 1) (true 2) (true 3)) 2) "cond should return the value of the first truthy condition")
-    (assert (= (cond (false 1) (0 2)) ()) "cond should return '()' if no conditions are truthy")
+    (assert! (= (cond (false 1) (true 2) (true 3)) 2) "cond should return the value of the first truthy condition")
+    (assert! (= (cond (false 1) (0 2)) ()) "cond should return '()' if no conditions are truthy")
 
-    (assert (= (and 1 2 3) 3) "and should return the last truthy value")
-    (assert (= (and 1 false (assert false "and should short-circuit")) false) "and should return the first falsy value")
+    (assert! (= (and 1 2 3) 3) "and should return the last truthy value")
+    (assert! (= (and 1 false (assert! false "and should short-circuit")) false) "and should return the first falsy value")
 
-    (assert (= (or false 2 3) 2) "or should return the first truthy value")
-    (assert (= (or true (assert false "or should short-circuit")) true) "or should return the first truthy value")
-    (assert (= (or false 0 "") false) "or should return false if all values are falsy")
+    (assert! (= (or false 2 3) 2) "or should return the first truthy value")
+    (assert! (= (or true (assert! false "or should short-circuit")) true) "or should return the first truthy value")
+    (assert! (= (or false 0 "") "") "or should return the last falsy value if all values are falsy")
 
-    (assert (= (not false) true) "not false should be true")
-    (assert (= (not 0) true) "not 0 should be true (0 is a falsy item)")
-    (assert (= (not 1) false) "not 1 should be false")
+    (assert! (= (not false) true) "not false should be true")
+    (assert! (= (not 0) true) "not 0 should be true (0 is a falsy item)")
+    (assert! (= (not 1) false) "not 1 should be false")
 )

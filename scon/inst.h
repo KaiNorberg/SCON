@@ -11,8 +11,8 @@
  * Instructions are 32-bit words
  * with the following formats:
  *
- * - iABC:  [ Opcode:7 | A:8 | B:8 | C:9 ]
- * - iAsBx: [ Opcode:7 | A:8 | sBx:17 ]
+ * - iABC:  [ Opcode:6 | A:8 | B:8 | C:10 ]
+ * - iAsBx: [ Opcode:6 | A:8 | sBx:18 ]
  *
  * Fields:
  * - A: Usually the target/destination register.
@@ -37,7 +37,6 @@ typedef enum
 {
     SCON_MODE_NONE = -1,      ///< Invalid mode.
     SCON_MODE_TARGET = -2,    ///< Compilation target hint mode.
-    SCON_MODE_SELF = -3,      ///< Only used by `scon_keyword_lambda` to handle recursive lambdas.
     SCON_MODE_REG = 0,        ///< Register operand mode.
     SCON_MODE_CONST = 1 << 5, ///< Constant operand mode.
 } scon_mode_t;
@@ -53,6 +52,7 @@ typedef enum
     SCON_OPCODE_JMP,     ///< (sBx) Unconditional jump by relative offset sBx.
     SCON_OPCODE_JMPF,    ///< (A, sBx) Jump by sBx if R(A) is falsy.
     SCON_OPCODE_JMPT,    ///< (A, sBx) Jump by sBx if R(A) is truthy.
+    SCON_OPCODE_JEQ,     ///< (A, C) Skip the next instruction if R(A) == R/K(C), else continue.
     SCON_OPCODE_CALL,    ///< (A, B, C) Call callable in R/K(C) with B args starting from R(A). Result in R(A).
     SCON_OPCODE_MOV,     ///< (A, C) Move value in R/K(C) to R(A).
     SCON_OPCODE_RET,     ///< (C) Return value in R/K(C).

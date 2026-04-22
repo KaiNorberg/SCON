@@ -2,7 +2,7 @@
 #define SCON_ATOM_H 1
 
 #include "defs.h"
-#include "keyword.h"
+#include "intrinsic.h"
 #include "native.h"
 
 struct scon;
@@ -13,7 +13,7 @@ struct scon;
  * @file atom.h
  *
  * Atoms represent all strings within a SCON expression, as such it also represents anything that a string can be,
- * including integers, floats and keywords.
+ * including integers, floats and intrinsics.
  *
  * ## Interning
  *
@@ -22,7 +22,7 @@ struct scon;
  *
  * When a new string is encountered, we look it up in the map. As such, any instance of the same string will always be
  * represented by the same `scon_atom_t` structure. Turning a string comparison into a pointer comparison and avoiding
- * redundant parsing of numeric or keyword values.
+ * redundant parsing of numeric or intrinsic values.
  *
  * @see [Wikipedia String Interning](https://en.wikipedia.org/wiki/String_interning)
  *
@@ -30,6 +30,15 @@ struct scon;
  */
 
 #define SCON_ATOM_SMALL_MAX 16 ///< The maximum length of a small atom.
+
+/**
+ * @brief SCON atom lookup flags.
+ */
+typedef enum
+{
+    SCON_ATOM_LOOKUP_NONE = 0,       ///< No flags.
+    SCON_ATOM_LOOKUP_QUOTED = 1 << 0 ///< Atom should be explicitly quoted.
+} scon_atom_lookup_flags_t;
 
 /**
  * @brief SCON atom structure.
@@ -42,10 +51,10 @@ typedef struct scon_atom
     char small[SCON_ATOM_SMALL_MAX]; ///< The small string buffer.
     char* string;                    ///< Pointer to the string.
     union {
-        scon_int64_t integerValue; ///< Pre-computed integer value, item must have `SCON_ITEM_FLAG_INT_SHAPED`.
-        scon_float_t floatValue;   ///< Pre-computed float value, item must have `SCON_ITEM_FLAG_FLOAT_SHAPED`.
-        scon_keyword_t keyword;    ///< Cached keyword, item must have `SCON_ITEM_FLAG_KEYWORD`.
-        scon_native_fn native;     ///< Native function, item must have `SCON_ITEM_FLAG_NATIVE`.
+        scon_int64_t integerValue;  ///< Pre-computed integer value, item must have `SCON_ITEM_FLAG_INT_SHAPED`.
+        scon_float_t floatValue;    ///< Pre-computed float value, item must have `SCON_ITEM_FLAG_FLOAT_SHAPED`.
+        scon_intrinsic_t intrinsic; ///< Cached intrinsic, item must have `SCON_ITEM_FLAG_INTRINSIC`.
+        scon_native_fn native;      ///< Native function, item must have `SCON_ITEM_FLAG_NATIVE`.
     };
     struct scon_atom* next; ///< Pointer to the next atom in the hash map.
 } scon_atom_t;
@@ -79,6 +88,7 @@ static inline scon_uint32_t scon_hash(const char* str, scon_size_t len)
  */
 static inline void scon_atom_init(struct scon* scon, scon_atom_t* atom)
 {
+    SCON_ASSERT(atom != SCON_NULL);
     atom->length = 0;
     atom->next = SCON_NULL;
     atom->hash = 0;
@@ -132,9 +142,11 @@ SCON_API scon_atom_t* scon_atom_lookup_float(struct scon* scon, scon_float_t val
  * @param scon Pointer to the SCON structure.
  * @param str The string to lookup.
  * @param len The length of the string.
+ * @param flags Lookup flags to alter the interning behavior.
  * @return A pointer to the atom.
  */
-SCON_API scon_atom_t* scon_atom_lookup(struct scon* scon, const char* str, scon_size_t len);
+SCON_API scon_atom_t* scon_atom_lookup(struct scon* scon, const char* str, scon_size_t len,
+    scon_atom_lookup_flags_t flags);
 
 /**
  * @brief Normalize an atom, determining its shape and parsing escape sequences.

@@ -6,6 +6,9 @@
 
 SCON_API scon_size_t scon_stringify(scon_t* scon, scon_handle_t* handle, char* buffer, scon_size_t size)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(buffer != SCON_NULL || size == 0);
+
     if (handle == SCON_NULL)
     {
         return SCON_SNPRINTF(buffer, size, "<null>");
@@ -54,7 +57,7 @@ SCON_API scon_size_t scon_stringify(scon_t* scon, scon_handle_t* handle, char* b
 
         for (scon_size_t i = 0; i < item->length; ++i)
         {
-            scon_handle_t child = SCON_HANDLE_FROM_ITEM(item->list.items[i]);
+            scon_handle_t child = item->list.handles[i];
             res = scon_stringify(scon, &child, size > written ? buffer + written : SCON_NULL,
                 size > written ? size - written : 0);
             written += res;

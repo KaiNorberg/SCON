@@ -8,6 +8,9 @@
 
 SCON_API void scon_atom_deinit(scon_t* scon, scon_atom_t* atom)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(atom != SCON_NULL);
+
     scon_size_t bucket = atom->hash % SCON_BUCKETS_MAX;
     scon_atom_t** current = &scon->atomBuckets[bucket];
     while (*current)
@@ -28,6 +31,9 @@ SCON_API void scon_atom_deinit(scon_t* scon, scon_atom_t* atom)
 
 SCON_API scon_bool_t scon_atom_is_equal(scon_atom_t* atom, const char* str, scon_size_t len)
 {
+    SCON_ASSERT(atom != SCON_NULL);
+    SCON_ASSERT(str != SCON_NULL);
+
     if (atom->length != len)
     {
         return SCON_FALSE;
@@ -38,6 +44,8 @@ SCON_API scon_bool_t scon_atom_is_equal(scon_atom_t* atom, const char* str, scon
 
 SCON_API scon_atom_t* scon_atom_lookup_int(scon_t* scon, scon_int64_t value)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+
     char buf[32];
     scon_size_t len = 0;
 
@@ -69,7 +77,7 @@ SCON_API scon_atom_t* scon_atom_lookup_int(scon_t* scon, scon_int64_t value)
     }
 
     const char* str = buf + sizeof(buf) - len;
-    scon_atom_t* atom = scon_atom_lookup(scon, str, len);
+    scon_atom_t* atom = scon_atom_lookup(scon, str, len, SCON_ATOM_LOOKUP_NONE);
     atom->integerValue = value;
     scon_item_t* item = SCON_CONTAINER_OF(atom, scon_item_t, atom);
     item->flags |= SCON_ITEM_FLAG_INT_SHAPED;
@@ -78,6 +86,8 @@ SCON_API scon_atom_t* scon_atom_lookup_int(scon_t* scon, scon_int64_t value)
 
 SCON_API scon_atom_t* scon_atom_lookup_float(scon_t* scon, scon_float_t value)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+
     char buf[64];
     char sign = 1;
     double val = value;
@@ -136,23 +146,33 @@ SCON_API scon_atom_t* scon_atom_lookup_float(scon_t* scon, scon_float_t value)
         len--;
     }
 
-    scon_atom_t* atom = scon_atom_lookup(scon, res, len);
+    scon_atom_t* atom = scon_atom_lookup(scon, res, len, SCON_ATOM_LOOKUP_NONE);
     atom->floatValue = value;
     scon_item_t* item = SCON_CONTAINER_OF(atom, scon_item_t, atom);
     item->flags |= SCON_ITEM_FLAG_FLOAT_SHAPED;
     return atom;
 }
 
-SCON_API scon_atom_t* scon_atom_lookup(scon_t* scon, const char* str, scon_size_t len)
+SCON_API scon_atom_t* scon_atom_lookup(scon_t* scon, const char* str, scon_size_t len, scon_atom_lookup_flags_t flags)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(str != SCON_NULL);
+
     scon_size_t hash = scon_hash(str, len);
+    if (flags & SCON_ATOM_LOOKUP_QUOTED)
+    {
+        hash ^= 0x5bd1e995;
+    }
     scon_size_t bucket = hash % SCON_BUCKETS_MAX;
 
     scon_atom_t* current = scon->atomBuckets[bucket];
     while (current)
     {
         scon_atom_t* atom = current;
-        if (atom->hash == hash && scon_atom_is_equal(atom, str, len))
+        scon_item_t* item = SCON_CONTAINER_OF(atom, scon_item_t, atom);
+        scon_bool_t isQuoted = (item->flags & SCON_ITEM_FLAG_QUOTED) != 0;
+        scon_bool_t wantQuoted = (flags & SCON_ATOM_LOOKUP_QUOTED) != 0;
+        if (atom->hash == hash && isQuoted == wantQuoted && scon_atom_is_equal(atom, str, len))
         {
             return atom;
         }
@@ -161,10 +181,14 @@ SCON_API scon_atom_t* scon_atom_lookup(scon_t* scon, const char* str, scon_size_
 
     scon_item_t* item = scon_item_new(scon);
     item->type = SCON_ITEM_TYPE_ATOM;
+    if (flags & SCON_ATOM_LOOKUP_QUOTED)
+    {
+        item->flags |= SCON_ITEM_FLAG_QUOTED;
+    }
     scon_atom_t* atom = &item->atom;
     atom->length = len;
     atom->hash = hash;
-    atom->keyword = SCON_KEYWORD_NONE;
+    atom->intrinsic = SCON_INTRINSIC_NONE;
     atom->next = scon->atomBuckets[bucket];
     scon->atomBuckets[bucket] = atom;
 
@@ -179,7 +203,7 @@ SCON_API scon_atom_t* scon_atom_lookup(scon_t* scon, const char* str, scon_size_
         atom->string = SCON_MALLOC(len + 1);
         if (atom->string == SCON_NULL)
         {
-            SCON_THROW(scon, "out of memory");
+            SCON_ERROR_INTERNAL(scon, "out of memory");
         }
         SCON_MEMCPY(atom->string, str, len);
         atom->string[len] = '\0';
@@ -190,6 +214,9 @@ SCON_API scon_atom_t* scon_atom_lookup(scon_t* scon, const char* str, scon_size_
 
 static inline void scon_atom_normalize_escape(scon_t* scon, scon_atom_t* atom)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(atom != SCON_NULL);
+
     char* str = atom->string;
     scon_size_t len = atom->length;
     scon_size_t j = 0;
@@ -231,6 +258,9 @@ static inline void scon_atom_normalize_escape(scon_t* scon, scon_atom_t* atom)
 
 SCON_API void scon_atom_normalize(scon_t* scon, scon_atom_t* atom)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(atom != SCON_NULL);
+
     scon_item_t* item = SCON_CONTAINER_OF(atom, scon_item_t, atom);
     if (atom->length == 0)
     {
@@ -241,10 +271,6 @@ SCON_API void scon_atom_normalize(scon_t* scon, scon_atom_t* atom)
     if (item->flags & SCON_ITEM_FLAG_QUOTED)
     {
         scon_atom_normalize_escape(scon, atom);
-        if (atom->length == 0)
-        {
-            item->flags |= SCON_ITEM_FLAG_FALSY;
-        }
         return;
     }
 

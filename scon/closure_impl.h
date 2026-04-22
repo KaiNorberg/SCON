@@ -7,11 +7,15 @@
 
 SCON_API void scon_closure_deinit(scon_closure_t* closure)
 {
+    SCON_ASSERT(closure != SCON_NULL);
     SCON_FREE(closure->constants);
 }
 
 SCON_API scon_closure_t* scon_closure_new(struct scon* scon, scon_function_t* function)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(function != SCON_NULL);
+
     scon_item_t* item = scon_item_new(scon);
     item->type = SCON_ITEM_TYPE_CLOSURE;
     scon_closure_t* closure = &item->closure;

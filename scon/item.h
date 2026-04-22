@@ -32,12 +32,12 @@ typedef scon_uint8_t scon_item_type_t;
 /**
  * @brief SCON item flags enumeration.
  */
-typedef scon_uint16_t scon_item_flags_t;
+typedef scon_uint8_t scon_item_flags_t;
 #define SCON_ITEM_FLAG_NONE 0                ///< No flags.
 #define SCON_ITEM_FLAG_FALSY (1 << 0)        ///< Item is falsy.
 #define SCON_ITEM_FLAG_INT_SHAPED (1 << 1)   ///< Item is an integer shaped atom.
 #define SCON_ITEM_FLAG_FLOAT_SHAPED (1 << 2) ///< Item is a float shaped atom.
-#define SCON_ITEM_FLAG_KEYWORD (1 << 3)      ///< Item is an atom and a keyword.
+#define SCON_ITEM_FLAG_INTRINSIC (1 << 3)    ///< Item is an atom and a intrinsic.
 #define SCON_ITEM_FLAG_NATIVE (1 << 4)       ///< Item is an atom and a native function.
 #define SCON_ITEM_FLAG_QUOTED (1 << 5)       ///< Item is a quoted atom.
 #define SCON_ITEM_FLAG_GC_MARK (1 << 6)      ///< Item is marked by GC.
@@ -47,14 +47,16 @@ typedef scon_uint16_t scon_item_flags_t;
  * @struct scon_item_t
  *
  * Should be exactly 64 bytes for caching.
+ * 
+ * @see handle
  */
 typedef struct scon_item
 {
-    struct scon_input* input; ///< The parsed input that created this item.
-    scon_uint32_t position;   ///< The position in the input buffer where the item was parsed.
-    scon_item_flags_t flags;  ///< Flags for the item.
-    scon_item_type_t type;    ///< The type of the item.
-    scon_uint8_t _padding[1];
+    struct scon_input* input;  ///< The parsed input that created this item.
+    scon_uint32_t position;    ///< The position in the input buffer where the item was parsed.
+    scon_item_flags_t flags;   ///< Flags for the item.
+    scon_item_type_t type;     ///< The type of the item.
+    scon_uint16_t retainCount; ///< The reference count for GC retention.
     union {
         scon_uint32_t length; ///< Common length for the item. (Stored in the union to save space due to padding rules.)
         scon_atom_t atom;     ///< An atom.
@@ -104,6 +106,14 @@ SCON_API scon_item_t* scon_item_new(struct scon* scon);
  * @param item Pointer to the item to free.
  */
 SCON_API void scon_item_free(struct scon* scon, scon_item_t* item);
+
+/**
+ * @brief Get the string representation of an SCON item type.
+ *
+ * @param type The item type.
+ * @return The string representation of the item type.
+ */
+SCON_API const char* scon_item_type_str(scon_item_type_t type);
 
 /** @} */
 

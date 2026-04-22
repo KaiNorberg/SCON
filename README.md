@@ -1,3 +1,4 @@
+
 # Simple Computable Ordered Notation (SCON)
 
 <br>
@@ -39,18 +40,17 @@ char buffer[0x10000];
 
 int main(int argc, char **argv)
 {    
-    scon_t* scon = scon_new();
-    if (scon == NULL) 
+    scon_t* scon = NULL;
+
+    scon_error_t error = SCON_ERROR();
+    if (SCON_ERROR_CATCH(&error))
     {
-        return 1;
-    }
-    
-    if (SCON_CATCH(scon))
-    {
-        printf("%s\n", scon_error_get(scon));
+        scon_error_print(&error, stderr);
         scon_free(scon);
         return 1;
     }
+
+    scon = scon_new(&error);
 
     scon_handle_t ast = scon_parse_file(scon, "my_file.scon");
 
@@ -92,19 +92,53 @@ int main(int argc, char **argv)
 
 For examples on how to write SCON, see the `bench/` and `tests/` directories.
 
-## Benchmarks
+## First Steps
 
-Included below are the results of example benchmarks comparing SCON with python 3.14.3 and Lua 5.4.8 using hyperfine, all benchmarks performed in Fedora 43 (6.19.11-200.fc43.x86_64).
+SCON should be familiar to anyone used to Lisp or functional languages, but it is intended to be easy to learn even for those who arent.
 
-### Fib35
+All expressions in SCON are either atoms or lists of atoms, and the process of evaluating expressions ought to be thought of as reducing these expressions into a simpler form. Much like how mathematical expressions are reduced to their final values.
 
-Benchmark to find the 35th Fibonacci number.
+For example, the following SCON expression
 
-| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
-|:---|---:|---:|---:|---:|
-| `scon bench/fib35.scon` | 689.4 ± 20.4 | 667.8 | 737.2 | 1.00 |
-| `lua bench/fib35.lua` | 808.1 ± 27.0 | 773.5 | 868.6 | 1.17 ± 0.05 |
-| `python bench/fib35.py` | 1133.3 ± 58.3 | 1062.1 | 1228.5 | 1.64 ± 0.10 |
+```lisp
+(+ 1 2)
+(* 3 4)
+```
+
+will evaluate to `(3 12)`. Note how the result of the evaluation is a list containing the results of each top-level expression.
+
+### Hello World
+
+An obvious way to write "Hello World" in SCON might look like:
+
+```lisp
+(println! "Hello, World!")
+```
+
+However, it could be even simplier. We could simply write:
+
+```lisp
+"Hello, World!"
+```
+
+Which will, of course, evaluate to `Hello, World!`.
+
+### Complex Example
+
+Finally, included is a slightly more complex example:
+
+```lisp
+(do
+    (def fib (lambda (n) 
+        (if (<= n 1)
+            n
+            (+ (fib (- n 1)) (fib (- n 2))))
+        )
+    )
+
+    (format "Fibonacci of 35 is {}" (fib 35))
+)
+```
 
 ## Tools
 
@@ -147,11 +181,17 @@ As such, to install it, copy the `tools/scon-vscode/` directory to `%USERPROFILE
 
 Finally, restart Visual Studio Code.
 
-## Implementation Details
+## Benchmarks
 
-SCON is implemented as a header only cross platform C99 library. It first uses its parser to transform the input text into an Abstract Syntax Tree (AST) consisting of nested lists and atoms. At this point, SCON is perfectly usable as a markup language.
+### Fib35
 
-In addition to the parser, SCON includes a bytecode compiler and a virtual machine (VM) to execute the AST. The output of any evaluation is a new AST, which can then be stringified back into SCON text or used directly.
+Benchmark to find the 35th Fibonacci number.
+
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
+|:---|---:|---:|---:|---:|
+| `scon bench/fib35.scon` | 550.2 ± 11.0 | 535.5 | 572.8 | 1.00 |
+| `lua bench/fib35.lua` | 826.8 ± 38.6 | 769.7 | 900.2 | 1.50 ± 0.08 |
+| `python bench/fib35.py` | 1109.4 ± 14.7 | 1085.3 | 1136.0 | 2.02 ± 0.05 |
 
 ## Grammar
 
@@ -218,14 +258,12 @@ of the language, not a core part of it, and should be considered as such. This c
 Evaluation is the process of recursively reducing an expression to its simplest form in a depth-first, left-to-right
 manner.
 
-### Lambdas and Primitives
+### Callables
 
-There are two callable types, lambdas and primitives. Lambdas as defined as expressions within SCON, while primitives are built-in functions provided by the evaluator. It is possible to define additional primitives within C.
+There are three callable types, intrinsics, natives and lambdas. Lambdas are defined in SCON, natives are defined in C and intrinsics are handled by the bytecode compiler.
 
 ```ebnf
-callable = primitive | lambda ;
-primitive = "(", unquoted_atom, { expression }, ")" ;
-lambda = "(", "lambda", { expression }, ")" ;
+callable = unquoted_atom | lambda ;
 ```
 
 ### Atoms
@@ -258,7 +296,7 @@ All mathematical operations on integer-shaped or float-shaped atoms follow C sem
 
 #### Type Coercion
 
-For any math primitive that takes in multiple arguments, C-like type promotion rules are used.
+For any math intrinsic that takes in multiple arguments, C-like type promotion rules are used.
 
 This means that if any of the atoms provided to the operation are float-shaped, the others will also be converted to floats. Otherwise, they will be converted to integers.
 
@@ -266,9 +304,9 @@ If one or more of the atoms are neither integer-shaped nor float-shaped, the eva
 
 ### Lists
 
-During the evaluation of a list, the first item is immediately evaluated and if it evaluates to a callable item (a primitive or a lambda), it will be executed with the remaining items in the list as its arguments and with the list being replaced by the result of the evaluation.
+During the evaluation of a list, the first item is immediately evaluated and if it evaluates to a callable item, it will be executed with the remaining items in the list as its arguments and with the list being replaced by the result of the evaluation.
 
-Certain primitives may not evaluate all items within the list, for example, the `or` primitive will stop evaluating on the first truthy item. Most primitives, such as `+`, will evaluate all items.
+Certain primitives may not evaluate all items within the list, for example, the `or` intrinsic will stop evaluating on the first truthy item. Most primitives, such as `+`, will evaluate all items.
 
 ### Truthiness
 
@@ -312,7 +350,7 @@ number < string < list
 ### Variables
 
 Variables are used to store and retrieve items within a SCON environment. Variables are defined using the `def`
-primitive and can be accessed using their names.
+intrinsic and can be accessed using their names.
 
 As an example, variables can be used to create a more traditional "function definition" by defining a variable as a lambda:
 
@@ -340,9 +378,7 @@ The following constants are defined by default in the SCON environment:
 | `pi`     | `3.14159265358979323846` |
 | `e`      | `2.7182818284590452354` |
 
-### Keywords
-
-The keywords below are specified using a format similar to the EBNF format, taking advantage of previously made definitions.
+### Intrinsics
 
 #### Core & Evaluation
 
@@ -398,11 +434,11 @@ Evaluates each condition in order, returning the value associated with the first
 
 **`(and <item> {item}) -> <item>`**
 
-Evaluates arguments left-to-right, returning the last truthy value, or `false` if any are falsy. Will stop evaluating arguments as soon as one is falsy.
+Evaluates arguments left-to-right, returning the last truthy value, or the first falsy value if any are falsy. Will stop evaluating arguments as soon as one is falsy.
 
 **`(or <item> {item}) -> <item>`**
 
-Evaluates arguments left-to-right, returning the first truthy value, or `false` if all are falsy. Will stop evaluating arguments as soon as one is truthy.
+Evaluates arguments left-to-right, returning the first truthy value, or the last falsy value if all are falsy. Will stop evaluating arguments as soon as one is truthy.
 
 **`(not <item>) -> <true|false>`**
 
@@ -518,17 +554,17 @@ Returns the value bitwise shifted right.
 
 ---
 
-### Builtins
+### Standard Library
 
-The builtins below are specified using a format similar to the EBNF format, taking advantage of previously made definitions.
+Since SCON is a functional language, side effects should be avoided when possible. As such, any native with side effects will be suffixed with an exclamation mark `!`.
 
 #### Error Handling
 
-**`(assert <cond: item> <msg: item>) -> <cond: item>`**
+**`(assert! <cond: item> <msg: item>) -> <cond: item>`**
 
 Evaluates `<cond>`. If it is falsy, the evaluation fails and throws an error with `<msg>` as the message.
 
-**`(throw <msg: atom>)`**
+**`(throw! <msg: atom>)`**
 
 Throws an error with the given atom being the error message.
 
@@ -550,9 +586,9 @@ Reduces `<list>` to a single value. The `<callable>` must accept two arguments: 
 
 **`(sort <list> [callable]) -> <list>`**
 
-Returns a new list containing the sorted items of the list. The sort is guaranteed to be stable and to minimize the number of comparisons made.
+Returns a new list containing the sorted items of the list. The sort is guaranteed to be stable.
 
-If a `callable` is provided, it is used as a custom comparator that should accept two arguments and return a truthy value if the first argument should appear before the second.
+If a `callable` is provided, it should accept two arguments and return a truthy value if the first argument should appear before the second.
 
 If no `callable` is specified, then items are sorted in ascending order.
 
@@ -568,11 +604,11 @@ Returns the result of evaluating the SCON file at the given path, variables defi
 
 Reads the file at the given path and returns its contents as a raw string atom without evaluating it.
 
-**`(print {item}) -> nil`**
+**`(print! {item}) -> nil`**
 
 Prints the string representation of all arguments to the standard output.
 
-**`(println {item}) -> nil`**
+**`(println! {item}) -> nil`**
 
 Prints the string representation of all arguments to the standard output, followed by a newline.
 
@@ -702,13 +738,13 @@ Returns `true` if the item is an integer or float shaped atom, otherwise `false`
 
 Returns `true` if the item is a lambda, otherwise `false`.
 
-**`(primitive? <item>) -> <true|false>`**
+**`(native? <item>) -> <true|false>`**
 
-Returns `true` if the item is a primitive, otherwise `false`.
+Returns `true` if the item is a native, otherwise `false`.
 
 **`(callable? <item>) -> <true|false>`**
 
-Returns `true` if the item is a lambda or primitive, otherwise `false`.
+Returns `true` if the item is a lambda or native, otherwise `false`.
 
 **`(list? <item>) -> <true|false>`**
 
@@ -858,6 +894,6 @@ Returns the inverse hyperbolic tangent of the argument.
 
 Returns a random number between the given range.
 
-**`(seed <val: number>)`**
+**(seed! <val: number>)**
 
 Seeds the random number generator.

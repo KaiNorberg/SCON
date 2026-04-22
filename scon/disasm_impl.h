@@ -6,6 +6,10 @@
 
 static void scon_disasm_internal(scon_t* scon, scon_function_t* function, scon_file_t out)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(function != SCON_NULL);
+    SCON_ASSERT(out != SCON_NULL);
+
     if (scon == SCON_NULL || function == SCON_NULL || out == SCON_NULL)
     {
         return;
@@ -180,7 +184,7 @@ static void scon_disasm_internal(scon_t* scon, scon_function_t* function, scon_f
                 }
                 else if (item->type == SCON_ITEM_TYPE_LIST)
                 {
-                    SCON_FPRINTF(out, "(list of %u items)\n", (unsigned int)item->list.length);
+                    SCON_FPRINTF(out, "(list of %u handles)\n", (unsigned int)item->list.length);
                 }
                 else if (item->type == SCON_ITEM_TYPE_FUNCTION)
                 {
@@ -221,7 +225,8 @@ static void scon_disasm_internal(scon_t* scon, scon_function_t* function, scon_f
                 }
                 else if (item->type == SCON_ITEM_TYPE_LIST)
                 {
-                    SCON_FPRINTF(out, "[K%03u] (list of %u items)\n", (unsigned int)i, (unsigned int)item->list.length);
+                    SCON_FPRINTF(out, "[K%03u] (list of %u handles)\n", (unsigned int)i,
+                        (unsigned int)item->list.length);
                 }
                 else if (item->type == SCON_ITEM_TYPE_FUNCTION)
                 {
@@ -262,6 +267,10 @@ static void scon_disasm_internal(scon_t* scon, scon_function_t* function, scon_f
 
 SCON_API void scon_disasm(scon_t* scon, scon_function_t* function, scon_file_t out)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(function != SCON_NULL);
+    SCON_ASSERT(out != SCON_NULL);
+
     scon_disasm_internal(scon, function, out);
 }
 

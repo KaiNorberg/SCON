@@ -3,6 +3,7 @@
 #define SCON_GC_IMPL_H 1
 
 #include "core.h"
+#include "eval.h"
 #include "gc.h"
 #include "item.h"
 #include "list.h"
@@ -11,14 +12,23 @@ static void scon_gc_mark(scon_t* scon, scon_item_t* item);
 
 static void scon_gc_mark_list(scon_t* scon, scon_list_t* list)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(list != SCON_NULL);
+
     for (scon_uint32_t i = 0; i < list->length; i++)
     {
-        scon_gc_mark(scon, list->items[i]);
+        scon_handle_t child = list->handles[i];
+        if (SCON_HANDLE_IS_ITEM(&child))
+        {
+            scon_gc_mark(scon, SCON_HANDLE_TO_ITEM(&child));
+        }
     }
 }
 
 static void scon_gc_mark(scon_t* scon, scon_item_t* item)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+
     if (item == SCON_NULL || (item->flags & SCON_ITEM_FLAG_GC_MARK))
     {
         return;
@@ -60,6 +70,8 @@ static void scon_gc_mark(scon_t* scon, scon_item_t* item)
 
 SCON_API void scon_gc_if_needed(scon_t* scon)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+
     if (scon->blocksAllocated >= scon->gcThreshold)
     {
         scon_gc(scon);
@@ -70,10 +82,37 @@ SCON_API void scon_gc_if_needed(scon_t* scon)
 
 SCON_API void scon_gc(scon_t* scon)
 {
-    scon_list_t* retained = &scon->retained;
-    for (scon_uint32_t i = 0; i < retained->length; i++)
+    SCON_ASSERT(scon != SCON_NULL);
+
+    scon_item_block_t* rootBlock = scon->block;
+    while (rootBlock != SCON_NULL)
     {
-        scon_gc_mark(scon, retained->items[i]);
+        for (int i = 0; i < SCON_ITEM_BLOCK_MAX; i++)
+        {
+            scon_item_t* item = &rootBlock->items[i];
+            if (item->type != SCON_ITEM_TYPE_NONE && item->retainCount > 0)
+            {
+                scon_gc_mark(scon, item);
+            }
+        }
+        rootBlock = rootBlock->next;
+    }
+
+    if (scon->evalState != SCON_NULL)
+    {
+        for (scon_uint32_t i = 0; i < scon->evalState->regCount; i++)
+        {
+            scon_handle_t child = scon->evalState->regs[i];
+            if (SCON_HANDLE_IS_ITEM(&child))
+            {
+                scon_gc_mark(scon, SCON_HANDLE_TO_ITEM(&child));
+            }
+        }
+        for (scon_uint32_t i = 0; i < scon->evalState->frameCount; i++)
+        {
+            scon_closure_t* closure = scon->evalState->frames[i].closure;
+            scon_gc_mark(scon, SCON_CONTAINER_OF(closure, scon_item_t, closure));
+        }
     }
 
     scon->freeList = SCON_NULL;
@@ -95,26 +134,6 @@ SCON_API void scon_gc(scon_t* scon)
         }
         block = block->next;
     }
-}
-
-SCON_API void scon_gc_retain(scon_t* scon, scon_handle_t handle)
-{
-    if (!SCON_HANDLE_IS_ITEM(&handle))
-    {
-        SCON_THROW(scon, "invalid item type");
-    }
-
-    scon_list_append(scon, &scon->retained, SCON_HANDLE_TO_ITEM(&handle));
-}
-
-SCON_API void scon_gc_release(scon_t* scon, scon_handle_t item)
-{
-    if (!SCON_HANDLE_IS_ITEM(&item))
-    {
-        SCON_THROW(scon, "invalid item type");
-    }
-
-    scon_list_remove_unstable(scon, &scon->retained, SCON_HANDLE_TO_ITEM(&item));
 }
 
 #endif

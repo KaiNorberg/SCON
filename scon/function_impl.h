@@ -9,6 +9,8 @@
 
 SCON_API void scon_function_init(scon_function_t* func)
 {
+    SCON_ASSERT(func != SCON_NULL);
+
     func->insts = SCON_NULL;
     func->constants = SCON_NULL;
     func->instCount = 0;
@@ -21,6 +23,8 @@ SCON_API void scon_function_init(scon_function_t* func)
 
 SCON_API void scon_function_deinit(scon_function_t* func)
 {
+    SCON_ASSERT(func != SCON_NULL);
+
     if (func->insts != SCON_NULL)
     {
         SCON_FREE(func->insts);
@@ -33,6 +37,8 @@ SCON_API void scon_function_deinit(scon_function_t* func)
 
 SCON_API scon_function_t* scon_function_new(scon_t* scon)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+
     scon_item_t* item = scon_item_new(scon);
     item->type = SCON_ITEM_TYPE_FUNCTION;
     scon_function_t* func = &item->function;
@@ -42,12 +48,15 @@ SCON_API scon_function_t* scon_function_new(scon_t* scon)
 
 SCON_API void scon_function_grow(scon_t* scon, scon_function_t* func)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(func != SCON_NULL);
+
     scon_size_t newCapacity = func->instCapacity == 0 ? 16 : func->instCapacity * 2;
     scon_inst_t* newInsts = (scon_inst_t*)SCON_REALLOC(func->insts, newCapacity * sizeof(scon_inst_t));
 
     if (newInsts == SCON_NULL)
     {
-        SCON_THROW(scon, "out of memory");
+        SCON_ERROR_INTERNAL(scon, "out of memory");
     }
 
     func->insts = newInsts;
@@ -56,6 +65,10 @@ SCON_API void scon_function_grow(scon_t* scon, scon_function_t* func)
 
 SCON_API scon_const_t scon_function_lookup_constant(scon_t* scon, scon_function_t* func, scon_const_slot_t* slot)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(func != SCON_NULL);
+    SCON_ASSERT(slot != SCON_NULL);
+
     for (scon_const_t i = 0; i < func->constantCount; i++)
     {
         if (func->constants[i].type == SCON_CONST_SLOT_CAPTURE && func->constants[i].raw == slot->raw)
@@ -69,12 +82,12 @@ SCON_API scon_const_t scon_function_lookup_constant(scon_t* scon, scon_function_
         scon_uint32_t newCapacity = func->constantCapacity == 0 ? 16 : func->constantCapacity * 2;
         if (newCapacity > SCON_CONSTANT_MAX)
         {
-            SCON_THROW(scon, "too many constants in function");
+            SCON_ERROR_RUNTIME(scon, SCON_NULL, "too many constants in function");
         }
         scon_const_slot_t* newConstants = SCON_REALLOC(func->constants, newCapacity * sizeof(scon_const_slot_t));
         if (newConstants == SCON_NULL)
         {
-            SCON_THROW(scon, "out of memory");
+            SCON_ERROR_INTERNAL(scon, "out of memory");
         }
         func->constants = newConstants;
         func->constantCapacity = newCapacity;

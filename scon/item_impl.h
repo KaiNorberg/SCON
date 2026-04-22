@@ -9,16 +9,21 @@
 
 static inline scon_item_t* scon_item_pop_free_list(scon_t* scon)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+
     scon_item_t* item = scon->freeList;
     scon->freeList = item->free;
     item->type = SCON_ITEM_TYPE_NONE;
     item->flags = 0;
+    item->retainCount = 0;
     item->length = 0;
     return item;
 }
 
 SCON_API scon_item_t* scon_item_new(scon_t* scon)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+
     scon_item_t* item = SCON_NULL;
     if (scon->freeList != SCON_NULL)
     {
@@ -49,7 +54,7 @@ SCON_API scon_item_t* scon_item_new(scon_t* scon)
         block = SCON_CALLOC(1, sizeof(scon_item_block_t));
         if (block == SCON_NULL)
         {
-            SCON_THROW(scon, "out of memory");
+            SCON_ERROR_INTERNAL(scon, "out of memory");
         }
     }
     scon->blocksAllocated++;
@@ -67,12 +72,16 @@ SCON_API scon_item_t* scon_item_new(scon_t* scon)
     item = &block->items[0];
     item->type = SCON_ITEM_TYPE_NONE;
     item->length = 0;
+    item->retainCount = 0;
     item->flags = 0;
     return item;
 }
 
 SCON_API void scon_item_free(scon_t* scon, scon_item_t* item)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(item != SCON_NULL);
+
     if (item->type == SCON_ITEM_TYPE_ATOM)
     {
         scon_atom_deinit(scon, &item->atom);
@@ -93,8 +102,28 @@ SCON_API void scon_item_free(scon_t* scon, scon_item_t* item)
     item->type = SCON_ITEM_TYPE_NONE;
     item->length = 0;
     item->flags = 0;
+    item->retainCount = 0;
     item->free = scon->freeList;
     scon->freeList = item;
+}
+
+SCON_API const char* scon_item_type_str(scon_item_type_t type)
+{
+    switch (type)
+    {
+    case SCON_ITEM_TYPE_NONE:
+        return "none";
+    case SCON_ITEM_TYPE_ATOM:
+        return "atom";
+    case SCON_ITEM_TYPE_LIST:
+        return "list";
+    case SCON_ITEM_TYPE_FUNCTION:
+        return "function";
+    case SCON_ITEM_TYPE_CLOSURE:
+        return "closure";
+    default:
+        return "unknown";
+    }
 }
 
 #endif

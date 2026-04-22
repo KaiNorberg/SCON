@@ -1,15 +1,15 @@
 (do
     (def a 10)
-    (assert (= a 10) "def should bind 'a' to 10")
+    (assert! (= a 10) "def should bind 'a' to 10")
 
     (let ((a 30) (b 40))
-        (assert (= a 30) "let should shadow the outer variable 'a'")
-        (assert (= b 40) "let should bind local variable 'b'")
+        (assert! (= a 30) "let should shadow the outer variable 'a'")
+        (assert! (= b 40) "let should bind local variable 'b'")
     )
 
-    (assert (= a 10) "outer 'a' should remain unchanged after let block exits")
+    (assert! (= a 10) "outer 'a' should remain unchanged after let block exits")
 
     (let ((x 5) (y x))
-        (assert (= y 5) "'y' should be able to reference 'x' in sequential let bindings")
+        (assert! (= y 5) "'y' should be able to reference 'x' in sequential let bindings")
     )
 )

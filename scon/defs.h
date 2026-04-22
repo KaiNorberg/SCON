@@ -8,13 +8,18 @@
 #endif
 
 #ifndef SCON_FREESTANDING
+#include <assert.h>
 #include <setjmp.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #define SCON_NULL NULL
+
+#define SCON_ASSERT(_cond) assert(_cond)
 
 #define SCON_MALLOC(_size) malloc(_size)
 #define SCON_CALLOC(_nmemb, _size) calloc(_nmemb, _size)
@@ -40,9 +45,15 @@ typedef FILE* scon_file_t;
 #define SCON_FWRITE(_ptr, _size, _nmemb, _file) fwrite(_ptr, _size, _nmemb, _file)
 #define SCON_FPRINTF fprintf
 #define SCON_SNPRINTF snprintf
+#define SCON_VSNPRINTF vsnprintf
 #define SCON_STDIN stdin
 #define SCON_STDOUT stdout
 #define SCON_STDERR stderr
+
+#define SCON_VA_START(_ap, _last) va_start(_ap, _last)
+#define SCON_VA_END(_ap) va_end(_ap)
+#define SCON_VA_COPY(_dest, _src) va_copy(_dest, _src)
+typedef va_list scon_va_list;
 
 typedef int64_t scon_int64_t;
 typedef uint64_t scon_uint64_t;
@@ -57,16 +68,25 @@ typedef double scon_float_t;
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
+#define SCON_LIKELY(_x) __builtin_expect(!!(_x), 1)
+#define SCON_UNLIKELY(_x) __builtin_expect(!!(_x), 0)
 #define SCON_NORETURN __attribute__((noreturn))
 #define SCON_ALWAYS_INLINE __attribute__((always_inline))
 #define SCON_HAS_COMPUTED_GOTO
 #elif defined(_MSC_VER)
+#define SCON_LIKELY(_x) (_x)
+#define SCON_UNLIKELY(_x) (_x)
 #define SCON_NORETURN __declspec(noreturn)
 #define SCON_ALWAYS_INLINE __forceinline
 #else
+#define SCON_LIKELY(_x) (_x)
+#define SCON_UNLIKELY(_x) (_x)
 #define SCON_NORETURN
 #define SCON_ALWAYS_INLINE
 #endif
+
+#define SCON_MIN(_a, _b) ((_a) < (_b) ? (_a) : (_b))
+#define SCON_MAX(_a, _b) ((_a) > (_b) ? (_a) : (_b))
 
 /**
  * @brief SCON boolean type.

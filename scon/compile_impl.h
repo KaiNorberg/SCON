@@ -1,3 +1,4 @@
+#include "inst.h"
 #ifndef SCON_COMPILE_IMPL_H
 #define SCON_COMPILE_IMPL_H 1
 
@@ -10,30 +11,34 @@
 
 SCON_API scon_function_t* scon_compile(scon_t* scon, scon_handle_t* ast)
 {
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(ast != SCON_NULL);
+
     scon_function_t* func = scon_function_new(scon);
+    SCON_GC_RETAIN_ITEM(scon, SCON_CONTAINER_OF(func, scon_item_t, function));
     scon_compiler_t compiler;
 
     scon_compiler_init(&compiler, scon, func, SCON_NULL);
-    compiler.lastNode = SCON_HANDLE_TO_ITEM(ast);
+    compiler.lastItem = SCON_HANDLE_TO_ITEM(ast);
 
-    scon_item_t* astNode = SCON_HANDLE_TO_ITEM(ast);
-    if (astNode->length == 0)
+    scon_item_t* astItem = SCON_HANDLE_TO_ITEM(ast);
+    if (astItem->length == 0)
     {
-        SCON_THROW_ITEM(scon, "empty function", astNode);
+        SCON_ERROR_COMPILE(&compiler, astItem, "empty function");
     }
 
     scon_expr_t lastExpr = SCON_EXPR_NONE();
 
-    if (astNode->length > 1)
+    if (astItem->length > 1)
     {
         scon_reg_t target = scon_reg_alloc(&compiler);
         scon_compile_list(&compiler, target);
 
-        for (scon_size_t i = 0; i < astNode->length; ++i)
+        for (scon_size_t i = 0; i < astItem->length; ++i)
         {
-            scon_item_t* item = astNode->list.items[i];
+            scon_item_t* item = SCON_LIST_GET_ITEM(astItem, i);
             scon_expr_t argExpr = SCON_EXPR_NONE();
-            scon_expr_compile(&compiler, item, &argExpr);
+            scon_expr_build(&compiler, item, &argExpr);
             scon_compile_append(&compiler, target, &argExpr);
             scon_expr_done(&compiler, &argExpr);
         }
@@ -42,25 +47,28 @@ SCON_API scon_function_t* scon_compile(scon_t* scon, scon_handle_t* ast)
     }
     else
     {
-        scon_expr_compile(&compiler, astNode->list.items[0], &lastExpr);
+        scon_expr_build(&compiler, SCON_LIST_GET_ITEM(astItem, 0), &lastExpr);
     }
 
     scon_compile_return(&compiler, &lastExpr);
 
     scon_compiler_deinit(&compiler);
 
-    scon_gc_retain_item(scon, SCON_CONTAINER_OF(func, scon_item_t, function));
     return func;
 }
 
 SCON_API void scon_compiler_init(scon_compiler_t* compiler, scon_t* scon, scon_function_t* function,
     scon_compiler_t* enclosing)
 {
+    SCON_ASSERT(compiler != SCON_NULL);
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(function != SCON_NULL);
+
     compiler->enclosing = enclosing;
     compiler->scon = scon;
     compiler->function = function;
     compiler->localCount = 0;
-    compiler->lastNode = SCON_NULL;
+    compiler->lastItem = SCON_NULL;
 
     SCON_MEMSET(compiler->regAlloc, 0, sizeof(compiler->regAlloc));
     SCON_MEMSET(compiler->regLocal, 0, sizeof(compiler->regLocal));
@@ -69,125 +77,14 @@ SCON_API void scon_compiler_init(scon_compiler_t* compiler, scon_t* scon, scon_f
 
 SCON_API void scon_compiler_deinit(scon_compiler_t* compiler)
 {
+    SCON_ASSERT(compiler != SCON_NULL);
     (void)compiler;
-}
-
-static inline void scon_expr_compile_atom(scon_compiler_t* compiler, scon_item_t* atom, scon_expr_t* out)
-{
-    if (atom->flags &
-        (SCON_ITEM_FLAG_QUOTED | SCON_ITEM_FLAG_NATIVE | SCON_ITEM_FLAG_FLOAT_SHAPED | SCON_ITEM_FLAG_INT_SHAPED))
-    {
-        scon_const_slot_t slot = SCON_CONST_SLOT_ITEM(atom);
-        *out = SCON_EXPR_CONST(scon_function_lookup_constant(compiler->scon, compiler->function, &slot));
-        return;
-    }
-
-    scon_local_t* local = scon_local_lookup(compiler, &atom->atom);
-    if (local != SCON_NULL)
-    {
-        *out = local->expr;
-        return;
-    }
-
-    for (scon_uint32_t i = 0; i < compiler->scon->constantCount; i++)
-    {
-        if (&atom->atom == compiler->scon->constants[i].name)
-        {
-            scon_const_slot_t slot = SCON_CONST_SLOT_ITEM(compiler->scon->constants[i].item);
-            *out = SCON_EXPR_CONST(scon_function_lookup_constant(compiler->scon, compiler->function, &slot));
-            return;
-        }
-    }
-
-    SCON_THROW_ITEM(compiler->scon, "undefined variable", SCON_COMPILER_ERR_ITEM(compiler, atom));
-}
-
-static inline void scon_expr_compile_list(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
-{
-    if (list->length == 0)
-    {
-        return;
-    }
-
-    scon_item_t* head = list->list.items[0];
-    if (head->type != SCON_ITEM_TYPE_ATOM || head->flags & SCON_ITEM_FLAG_QUOTED)
-    {
-        SCON_THROW_ITEM(compiler->scon, "first item in list must be a callable atom", head);
-    }
-
-    if (head->flags & SCON_ITEM_FLAG_KEYWORD)
-    {
-        scon_keyword_handler_t handler = sconKeywordHandlers[head->atom.keyword];
-        if (handler != SCON_NULL)
-        {
-            handler(compiler, list, out);
-            return;
-        }
-    }
-
-    scon_uint32_t arity = list->length - 1;
-    scon_uint32_t regCount = arity == 0 ? 1 : arity;
-
-    scon_reg_t base;
-    if (out != SCON_NULL && out->mode == SCON_MODE_TARGET)
-    {
-        base = scon_reg_alloc_range_hint(compiler, regCount, out->reg);
-    }
-    else
-    {
-        base = scon_reg_alloc_range(compiler, regCount);
-    }
-
-    scon_expr_t callable = SCON_EXPR_NONE();
-    scon_expr_compile(compiler, head, &callable);
-
-    for (scon_uint32_t i = 1; i < list->length; i++)
-    {
-        scon_reg_t target = base + i - 1;
-        scon_expr_t argExpr = SCON_EXPR_TARGET(target);
-        scon_expr_compile(compiler, list->list.items[i], &argExpr);
-
-        if (argExpr.mode != SCON_MODE_REG || argExpr.reg != target)
-        {
-            scon_compile_move(compiler, target, &argExpr);
-            scon_expr_done(compiler, &argExpr);
-        }
-    }
-
-    scon_compile_call(compiler, base, &callable, arity);
-
-    scon_expr_done(compiler, &callable);
-
-    if (regCount > 1)
-    {
-        scon_reg_free_range(compiler, base + 1, regCount - 1);
-    }
-
-    *out = SCON_EXPR_REG(base);
-}
-
-SCON_API void scon_expr_compile(scon_compiler_t* compiler, scon_item_t* item, scon_expr_t* out)
-{
-    scon_item_t* previousNode = compiler->lastNode;
-    if (item != SCON_NULL && item->input != SCON_NULL)
-    {
-        compiler->lastNode = item;
-    }
-
-    if (item->type == SCON_ITEM_TYPE_ATOM)
-    {
-        scon_expr_compile_atom(compiler, item, out);
-    }
-    else
-    {
-        scon_expr_compile_list(compiler, item, out);
-    }
-
-    compiler->lastNode = previousNode;
 }
 
 SCON_API scon_reg_t scon_reg_alloc(scon_compiler_t* compiler)
 {
+    SCON_ASSERT(compiler != SCON_NULL);
+
     for (scon_uint32_t w = 0; w < SCON_REGISTER_MAX / 64; w++)
     {
         if (compiler->regAlloc[w] != ~(scon_uint64_t)0)
@@ -204,12 +101,14 @@ SCON_API scon_reg_t scon_reg_alloc(scon_compiler_t* compiler)
         }
     }
 
-    SCON_THROW(compiler->scon, "too many registers in function");
+    SCON_ERROR_COMPILE(compiler, compiler->lastItem, "too many registers in function");
     return (scon_reg_t)-1;
 }
 
 SCON_API scon_reg_t scon_reg_alloc_range(scon_compiler_t* compiler, scon_uint32_t count)
 {
+    SCON_ASSERT(compiler != SCON_NULL);
+
     if (count == 0)
     {
         return 0;
@@ -238,12 +137,14 @@ SCON_API scon_reg_t scon_reg_alloc_range(scon_compiler_t* compiler, scon_uint32_
         i += length;
     }
 
-    SCON_THROW(compiler->scon, "too many registers in function");
+    SCON_ERROR_COMPILE(compiler, compiler->lastItem, "too many registers in function");
     return (scon_reg_t)-1;
 }
 
 SCON_API scon_reg_t scon_reg_alloc_range_hint(scon_compiler_t* compiler, scon_uint32_t count, scon_reg_t hint)
 {
+    SCON_ASSERT(compiler != SCON_NULL);
+
     if (hint != (scon_reg_t)-1 && hint + count <= SCON_REGISTER_MAX)
     {
         scon_bool_t canUseHint = SCON_TRUE;
@@ -273,6 +174,8 @@ SCON_API scon_reg_t scon_reg_alloc_range_hint(scon_compiler_t* compiler, scon_ui
 
 SCON_API void scon_reg_free(scon_compiler_t* compiler, scon_reg_t reg)
 {
+    SCON_ASSERT(compiler != SCON_NULL);
+
     if (SCON_REG_IS_LOCAL(compiler, reg))
     {
         return;
@@ -283,44 +186,189 @@ SCON_API void scon_reg_free(scon_compiler_t* compiler, scon_reg_t reg)
 
 SCON_API void scon_reg_free_range(scon_compiler_t* compiler, scon_reg_t start, scon_uint32_t count)
 {
+    SCON_ASSERT(compiler != SCON_NULL);
+
     for (scon_uint32_t i = 0; i < count; i++)
     {
         scon_reg_free(compiler, start + i);
     }
 }
 
-SCON_API scon_local_t* scon_local_add(scon_compiler_t* compiler, scon_atom_t* name, scon_expr_t* expr)
+static inline void scon_expr_build_atom(scon_compiler_t* compiler, scon_item_t* atom, scon_expr_t* out)
 {
-    if (compiler->localCount >= SCON_REGISTER_MAX)
-    {
-        SCON_THROW_ITEM(compiler->scon, "too many local variables",
-            SCON_COMPILER_ERR_ITEM(compiler, SCON_CONTAINER_OF(name, scon_item_t, atom)));
-    }
-    compiler->locals[compiler->localCount].name = name;
+    SCON_ASSERT(compiler != SCON_NULL);
+    SCON_ASSERT(atom != SCON_NULL);
+    SCON_ASSERT(out != SCON_NULL);
 
-    if (expr->mode == SCON_MODE_REG)
+    if (atom->flags &
+        (SCON_ITEM_FLAG_QUOTED | SCON_ITEM_FLAG_NATIVE | SCON_ITEM_FLAG_FLOAT_SHAPED | SCON_ITEM_FLAG_INT_SHAPED))
     {
-        compiler->locals[compiler->localCount].expr = *expr;
-        SCON_REG_SET_LOCAL(compiler, expr->reg);
+        *out = SCON_EXPR_CONST_ITEM(compiler, atom);
+        return;
+    }
+
+    scon_local_t* local = scon_local_lookup(compiler, &atom->atom);
+    if (local != SCON_NULL)
+    {
+        if (!SCON_LOCAL_IS_DEFINED(local))
+        {
+            SCON_ERROR_COMPILE(compiler, atom, "undefined variable '%.*s'", atom->atom.length, atom->atom.string);
+        }
+
+        *out = local->expr;
+        return;
+    }
+
+    for (scon_uint32_t i = 0; i < compiler->scon->constantCount; i++)
+    {
+        if (&atom->atom == compiler->scon->constants[i].name)
+        {
+            *out = SCON_EXPR_CONST_ITEM(compiler, compiler->scon->constants[i].item);
+            return;
+        }
+    }
+
+    SCON_ERROR_COMPILE(compiler, atom, "undefined variable '%.*s'", atom->atom.length, atom->atom.string);
+}
+
+static inline void scon_expr_build_list(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
+{
+    SCON_ASSERT(compiler != SCON_NULL);
+    SCON_ASSERT(list != SCON_NULL);
+    SCON_ASSERT(out != SCON_NULL);
+
+    if (list->length == 0)
+    {
+        *out = SCON_EXPR_NIL(compiler);
+        return;
+    }
+
+    scon_item_t* head = SCON_LIST_GET_ITEM(list, 0);
+    if (head->type != SCON_ITEM_TYPE_ATOM || head->flags & SCON_ITEM_FLAG_QUOTED)
+    {
+        SCON_ERROR_COMPILE(compiler, head, "expected callable atom, got %s", scon_item_type_str(head->type));
+    }
+
+    if (head->flags & SCON_ITEM_FLAG_INTRINSIC)
+    {
+        scon_intrinsic_handler_t handler = sconIntrinsicHandlers[head->atom.intrinsic];
+        if (handler != SCON_NULL)
+        {
+            handler(compiler, list, out);
+            return;
+        }
+    }
+
+    scon_uint32_t arity = list->length - 1;
+    scon_uint32_t regCount = arity == 0 ? 1 : arity;
+
+    scon_reg_t base;
+    if (out != SCON_NULL && out->mode == SCON_MODE_TARGET)
+    {
+        base = scon_reg_alloc_range_hint(compiler, regCount, out->reg);
     }
     else
     {
-        compiler->locals[compiler->localCount].expr = *expr;
+        base = scon_reg_alloc_range(compiler, regCount);
     }
 
+    scon_expr_t callable = SCON_EXPR_NONE();
+    scon_expr_build(compiler, head, &callable);
+
+    for (scon_uint32_t i = 1; i < list->length; i++)
+    {
+        scon_reg_t target = base + i - 1;
+        scon_expr_t argExpr = SCON_EXPR_TARGET(target);
+        scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, i), &argExpr);
+
+        if (argExpr.mode != SCON_MODE_REG || argExpr.reg != target)
+        {
+            scon_compile_move(compiler, target, &argExpr);
+            scon_expr_done(compiler, &argExpr);
+        }
+    }
+
+    scon_compile_call(compiler, base, &callable, arity);
+
+    scon_expr_done(compiler, &callable);
+
+    if (regCount > 1)
+    {
+        scon_reg_free_range(compiler, base + 1, regCount - 1);
+    }
+
+    *out = SCON_EXPR_REG(base);
+}
+
+SCON_API void scon_expr_build(scon_compiler_t* compiler, scon_item_t* item, scon_expr_t* out)
+{
+    SCON_ASSERT(compiler != SCON_NULL);
+    SCON_ASSERT(item != SCON_NULL);
+    SCON_ASSERT(out != SCON_NULL);
+
+    scon_item_t* previousItem = compiler->lastItem;
+    if (item != SCON_NULL && item->input != SCON_NULL)
+    {
+        compiler->lastItem = item;
+    }
+
+    if (item->type == SCON_ITEM_TYPE_ATOM)
+    {
+        scon_expr_build_atom(compiler, item, out);
+    }
+    else
+    {
+        scon_expr_build_list(compiler, item, out);
+    }
+
+    compiler->lastItem = previousItem;
+}
+
+SCON_API scon_local_t* scon_local_def(scon_compiler_t* compiler, scon_atom_t* name)
+{
+    SCON_ASSERT(compiler != SCON_NULL);
+    SCON_ASSERT(name != SCON_NULL);
+
+    if (compiler->localCount >= SCON_REGISTER_MAX)
+    {
+        SCON_ERROR_COMPILE(compiler, compiler->lastItem, "too many local variables");
+    }
+
+    compiler->locals[compiler->localCount].name = name;
+    compiler->locals[compiler->localCount].expr = SCON_EXPR_NONE();
     return &compiler->locals[compiler->localCount++];
+}
+
+SCON_API void scon_local_def_done(scon_compiler_t* compiler, scon_local_t* local, scon_expr_t* expr)
+{
+    SCON_ASSERT(compiler != SCON_NULL);
+    SCON_ASSERT(local != SCON_NULL);
+    SCON_ASSERT(expr != SCON_NULL);
+
+    if (local->expr.mode != SCON_MODE_NONE)
+    {
+        return;
+    }
+
+    if (expr->mode == SCON_MODE_REG)
+    {
+        SCON_REG_SET_LOCAL(compiler, expr->reg);
+    }
+
+    local->expr = *expr;
 }
 
 SCON_API scon_local_t* scon_local_add_arg(scon_compiler_t* compiler, scon_atom_t* name)
 {
+    SCON_ASSERT(compiler != SCON_NULL);
+    SCON_ASSERT(name != SCON_NULL);
+
     if (compiler->localCount >= SCON_REGISTER_MAX)
     {
-        SCON_THROW_ITEM(compiler->scon, "too many local variables",
-            SCON_COMPILER_ERR_ITEM(compiler, SCON_CONTAINER_OF(name, scon_item_t, atom)));
+        SCON_ERROR_COMPILE(compiler, compiler->lastItem, "too many local variables");
     }
 
     scon_reg_t reg = scon_reg_alloc(compiler);
-
     compiler->locals[compiler->localCount].name = name;
     compiler->locals[compiler->localCount].expr = SCON_EXPR_REG(reg);
     SCON_REG_SET_LOCAL(compiler, reg);
@@ -330,6 +378,9 @@ SCON_API scon_local_t* scon_local_add_arg(scon_compiler_t* compiler, scon_atom_t
 
 SCON_API scon_local_t* scon_local_lookup(scon_compiler_t* compiler, scon_atom_t* name)
 {
+    SCON_ASSERT(compiler != SCON_NULL);
+    SCON_ASSERT(name != SCON_NULL);
+
     for (scon_int16_t i = compiler->localCount - 1; i >= 0; i--)
     {
         if (compiler->locals[i].name == name)
@@ -353,13 +404,19 @@ SCON_API scon_local_t* scon_local_lookup(scon_compiler_t* compiler, scon_atom_t*
                 scon_const_t constant = scon_function_lookup_constant(compiler->scon, compiler->function,
                     &current->function->constants[current->locals[i].expr.constant]);
                 scon_expr_t constExpr = SCON_EXPR_CONST(constant);
-                return scon_local_add(compiler, name, &constExpr);
+
+                scon_local_t* local = scon_local_def(compiler, name);
+                scon_local_def_done(compiler, local, &constExpr);
+                return local;
             }
 
             scon_const_slot_t slot = SCON_CONST_SLOT_CAPTURE(name);
             scon_const_t constant = scon_function_lookup_constant(compiler->scon, compiler->function, &slot);
             scon_expr_t constExpr = SCON_EXPR_CONST(constant);
-            return scon_local_add(compiler, name, &constExpr);
+
+            scon_local_t* local = scon_local_def(compiler, name);
+            scon_local_def_done(compiler, local, &constExpr);
+            return local;
         }
         current = current->enclosing;
     }

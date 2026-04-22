@@ -11,8 +11,19 @@ struct scon;
  * @defgroup handle Handle
  * @file handle.h
  *
- * A handle is a lightweight reference to a SCON item, with the ability to cache the integer or float value of an atom
- * without needing to look up the underlying item using Tagged Pointers (NaN Boxing).
+ * A handle is a lightweight reference to a SCON item, with the ability to cache various flags from its referenced item or the integer/float value of an atom using Tagged Pointers (NaN Boxing).
+ *
+ * ## 64-bit Handle Bit Layout
+ *
+ * The top 16 bits are used as a type tag. The remaining 48 bits represent the payload.
+ * For item pointers, the lowest 6 bits are guaranteed to be zero due to 64-byte alignment,
+ * allowing us to store flags in these bits.
+ *
+ * | Tag (16 bits)   | Payload (42 bits)                 | Flags (6 bits) |
+ * |-----------------|-----------------------------------|----------------|
+ * | `0x0000`        | Item Pointer (`scon_item_t*`)     | Item Flags     |
+ * | `0x0006`        | Integer Value (48-bit signed)     | *N/A*          |
+ * | `0x0007...FFFF` | Float (Shifted IEEE 754 double)   | *N/A*          |
  *
  * @see [Wikipedia Tagged pointer](https://en.wikipedia.org/wiki/Tagged_pointer)
  *
@@ -22,13 +33,17 @@ struct scon;
 /**
  * @brief SCON invalid handle constant.
  */
-#define SCON_HANDLE_NONE 0xFFFE000000000000ULL
+#define SCON_HANDLE_NONE 0x0000000000000000ULL
 
-#define SCON_HANDLE_TAG_INT 0xFFFC000000000000ULL  ///< Tag for integer handles.
-#define SCON_HANDLE_TAG_ITEM 0xFFFE000000000000ULL ///< Tag for item handles.
+#define SCON_HANDLE_OFFSET_FLOAT 0x0007000000000000ULL ///< Offset used for encoding doubles.
 
-#define SCON_HANDLE_MASK_TAG 0xFFFF000000000000ULL ///< Mask for handle tag bits.
-#define SCON_HANDLE_MASK_VAL 0x0000FFFFFFFFFFFFULL ///< Mask for handle value bits.
+#define SCON_HANDLE_TAG_INT 0x0006000000000000ULL  ///< Tag for integer handles.
+#define SCON_HANDLE_TAG_ITEM 0x0000000000000000ULL ///< Tag for item handles.
+
+#define SCON_HANDLE_MASK_TAG 0xFFFF000000000000ULL   ///< Mask for handle tag bits.
+#define SCON_HANDLE_MASK_VAL 0x0000FFFFFFFFFFFFULL   ///< Mask for handle value bits.
+#define SCON_HANDLE_MASK_PTR 0x0000FFFFFFFFFFC0ULL   ///< Mask for item pointer bits, leaving 6 bits for flags.
+#define SCON_HANDLE_MASK_FLAGS 0x000000000000003FULL ///< Mask for 6 bits of flags in item handles.
 
 /**
  * @brief Create a handle from an integer.
@@ -49,7 +64,7 @@ struct scon;
         double d; \
         scon_handle_t u; \
     }){.d = (_val)}) \
-            .u)
+            .u + SCON_HANDLE_OFFSET_FLOAT)
 
 /**
  * @brief Create a handle from an item pointer.
@@ -57,7 +72,7 @@ struct scon;
  * @param _ptr The pointer to the scon_item_t.
  * @return The handle.
  */
-#define SCON_HANDLE_FROM_ITEM(_ptr) (SCON_HANDLE_TAG_ITEM | ((scon_handle_t)(void*)(_ptr) & SCON_HANDLE_MASK_VAL))
+#define SCON_HANDLE_FROM_ITEM(_ptr) (SCON_HANDLE_TAG_ITEM | ((scon_handle_t)(void*)(_ptr) & SCON_HANDLE_MASK_PTR) | (((_ptr) != SCON_NULL) ? ((_ptr)->flags & SCON_HANDLE_MASK_FLAGS) : 0))
 
 /**
  * @brief Create a handle from an atom pointer.
@@ -105,7 +120,7 @@ struct scon;
  * @param _handle Pointer to the handle.
  * @return Non-zero if the handle is a float, zero otherwise.
  */
-#define SCON_HANDLE_IS_FLOAT(_handle) ((*(_handle)) < SCON_HANDLE_TAG_INT)
+#define SCON_HANDLE_IS_FLOAT(_handle) ((*(_handle)) >= SCON_HANDLE_OFFSET_FLOAT)
 
 /**
  * @brief Check if a handle is an item.
@@ -121,7 +136,7 @@ struct scon;
  * @param _handle Pointer to the handle.
  * @return The integer value.
  */
-#define SCON_HANDLE_TO_INT(_handle) (((scon_int64_t)((*(_handle)) << 16)) >> 16)
+#define SCON_HANDLE_TO_INT(_handle) (((scon_int64_t)((*(_handle)) & SCON_HANDLE_MASK_VAL)))
 
 /**
  * @brief Get the float value of a handle.
@@ -133,7 +148,7 @@ struct scon;
     (((union { \
         scon_handle_t u; \
         double d; \
-    }){.u = (*(_handle))}) \
+    }){.u = (*(_handle)) - SCON_HANDLE_OFFSET_FLOAT}) \
             .d)
 
 /**
@@ -142,7 +157,29 @@ struct scon;
  * @param _handle Pointer to the handle.
  * @return The item pointer.
  */
-#define SCON_HANDLE_TO_ITEM(_handle) ((scon_item_t*)(void*)((*(_handle)) & SCON_HANDLE_MASK_VAL))
+#define SCON_HANDLE_TO_ITEM(_handle) ((scon_item_t*)(void*)((*(_handle)) & SCON_HANDLE_MASK_PTR))
+
+/**
+ * @brief Set flags on an item handle, uses the `scon_item_type_t`.
+ * 
+ * @param _handle Pointer to the handle.
+ * @param _flags The flags to set.
+ */
+#define SCON_HANDLE_SET_FLAGS(_handle, _flags) \
+    do { \
+        if (SCON_HANDLE_IS_ITEM(_handle)) { \
+            *(_handle) = ((*(_handle) & ~SCON_HANDLE_MASK_FLAGS) | ((_flags) & SCON_HANDLE_MASK_FLAGS)); \
+        } \
+    } while (0)
+
+/**
+ * @brief Get flags from an item handle.
+ *
+ * @param _handle Pointer to the handle.
+ * @return The flags stored in the handle.
+ */
+#define SCON_HANDLE_GET_FLAGS(_handle) \
+    (SCON_HANDLE_IS_ITEM(_handle) ? (scon_uint8_t)((*(_handle)) & SCON_HANDLE_MASK_FLAGS) : 0)
 
 #define SCON_HANDLE_FALSE() SCON_HANDLE_FROM_INT(0) ///< Constant false handle.
 
@@ -158,10 +195,11 @@ struct scon;
  * @return The result of the comparison.
  */
 #define SCON_HANDLE_COMPARE_FAST(_scon, _a, _b, _op) \
-    (SCON_HANDLE_IS_INT(_a) && SCON_HANDLE_IS_INT(_b)) ? (SCON_HANDLE_TO_INT(_a) _op SCON_HANDLE_TO_INT(_b)) \
-        : (SCON_HANDLE_IS_FLOAT(_a) && SCON_HANDLE_IS_FLOAT(_b)) \
-        ? (SCON_HANDLE_TO_FLOAT(_a) _op SCON_HANDLE_TO_FLOAT(_b)) \
-        : scon_handle_compare(_scon, _a, _b)
+    (((((*(_a)) ^ SCON_HANDLE_TAG_INT) | ((*(_b)) ^ SCON_HANDLE_TAG_INT)) & SCON_HANDLE_MASK_TAG) == 0 \
+        ? (((scon_int64_t)((*(_a)) & SCON_HANDLE_MASK_VAL)) _op ((scon_int64_t)((*(_b)) & SCON_HANDLE_MASK_VAL))) \
+        : (((*(_a)) >= SCON_HANDLE_OFFSET_FLOAT && (*(_b)) >= SCON_HANDLE_OFFSET_FLOAT) \
+            ? (SCON_HANDLE_TO_FLOAT(_a) _op SCON_HANDLE_TO_FLOAT(_b)) \
+            : (scon_handle_compare(_scon, _a, _b) _op 0)))
 
 /**
  * @brief Perform a arithmetic operation on two handles with a fast path for integers and floats.
@@ -175,11 +213,13 @@ struct scon;
 #define SCON_HANDLE_ARITHMETIC_FAST(_scon, _a, _b, _c, _op) \
     do \
     { \
-        if (SCON_HANDLE_IS_INT(_b) && SCON_HANDLE_IS_INT(_c)) \
+        scon_handle_t _bVal = *(_b); \
+        scon_handle_t _cVal = *(_c); \
+        if (SCON_LIKELY((((_bVal ^ SCON_HANDLE_TAG_INT) | (_cVal ^ SCON_HANDLE_TAG_INT)) & SCON_HANDLE_MASK_TAG) == 0)) \
         { \
-            *(_a) = SCON_HANDLE_FROM_INT(SCON_HANDLE_TO_INT(_b) _op SCON_HANDLE_TO_INT(_c)); \
+            *(_a) = SCON_HANDLE_FROM_INT(((scon_int64_t)(_bVal & SCON_HANDLE_MASK_VAL)) _op ((scon_int64_t)(_cVal & SCON_HANDLE_MASK_VAL))); \
         } \
-        else if (SCON_HANDLE_IS_FLOAT(_b) && SCON_HANDLE_IS_FLOAT(_c)) \
+        else if (_bVal >= SCON_HANDLE_OFFSET_FLOAT && _cVal >= SCON_HANDLE_OFFSET_FLOAT) \
         { \
             *(_a) = SCON_HANDLE_FROM_FLOAT(SCON_HANDLE_TO_FLOAT(_b) _op SCON_HANDLE_TO_FLOAT(_c)); \
         } \
@@ -201,20 +241,20 @@ struct scon;
 /**
  * @brief Check if a handle is truthy.
  *
- * @param scon The SCON structure.
- * @param handle Pointer to the handle.
+ * @param _handle Pointer to the handle.
  * @return `SCON_TRUE` if the handle is truthy, `SCON_FALSE` otherwise.
  */
-#define SCON_HANDLE_IS_TRUTHY(_scon, _handle) \
-    (SCON_HANDLE_IS_INT(_handle) \
-            ? SCON_HANDLE_TO_INT(_handle) != 0 \
-            : (SCON_HANDLE_IS_FLOAT(_handle) \
-                      ? SCON_HANDLE_TO_FLOAT(_handle) != 0.0 \
-                      : (SCON_HANDLE_IS_ITEM(_handle) ? !(SCON_HANDLE_TO_ITEM(_handle)->flags & SCON_ITEM_FLAG_FALSY) \
-                                                      : SCON_FALSE)))
+#define SCON_HANDLE_IS_TRUTHY(_handle) \
+    ((((*(_handle)) & SCON_HANDLE_MASK_TAG) == SCON_HANDLE_TAG_INT) \
+        ? (((*(_handle)) & SCON_HANDLE_MASK_VAL) != 0) \
+        : (((*(_handle)) >= SCON_HANDLE_OFFSET_FLOAT) \
+            ? (SCON_HANDLE_TO_FLOAT(_handle) != 0.0) \
+            : (((*(_handle)) & SCON_HANDLE_MASK_TAG) == SCON_HANDLE_TAG_ITEM \
+                ? ((*(_handle)) != SCON_HANDLE_NONE && !((*(_handle)) & SCON_ITEM_FLAG_FALSY)) \
+                : SCON_FALSE)))
 
 /**
- * @brief Get the number of items in a list or the number of characters in an atom.
+ * @brief Get the number of handles in a list or the number of characters in an atom.
  *
  * @param scon The SCON structure.
  * @param handle The handle to the check, will be upgraded to an item.

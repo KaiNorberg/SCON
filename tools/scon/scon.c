@@ -9,12 +9,6 @@ char buffer[0x10000];
 
 int main(int argc, char **argv)
 {
-    scon_t* scon = scon_new();
-    if (scon == NULL) 
-    {
-        return 1;
-    }
-    
     int result = 0;
     int isSilent = 0;
     int shouldDump = 0;
@@ -66,12 +60,17 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
-    if (SCON_CATCH(scon))
+    scon_t* scon = NULL;
+
+    scon_error_t error = SCON_ERROR();
+    if (SCON_ERROR_CATCH(&error))
     {
-        printf("%s\n", scon_error_get(scon));
+        scon_error_print(&error, stderr);
         result = 1;
         goto cleanup;
     }
+
+    scon = scon_new(&error);
 
     scon_handle_t ast;
     if (evalExpr != NULL)
@@ -88,7 +87,7 @@ int main(int argc, char **argv)
         ast = scon_parse_file(scon, filename);
     }
 
-    scon_builtin_register(scon, SCON_BUILTIN_ALL);
+    scon_stdlib_register(scon, SCON_STDLIB_ALL);
 
     scon_function_t* function = scon_compile(scon, &ast);
 
