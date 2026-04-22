@@ -5,6 +5,7 @@
 #include "defs.h"
 #include "eval.h"
 #include "item.h"
+#include "stdlib_type_casting.h"
 
 static void scon_eval_state_init(scon_t* scon, scon_eval_state_t* state)
 {
@@ -172,6 +173,7 @@ static scon_handle_t scon_eval_run(scon_t* scon, scon_eval_state_t* state, scon_
         OP_ENTRY_C(SCON_OPCODE_SHR, label_shr),
         OP_ENTRY(SCON_OPCODE_CLOSURE, label_closure),
         OP_ENTRY_C(SCON_OPCODE_CAPTURE, label_capture),
+        OP_ENTRY_C(SCON_OPCODE_TAILCALL, label_tailcall),
     };
 
 #define LABEL_C_OP(_label, ...) \
@@ -228,7 +230,7 @@ LABEL_C_OP(label_call,
 {
     DECODE_A();
     DECODE_B();
-    ERROR_CHECK(SCON_HANDLE_IS_ITEM(&valC), scon, SCON_NULL, "attempt to call non-callable value");
+    ERROR_CHECK(SCON_HANDLE_IS_ITEM(&valC), scon, SCON_NULL, "attempt to call non-callable %s", scon_item_type_str(scon_handle_get_type(scon, &valC)));
     scon_item_t* item = SCON_HANDLE_TO_ITEM(&valC);
     if (SCON_LIKELY(item->type == SCON_ITEM_TYPE_CLOSURE))
     {
@@ -260,7 +262,78 @@ LABEL_C_OP(label_call,
     }
 
     frame->ip = ip;
-    SCON_ERROR_RUNTIME(scon, SCON_NULL,  "attempt to call non-callable value");
+    SCON_ERROR_RUNTIME(scon, SCON_NULL,  "attempt to call non-callable %s", scon_item_type_str(item->type));
+})
+LABEL_C_OP(label_tailcall,
+{
+    DECODE_A();
+    DECODE_B();
+    ERROR_CHECK(SCON_HANDLE_IS_ITEM(&valC), scon, SCON_NULL, "attempt to call non-callable %s", scon_item_type_str(scon_handle_get_type(scon, &valC)));
+    scon_item_t* item = SCON_HANDLE_TO_ITEM(&valC);
+    if (SCON_LIKELY(item->type == SCON_ITEM_TYPE_CLOSURE))
+    {
+        scon_closure_t* closure = &item->closure;
+        ERROR_CHECK(b == closure->function->arity, scon, SCON_NULL, "expected %d arguments, got %d", closure->function->arity, b);
+
+        if (a != 0)
+        {
+            for (scon_uint32_t i = 0; i < b; i++)
+            {
+                base[i] = base[a + i];
+            }
+        }
+
+        scon_uint32_t neededRegs = frame->base + closure->function->registerCount;
+        if (SCON_UNLIKELY(neededRegs > state->regCapacity))
+        {
+            while (neededRegs > state->regCapacity)
+            {
+                state->regCapacity *= SCON_EVAL_REGS_GROWTH_FACTOR;
+            }
+            scon_handle_t* newRegs = (scon_handle_t*)SCON_REALLOC(state->regs, sizeof(scon_handle_t) * state->regCapacity);
+            if (newRegs == SCON_NULL)
+            {
+                scon_eval_state_deinit(state);
+                SCON_ERROR_INTERNAL(scon, "out of memory");
+            }
+            state->regs = newRegs;
+            base = state->regs + frame->base;
+        }
+        state->regCount = neededRegs;
+
+        frame->closure = closure;
+        frame->ip = closure->function->insts;
+
+        ip = frame->ip;
+        constants = frame->closure->constants;
+
+        DISPATCH();
+    }
+    if (SCON_LIKELY(item->flags & SCON_ITEM_FLAG_NATIVE))
+    {
+        scon_handle_t* args = &base[a];
+        frame->ip = ip;
+        scon_handle_t res = item->atom.native(scon, b, args);
+
+        state->regs[frame->target] = res;
+        scon_eval_pop_frame(state);
+
+        if (SCON_UNLIKELY(state->frameCount == initialFrameCount))
+        {
+            result = res;
+            goto eval_end;
+        }
+
+        frame = &state->frames[state->frameCount - 1];
+        ip = frame->ip;
+        base = state->regs + frame->base;
+        constants = frame->closure->constants;
+
+        DISPATCH();
+    }
+
+    frame->ip = ip;
+    SCON_ERROR_RUNTIME(scon, SCON_NULL,  "attempt to call non-callable %s", scon_item_type_str(item->type));
 })
 LABEL_C_OP(label_mov,
 {
@@ -398,45 +471,45 @@ LABEL_C_OP(label_band,
 {
     DECODE_A();
     DECODE_B();
-    base[a] = SCON_HANDLE_FROM_INT(scon_handle_get_int(scon, &base[b]) & scon_handle_get_int(scon, &valC));
+    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) & scon_get_int(scon, &valC));
     DISPATCH();
 })
 LABEL_C_OP(label_bor,
 {
     DECODE_A();
     DECODE_B();
-    base[a] = SCON_HANDLE_FROM_INT(scon_handle_get_int(scon, &base[b]) | scon_handle_get_int(scon, &valC));
+    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) | scon_get_int(scon, &valC));
     DISPATCH();
 })
 LABEL_C_OP(label_bxor,
 {
     DECODE_A();
     DECODE_B();
-    base[a] = SCON_HANDLE_FROM_INT(scon_handle_get_int(scon, &base[b]) ^ scon_handle_get_int(scon, &valC));
+    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) ^ scon_get_int(scon, &valC));
     DISPATCH();
 })
 LABEL_C_OP(label_bnot,
 {
     DECODE_A();
-    base[a] = SCON_HANDLE_FROM_INT(~scon_handle_get_int(scon, &valC));
+    base[a] = SCON_HANDLE_FROM_INT(~scon_get_int(scon, &valC));
     DISPATCH();
 })
 LABEL_C_OP(label_shl,
 {
     DECODE_A();
     DECODE_B();
-    scon_int64_t left = scon_handle_get_int(scon, &valC);
+    scon_int64_t left = scon_get_int(scon, &valC);
     ERROR_CHECK(left >= 0 && left < 64, scon, SCON_NULL, "expected left shift amount 0-63, got %ld", left);
-    base[a] = SCON_HANDLE_FROM_INT(scon_handle_get_int(scon, &base[b]) << left);
+    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) << left);
     DISPATCH();
 })
 LABEL_C_OP(label_shr,
 {
     DECODE_A();
     DECODE_B();
-    scon_int64_t right = scon_handle_get_int(scon, &valC);
+    scon_int64_t right = scon_get_int(scon, &valC);
     ERROR_CHECK(right >= 0 && right < 64, scon, SCON_NULL, "expected right shift amount 0-63, got %ld", right);
-    base[a] = SCON_HANDLE_FROM_INT(scon_handle_get_int(scon, &base[b]) >> right);
+    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) >> right);
     DISPATCH();
 })
 label_closure:

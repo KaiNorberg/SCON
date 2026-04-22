@@ -54,6 +54,8 @@ int main(int argc, char **argv)
 
     scon_handle_t ast = scon_parse_file(scon, "my_file.scon");
 
+    scon_stdlib_register(scon, SCON_STDLIB_ALL);
+
     scon_function_t* function = scon_compile(scon, &ast);
 
     scon_handle_t result = scon_eval(scon, function);
@@ -94,7 +96,7 @@ For examples on how to write SCON, see the `bench/` and `tests/` directories.
 
 ## First Steps
 
-SCON should be familiar to anyone used to Lisp or functional languages, but it is intended to be easy to learn even for those who arent.
+SCON should be familiar to anyone used to Lisp or functional languages, but it is intended to be easy to learn even for those who aren't.
 
 All expressions in SCON are either atoms or lists of atoms, and the process of evaluating expressions ought to be thought of as reducing these expressions into a simpler form. Much like how mathematical expressions are reduced to their final values.
 
@@ -115,7 +117,7 @@ An obvious way to write "Hello World" in SCON might look like:
 (println! "Hello, World!")
 ```
 
-However, it could be even simplier. We could simply write:
+However, it could be even simpler. We could simply write:
 
 ```lisp
 "Hello, World!"
@@ -177,21 +179,66 @@ A syntax highlighting extension for Visual Studio Code can be found at `tools/sc
 
 The extension is not yet available in the marketplace.
 
-As such, to install it, copy the `tools/scon-vscode/` directory to `%USERPROFILE%\.vscode\extensions\` if your on Windows or `~/.vscode/extensions/` if your on macOS/Linux.
+As such, to install it, copy the `tools/scon-vscode/` directory to `%USERPROFILE%\.vscode\extensions\` if you're on Windows or `~/.vscode/extensions/` if you're on macOS/Linux.
 
 Finally, restart Visual Studio Code.
 
+## Implementation
+
+SCON is implemented as a register-based bytecode compiled language, where the SCON source is first parsed into an Abstract Syntax Tree (AST) and then compiled into a custom bytecode format before being executed by the virtual machine/evaluator.
+
+> Note that the "Abstract Syntax Tree" is just a SCON expression, lists and atoms, meaning that the compiler is itself written to operate on the same data structures as  evaluator produces.
+the
+
+The bytecode format itself is a stream of 32bit instructions, with all instructions able to read/write to an array of registers, or read from an array of constants.
+
+*See [inst.h](https://github.com/KaiNorberg/SCON/blob/main/scon/inst.h) for more information on instructions.*
+
+Since SCON is immutable, the constants array is also used for "captured" values from outer scopes (closures) and we can also allow the compiler to fold constant expressions at compile-time, far more than would normally be possible.
+
+*See [compile.h](https://github.com/KaiNorberg/SCON/blob/main/scon/compile.h) for more information on the compiler.*
+
+To improve caching and reduce pointer indirection, SCON uses "handles" (`scon_handle_t`) which are [Tagged Pointers](https://en.wikipedia.org/wiki/Tagged_pointer) using NaN boxing to allow a single 64bit value to store either a 48 bit signed integer, IEEE 754 double or a pointer to a heap allocated item.
+
+*See [handle.h](https://github.com/KaiNorberg/SCON/blob/main/scon/handle.h) for more information on handles.*
+
+Items (`scon_item_t`) represent all heap allocated objects, such as lists, atoms and closures. All items are exactly 64 bytes in size and allocated using a custom pool allocator and freed using a garbage collector and free list.
+
+Since SCON uses its handles to store most integers and floats, it can avoid heap allocations for many common values, significantly reducing the pressure on the garbage collector and improving caching.
+
+*See [item.h](https://github.com/KaiNorberg/SCON/blob/main/scon/item.h) for more information on items.*
+
+All atoms use [String Interning](https://en.wikipedia.org/wiki/String_interning), meaning that every unique atom is only stored once in memory. This makes any string comparison into a single pointer comparison, and it means that parsing the integer/floating point value of an atom or an items truthiness only needs to be done once.
+
+*See [atom.h](https://github.com/KaiNorberg/SCON/blob/main/scon/atom.h) for more information on atoms.*
+
+Many additional optimization techniques are used, for example, [Computed Gotos](https://eli.thegreenplace.net/2012/07/12/computed-goto-for-efficient-dispatch-tables), [setjmp](https://man7.org/linux/man-pages/man3/longjmp.3.html) based error handling to avoid excessive error checking in the hot path, [Tail Call Optimization](https://en.wikipedia.org/wiki/Tail_call) and much more.
+
+*See [eval.h](https://github.com/KaiNorberg/SCON/blob/main/scon/eval.h) for more information on the evaluator.*
+
 ## Benchmarks
+
+Included below are a handful of benchmarks comparing SCON with python 3.14.3 and Lua 5.4.8 using hyperfine, all benchmarks were performed in Fedora 43 (6.19.11-200.fc43.x86_64).
 
 ### Fib35
 
-Benchmark to find the 35th Fibonacci number.
+Benchmark to find the 35th Fibonacci number without tail call optimization.
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
 | `scon bench/fib35.scon` | 550.2 ± 11.0 | 535.5 | 572.8 | 1.00 |
 | `lua bench/fib35.lua` | 826.8 ± 38.6 | 769.7 | 900.2 | 1.50 ± 0.08 |
 | `python bench/fib35.py` | 1109.4 ± 14.7 | 1085.3 | 1136.0 | 2.02 ± 0.05 |
+
+### Fib65
+
+Benchmark to find the 65th Fibonacci number with tail call optimization.
+
+| Command | Mean [µs] | Min [µs] | Max [µs] | Relative |
+|:---|---:|---:|---:|---:|
+| `scon bench/fib65.scon` | 613.9 ± 90.6 | 535.1 | 3310.0 | 1.00 |
+| `lua bench/fib65.lua` | 1049.5 ± 165.0 | 920.3 | 2663.3 | 1.71 ± 0.37 |
+| `python bench/fib65.py` | 13155.4 ± 1254.2 | 11688.3 | 23926.9 | 21.43 ± 3.76 |
 
 ## Grammar
 
@@ -217,7 +264,7 @@ escape_sequence = "\\", ( "a" | "b" | "e" | "f" | "n" | "r" | "t" | "v" | "\\" |
 
 character = letter | digit | symbol ;
 
-symbol = sign | "!" | "$" | "%" | "&" | "*" | "." | "/" | ":" | "<" | "=" | ">" | "?" | "@" | "^" | "_" | "|" | "~" | "{" | "}" | "[" | "]" | "#" ;
+symbol = sign | "!" | "$" | "%" | "&" | "*" | "." | "/" | ":" | "<" | "=" | ">" | "?" | "@" | "^" | "_" | "|" | "~" | "{" | "}" | "[" | "]" | "#" | "," | ";" | "`" ;
 sign = "+" | "-" ;
 
 hex = digit | "A" | "B" | "C" | "D" | "E" | "F" | "a" | "b" | "c" | "d" | "e" | "f" ;
@@ -642,11 +689,11 @@ Returns a sub-list or sub-atom of `<item>` starting from the `<start>` index to 
 
 **`(starts-with? <item> <prefix: item>) -> <true|false>`**
 
-Returns `true` if the provided item is an atom that starts with the prefix or a list whose first item starts with the prefix, otherwise `false`.
+Returns `true` if the provided item is an atom that starts with the prefix or a list whose first item is the prefix, otherwise `false`.
 
 **`(ends-with? <item> <suffix: item>) -> <true|false>`**
 
-Returns `true` if the provided item is an atom that ends with the suffix or a list whose first item ends with the suffix, otherwise `false`.
+Returns `true` if the provided item is an atom that ends with the suffix or a list whose last item is the suffix, otherwise `false`.
 
 **`(contains? <item> <subitem: item>) -> <true|false>`**
 
@@ -678,47 +725,47 @@ Returns a new atom with leading and trailing whitespace removed.
 
 ---
 
-#### Type Checking & Introspection
+#### Introspection
 
-**`(len <item>) -> <number>`**
+**`(len <item> {item}) -> <number>`**
 
-Returns the number of items in a list or the number of characters in an atom.
+Returns the total number of items in the lists and the number of characters in the atoms for all provided arguments.
 
-**`(atom? <item>) -> <true|false>`**
+**`(atom? <item> {item}) -> <true|false>`**
 
-Returns `true` if the item is an atom, otherwise `false`.
+Returns `true` if all items are atoms, otherwise `false`.
 
-**`(int? <item>) -> <true|false>`**
+**`(int? <item> {item}) -> <true|false>`**
 
-Returns `true` if the item is an integer shaped atom, otherwise `false`.
+Returns `true` if all items are integer shaped atoms, otherwise `false`.
 
-**`(float? <item>) -> <true|false>`**
+**`(float? <item> {item}) -> <true|false>`**
 
-Returns `true` if the item is a float shaped atom, otherwise `false`.
+Returns `true` if all items are float shaped atoms, otherwise `false`.
 
-**`(number? <item>) -> <true|false>`**
+**`(number? <item> {item}) -> <true|false>`**
 
-Returns `true` if the item is an integer or float shaped atom, otherwise `false`.
+Returns `true` if all items are integer or float shaped atoms, otherwise `false`.
 
-**`(lambda? <item>) -> <true|false>`**
+**`(lambda? <item> {item}) -> <true|false>`**
 
-Returns `true` if the item is a lambda, otherwise `false`.
+Returns `true` if all items are lambdas, otherwise `false`.
 
-**`(native? <item>) -> <true|false>`**
+**`(native? <item> {item}) -> <true|false>`**
 
-Returns `true` if the item is a native, otherwise `false`.
+Returns `true` if all items are natives, otherwise `false`.
 
-**`(callable? <item>) -> <true|false>`**
+**`(callable? <item> {item}) -> <true|false>`**
 
-Returns `true` if the item is a lambda or native, otherwise `false`.
+Returns `true` if all items are lambdas or natives, otherwise `false`.
 
-**`(list? <item>) -> <true|false>`**
+**`(list? <item> {item}) -> <true|false>`**
 
-Returns `true` if the item is a list, otherwise `false`.
+Returns `true` if all items are lists, otherwise `false`.
 
-**`(empty? <item>) -> <true|false>`**
+**`(empty? <item> {item}) -> <true|false>`**
 
-Returns `true` if the item is an empty list `()`, or an empty atom `""`, otherwise `false`.
+Returns `true` if all items are empty lists `()`, or empty atoms `""`, otherwise `false`.
 
 ---
 
@@ -731,6 +778,10 @@ Returns the integer shaped representation of the atom.
 **`(float <atom>) -> <number>`**
 
 Returns the float shaped representation of the atom.
+
+**`(string <item>) -> <string>`**
+
+Returns the stringified representation of the item.
 
 ---
 
@@ -746,7 +797,7 @@ Returns a new list containing the first item of every sub-list.
 
 **`(values <list>) -> <list>`**
 
-Returns a new list containing all but the first item of every sub-list.
+Returns a new list containing the second item of every sub-list.
 
 **`(assoc <list> <key: item> <value: item>) -> <list>`**
 
@@ -898,6 +949,6 @@ Returns the inverse hyperbolic tangent of the argument.
 
 Returns a random number between the given range.
 
-**(seed! <val: number>)**
+**`(seed! <val: number>)`**
 
 Seeds the random number generator.

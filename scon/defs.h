@@ -151,4 +151,6 @@ typedef enum
  */
 typedef scon_uint64_t scon_handle_t;
 
+#define SCON_STACK_BUFFER_SIZE 256 ///< The size of temporary stack allocated buffers.
+
 #endif

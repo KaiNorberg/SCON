@@ -470,6 +470,63 @@ static inline void scon_compile_return(scon_compiler_t* compiler, scon_expr_t* e
 {
     SCON_ASSERT(compiler != SCON_NULL);
     SCON_ASSERT(expr != SCON_NULL);
+
+    if (expr->mode == SCON_MODE_REG)
+    {
+        scon_reg_t retReg = expr->reg;
+        scon_uint32_t retInstPos = compiler->function->instCount;
+
+        for (scon_size_t i = 0; i < retInstPos; i++)
+        {
+            scon_inst_t inst = compiler->function->insts[i];
+            scon_opcode_t op = SCON_INST_GET_OP_BASE(inst);
+
+            if (op != SCON_OPCODE_CALL || SCON_INST_GET_A(inst) != retReg)
+            {
+                continue;
+            }
+
+            scon_bool_t isTail = SCON_FALSE;
+
+            if (i == retInstPos - 1)
+            {
+                isTail = SCON_TRUE;
+            }
+            else
+            {
+                scon_size_t curr = i + 1;
+                while (curr < retInstPos)
+                {
+                    scon_inst_t nextInst = compiler->function->insts[curr];
+                    if (SCON_INST_GET_OP_BASE(nextInst) == SCON_OPCODE_JMP)
+                    {
+                        scon_int32_t offset = SCON_INST_GET_SBX(nextInst);
+                        if (offset < 0)
+                        {
+                            break;
+                        }
+                        curr = curr + 1 + offset;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                if (curr == retInstPos)
+                {
+                    isTail = SCON_TRUE;
+                }
+            }
+
+            if (isTail)
+            {
+                scon_mode_t mode = (scon_mode_t)(SCON_INST_GET_OP(inst) & SCON_MODE_CONST);
+                compiler->function->insts[i] =
+                    (inst & ~SCON_INST_MASK_OPCODE) | ((SCON_OPCODE_TAILCALL | mode) & SCON_INST_MASK_OPCODE);
+            }
+        }
+    }
+
     if (expr->mode == SCON_MODE_NONE)
     {
         scon_expr_t nilExpr = SCON_EXPR_NIL(compiler);

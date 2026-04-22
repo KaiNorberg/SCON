@@ -5,6 +5,22 @@
 #include "defs.h"
 #include "handle.h"
 #include "item.h"
+#include "gc.h"
+#include "eval.h"
+#include "stringify.h"
+#include "char.h"
+
+SCON_API void scon_handle_get_string_params(scon_t* scon, scon_handle_t* handle, char** outStr, scon_size_t* outLen)
+{
+    scon_handle_ensure_item(scon, handle);
+    scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
+    if (item->type != SCON_ITEM_TYPE_ATOM)
+    {
+        SCON_ERROR_RUNTIME(scon, item, "expected atom, got %s", scon_item_type_str(item->type));
+    }
+    *outStr = item->atom.string;
+    *outLen = item->length;
+}
 
 SCON_API void scon_handle_ensure_item(scon_t* scon, scon_handle_t* handle)
 {
@@ -27,15 +43,6 @@ SCON_API void scon_handle_ensure_item(scon_t* scon, scon_handle_t* handle)
     *handle = SCON_HANDLE_FROM_ITEM(SCON_CONTAINER_OF(atom, scon_item_t, atom));
 }
 
-SCON_API scon_size_t scon_handle_len(scon_t* scon, scon_handle_t* handle)
-{
-    SCON_ASSERT(scon != SCON_NULL);
-    SCON_ASSERT(handle != SCON_NULL);
-
-    scon_handle_ensure_item(scon, handle);
-    return SCON_HANDLE_TO_ITEM(handle)->length;
-}
-
 SCON_API scon_item_type_t scon_handle_get_type(scon_t* scon, scon_handle_t* handle)
 {
     SCON_ASSERT(scon != SCON_NULL);
@@ -48,64 +55,6 @@ SCON_API scon_item_type_t scon_handle_get_type(scon_t* scon, scon_handle_t* hand
 
     scon_handle_ensure_item(scon, handle);
     return SCON_HANDLE_TO_ITEM(handle)->type;
-}
-
-SCON_API void scon_handle_get_string(scon_t* scon, scon_handle_t* handle, char** out, scon_size_t* len)
-{
-    SCON_ASSERT(scon != SCON_NULL);
-    SCON_ASSERT(handle != SCON_NULL);
-    SCON_ASSERT(out != SCON_NULL);
-    SCON_ASSERT(len != SCON_NULL);
-
-    scon_handle_ensure_item(scon, handle);
-    scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
-    if (item->type != SCON_ITEM_TYPE_ATOM)
-    {
-        SCON_ERROR_RUNTIME(scon, item, "expected atom, got %s", scon_item_type_str(item->type));
-    }
-
-    *out = item->atom.string;
-    *len = item->length;
-}
-
-SCON_API scon_int64_t scon_handle_get_int(scon_t* scon, scon_handle_t* handle)
-{
-    SCON_ASSERT(scon != SCON_NULL);
-    SCON_ASSERT(handle != SCON_NULL);
-
-    if (SCON_HANDLE_IS_INT(handle))
-    {
-        return SCON_HANDLE_TO_INT(handle);
-    }
-
-    scon_handle_ensure_item(scon, handle);
-    scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
-    if (!(SCON_HANDLE_GET_FLAGS(handle) & SCON_ITEM_FLAG_INT_SHAPED))
-    {
-        SCON_ERROR_RUNTIME(scon, item, "expected int, got %s", scon_item_type_str(item->type));
-    }
-
-    return item->atom.integerValue;
-}
-
-SCON_API scon_float_t scon_handle_get_float(scon_t* scon, scon_handle_t* handle)
-{
-    SCON_ASSERT(scon != SCON_NULL);
-    SCON_ASSERT(handle != SCON_NULL);
-
-    if (SCON_HANDLE_IS_FLOAT(handle))
-    {
-        return SCON_HANDLE_TO_FLOAT(handle);
-    }
-
-    scon_handle_ensure_item(scon, handle);
-    scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
-    if (!(SCON_HANDLE_GET_FLAGS(handle) & SCON_ITEM_FLAG_FLOAT_SHAPED))
-    {
-        SCON_ERROR_RUNTIME(scon, item, "expected float, got %s", scon_item_type_str(item->type));
-    }
-
-    return item->atom.floatValue;
 }
 
 SCON_API void scon_handle_promote(struct scon* scon, scon_handle_t* a, scon_handle_t* b, scon_promotion_t* out)
@@ -169,45 +118,6 @@ SCON_API void scon_handle_promote(struct scon* scon, scon_handle_t* a, scon_hand
         SCON_ERROR_RUNTIME(scon, itemA, "unsupported operand type %s and %s", scon_item_type_str(itemA->type),
             scon_item_type_str(itemB->type));
     }
-}
-
-SCON_API scon_bool_t scon_handle_is_number(scon_t* scon, scon_handle_t* handle)
-{
-    SCON_ASSERT(scon != SCON_NULL);
-    SCON_ASSERT(handle != SCON_NULL);
-
-    if (SCON_HANDLE_IS_INT(handle) || SCON_HANDLE_IS_FLOAT(handle))
-    {
-        return SCON_TRUE;
-    }
-
-    return (SCON_HANDLE_GET_FLAGS(handle) & (SCON_ITEM_FLAG_INT_SHAPED | SCON_ITEM_FLAG_FLOAT_SHAPED)) != 0;
-}
-
-SCON_API scon_bool_t scon_handle_is_int(scon_t* scon, scon_handle_t* handle)
-{
-    SCON_ASSERT(scon != SCON_NULL);
-    SCON_ASSERT(handle != SCON_NULL);
-
-    if (SCON_HANDLE_IS_INT(handle))
-    {
-        return SCON_TRUE;
-    }
-
-    return (SCON_HANDLE_GET_FLAGS(handle) & SCON_ITEM_FLAG_INT_SHAPED) != 0;
-}
-
-SCON_API scon_bool_t scon_handle_is_float(scon_t* scon, scon_handle_t* handle)
-{
-    SCON_ASSERT(scon != SCON_NULL);
-    SCON_ASSERT(handle != SCON_NULL);
-
-    if (SCON_HANDLE_IS_FLOAT(handle))
-    {
-        return SCON_TRUE;
-    }
-
-    return (SCON_HANDLE_GET_FLAGS(handle) & SCON_ITEM_FLAG_FLOAT_SHAPED) != 0;
 }
 
 SCON_API scon_bool_t scon_handle_is_equal(scon_t* scon, scon_handle_t* a, scon_handle_t* b)
@@ -369,88 +279,6 @@ SCON_API scon_int64_t scon_handle_compare(scon_t* scon, scon_handle_t* a, scon_h
     }
 
     return (scon_int64_t)lenA - (scon_int64_t)lenB;
-}
-
-SCON_API scon_handle_t scon_handle_get(scon_t* scon, scon_handle_t* list, const char* name)
-{
-    SCON_ASSERT(scon != SCON_NULL);
-    SCON_ASSERT(list != SCON_NULL);
-    SCON_ASSERT(name != SCON_NULL);
-
-    if (!SCON_HANDLE_IS_ITEM(list))
-    {
-        return SCON_HANDLE_NONE;
-    }
-
-    scon_item_t* item = SCON_HANDLE_TO_ITEM(list);
-    if (item->type != SCON_ITEM_TYPE_LIST)
-    {
-        return SCON_HANDLE_NONE;
-    }
-
-    scon_size_t strLen = SCON_STRLEN(name);
-    if (strLen == 0)
-    {
-        return SCON_HANDLE_NONE;
-    }
-
-    scon_list_t* l = &item->list;
-    scon_size_t len = l->length;
-    for (scon_size_t i = 0; i < len; i++)
-    {
-        scon_handle_t childHandle = l->handles[i];
-        if (!SCON_HANDLE_IS_ITEM(&childHandle))
-        {
-            continue;
-        }
-
-        scon_item_t* childItem = SCON_HANDLE_TO_ITEM(&childHandle);
-        if (childItem->type != SCON_ITEM_TYPE_LIST || childItem->list.length < 2)
-        {
-            continue;
-        }
-
-        scon_handle_t keyHandle = childItem->list.handles[0];
-        if (!SCON_HANDLE_IS_ITEM(&keyHandle))
-        {
-            continue;
-        }
-
-        scon_item_t* key = SCON_HANDLE_TO_ITEM(&keyHandle);
-        if (key->type == SCON_ITEM_TYPE_ATOM && key->length == strLen)
-        {
-            if (SCON_MEMCMP(key->atom.string, name, strLen) == 0)
-            {
-                return childItem->list.handles[1];
-            }
-        }
-    }
-
-    return SCON_HANDLE_NONE;
-}
-
-SCON_API scon_handle_t scon_handle_nth(scon_t* scon, scon_handle_t* list, scon_size_t n)
-{
-    SCON_ASSERT(scon != SCON_NULL);
-    SCON_ASSERT(list != SCON_NULL);
-
-    if (!SCON_HANDLE_IS_ITEM(list))
-    {
-        return SCON_HANDLE_NONE;
-    }
-
-    scon_item_t* item = SCON_HANDLE_TO_ITEM(list);
-    if (item->type != SCON_ITEM_TYPE_LIST)
-    {
-        return SCON_HANDLE_NONE;
-    }
-
-    if (n >= item->list.length)
-    {
-        return SCON_HANDLE_NONE;
-    }
-
-    return item->list.handles[n];
 }
 
 SCON_API scon_handle_t scon_handle_nil(scon_t* scon)

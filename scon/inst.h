@@ -24,7 +24,7 @@
  *
  * @note The reason we avoid formats such as iABx, used within Lua, is that even if it increases the maximum constant
  * capacity it means that operations such as `SCON_OPCODE_EQUAL` always need to act on registers, which introduces
- * unnecessary `MOVE` instructions to load constants into registers before they can be compared.
+ * unnecessary `MOV` instructions to load constants into registers before they can be compared.
  *
  * @{
  */
@@ -78,6 +78,7 @@ typedef enum
     SCON_OPCODE_SHR,     ///< (A, B, C) R(A) = R(B) >> R/K(C)
     SCON_OPCODE_CLOSURE, ///< (A, C) Wrap the function prototype in K(C) in a closure and store in R(A).
     SCON_OPCODE_CAPTURE, ///< (A, B, C) Capture R/K(C) into constant slot B in closure R(A).
+    SCON_OPCODE_TAILCALL,///< (A, B, C) Tail call callable in R/K(C) with B args starting from R(A).
 } scon_opcode_t;
 
 /**

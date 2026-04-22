@@ -131,6 +131,48 @@ struct scon;
 #define SCON_HANDLE_IS_ITEM(_handle) (((*(_handle)) & SCON_HANDLE_MASK_TAG) == SCON_HANDLE_TAG_ITEM)
 
 /**
+ * @brief Check if a handle is an atom.
+ *
+ * @param _handle Pointer to the handle.
+ * @return Non-zero if the handle is an atom, zero otherwise.
+ */
+#define SCON_HANDLE_IS_ATOM(_handle) \
+    (SCON_HANDLE_IS_INT(_handle) || SCON_HANDLE_IS_FLOAT(_handle) || \
+     (SCON_HANDLE_IS_ITEM(_handle) && (SCON_HANDLE_GET_FLAGS(_handle) & SCON_ITEM_TYPE_ATOM)))
+
+/**
+ * @brief Check if a handle is a list.
+ *
+ * @param _handle Pointer to the handle.
+ * @return Non-zero if the handle is a list, zero otherwise.
+ */
+#define SCON_HANDLE_IS_LIST(_handle) (SCON_HANDLE_IS_ITEM(_handle) && (SCON_HANDLE_TO_ITEM(_handle)->type == SCON_ITEM_TYPE_LIST))
+
+/**
+ * @brief Check if a handle is a function.
+ *
+ * @param _handle Pointer to the handle.
+ * @return Non-zero if the handle is a function, zero otherwise.
+ */
+#define SCON_HANDLE_IS_FUNCTION(_handle) (SCON_HANDLE_IS_ITEM(_handle) && (SCON_HANDLE_TO_ITEM(_handle)->type == SCON_ITEM_TYPE_FUNCTION))
+
+/**
+ * @brief Check if a handle is a closure.
+ *
+ * @param _handle Pointer to the handle.
+ * @return Non-zero if the handle is a closure, zero otherwise.
+ */
+#define SCON_HANDLE_IS_CLOSURE(_handle) (SCON_HANDLE_IS_ITEM(_handle) && (SCON_HANDLE_TO_ITEM(_handle)->type == SCON_ITEM_TYPE_CLOSURE))
+
+/**
+ * @brief Check if a handle is a native function.
+ *
+ * @param _handle Pointer to the handle.
+ * @return Non-zero if the handle is a native function, zero otherwise.
+ */
+#define SCON_HANDLE_IS_NATIVE(_handle) (SCON_HANDLE_IS_ITEM(_handle) && (SCON_HANDLE_TO_ITEM(_handle)->type == SCON_ITEM_TYPE_NATIVE))
+
+/**
  * @brief Get the integer value of a handle.
  *
  * @param _handle Pointer to the handle.
@@ -161,7 +203,7 @@ struct scon;
 
 /**
  * @brief Set flags on an item handle, uses the `scon_item_type_t`.
- * 
+ *
  * @param _handle Pointer to the handle.
  * @param _flags The flags to set.
  */
@@ -264,15 +306,6 @@ struct scon;
 SCON_API void scon_handle_ensure_item(struct scon* scon, scon_handle_t* handle);
 
 /**
- * @brief Get the number of handles in a list or the number of characters in an atom.
- *
- * @param scon The SCON structure.
- * @param handle The handle to the check, will be upgraded to an item.
- * @return The length of the handle.
- */
-SCON_API scon_size_t scon_handle_len(struct scon* scon, scon_handle_t* handle);
-
-/**
  * @brief Get the type of a SCON handle.
  *
  * A handle is considered an atom even if it is an integer or a float.
@@ -282,34 +315,6 @@ SCON_API scon_size_t scon_handle_len(struct scon* scon, scon_handle_t* handle);
  * @return The type of the handle.
  */
 SCON_API scon_item_type_t scon_handle_get_type(struct scon* scon, scon_handle_t* handle);
-
-/**
- * @brief Get the string representation of an atom.
- *
- * @param scon The SCON structure.
- * @param handle The handle to get the string representation of, must be an atom, might be upgraded.
- * @param out The output buffer.
- * @param len The length of the output buffer.
- */
-SCON_API void scon_handle_get_string(struct scon* scon, scon_handle_t* handle, char** out, scon_size_t* len);
-
-/**
- * @brief Get the integer value of an atom.
- *
- * @param scon The SCON structure.
- * @param handle The handle to get the integer value of, must be integer-shaped, might be upgraded to an item.
- * @return The integer value of the handle.
- */
-SCON_API scon_int64_t scon_handle_get_int(struct scon* scon, scon_handle_t* handle);
-
-/**
- * @brief Get the float value of an atom.
- *
- * @param scon The SCON structure.
- * @param handle The handle to get the float value of, must be float-shaped, might be upgraded to an item.
- * @return The float value of the handle.
- */
-SCON_API scon_float_t scon_handle_get_float(struct scon* scon, scon_handle_t* handle);
 
 /**
  * @brief Promotion types for numeric operations.
@@ -353,33 +358,6 @@ typedef struct
 SCON_API void scon_handle_promote(struct scon* scon, scon_handle_t* a, scon_handle_t* b, scon_promotion_t* out);
 
 /**
- * @brief Check if an handle is number-shaped (integer or float).
- *
- * @param scon The SCON structure.
- * @param handle The handle to check, might be upgraded to an item.
- * @return `SCON_TRUE` if the handle is a number, `SCON_FALSE` otherwise.
- */
-SCON_API scon_bool_t scon_handle_is_number(struct scon* scon, scon_handle_t* handle);
-
-/**
- * @brief Check if an handle is integer-shaped.
- *
- * @param scon The SCON structure.
- * @param handle The handle to check, might be upgraded to an item.
- * @return `SCON_TRUE` if the handle is an integer, `SCON_FALSE` otherwise.
- */
-SCON_API scon_bool_t scon_handle_is_int(struct scon* scon, scon_handle_t* handle);
-
-/**
- * @brief Check if an handle is float-shaped.
- *
- * @param scon The SCON structure.
- * @param handle The handle to check, might be upgraded to an item.
- * @return `SCON_TRUE` if the handle is a float, `SCON_FALSE` otherwise.
- */
-SCON_API scon_bool_t scon_handle_is_float(struct scon* scon, scon_handle_t* handle);
-
-/**
  * @brief Check if two items are exactly equal string-wise or structurally.
  *
  * @param scon The SCON structure.
@@ -400,29 +378,6 @@ SCON_API scon_bool_t scon_handle_is_equal(struct scon* scon, scon_handle_t* a, s
  * @return A negative value if a < b, zero if a == b, and a positive value if a > b.
  */
 SCON_API scon_int64_t scon_handle_compare(struct scon* scon, scon_handle_t* a, scon_handle_t* b);
-
-/**
- * @brief Find a sub-list by its head atom name.
- *
- * Given a list, this searches for a child handle that is itself a list whose first element
- * is an atom matching `name`.
- *
- * @param scon The SCON structure.
- * @param list The handle to the parent list.
- * @param name The name of the head atom to search for.
- * @return A handle to the found list, or a handle with index `SCON_HANDLE_NONE` if not found.
- */
-SCON_API scon_handle_t scon_handle_get(struct scon* scon, scon_handle_t* list, const char* name);
-
-/**
- * @brief Retrieve the n-th handle in a SCON list.
- *
- * @param scon The SCON structure.
- * @param list The handle to the list handle.
- * @param n The index of the handle to retrieve.
- * @return A handle to the n-th handle, or a handle with index `SCON_HANDLE_NONE` if not found.
- */
-SCON_API scon_handle_t scon_handle_nth(struct scon* scon, scon_handle_t* list, scon_size_t n);
 
 /**
  * @brief Get the constant nil handle.
@@ -447,6 +402,8 @@ SCON_API scon_handle_t scon_handle_pi(struct scon* scon);
  * @return The E handle.
  */
 SCON_API scon_handle_t scon_handle_e(struct scon* scon);
+
+SCON_API void scon_handle_get_string_params(struct scon* scon, scon_handle_t* handle, char** outStr, scon_size_t* outLen);
 
 /** @} */
 

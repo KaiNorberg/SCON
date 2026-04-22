@@ -4,6 +4,15 @@
 #include "defs.h"
 #include "item.h"
 
+#include "stdlib_error.h"
+#include "stdlib_higher_order.h"
+#include "stdlib_sequences.h"
+#include "stdlib_string.h"
+#include "stdlib_introspection.h"
+#include "stdlib_type_casting.h"
+#include "stdlib_assoc.h"
+#include "stdlib_system.h"
+
 struct scon;
 
 /**
@@ -26,7 +35,11 @@ typedef enum
     SCON_STDLIB_ERROR = (1 << 0),
     SCON_STDLIB_HIGHER_ORDER = (1 << 1),
     SCON_STDLIB_SEQUENCES = (1 << 2),
-    SCON_STDLIB_SYSTEM = (1 << 3),
+    SCON_STDLIB_STRING = (1 << 3),
+    SCON_STDLIB_INTROSPECTION = (1 << 4),
+    SCON_STDLIB_TYPE_CASTING = (1 << 5),
+    SCON_STDLIB_ASSOC = (1 << 6),
+    SCON_STDLIB_SYSTEM = (1 << 7),
     SCON_STDLIB_ALL = 0xFFFF,
 } scon_stdlib_sets_t;
 

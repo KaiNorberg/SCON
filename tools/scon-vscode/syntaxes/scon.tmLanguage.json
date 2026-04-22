@@ -126,7 +126,7 @@
             ]
         },
         "keywords": {
-            "match": "(?<=^|[\\s\\(\\)])(do|def|set|let|if|when|unless|cond|and|or|not|assert!|throw!|lambda|quote|map|filter|reduce|sort|min|max|clamp|abs|floor|ceil|round|pow|log|sqrt|sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|asinh|acosh|atanh|rand|seed!|include|read-file|print!|println!|format|time|env|len|atom\\?|int\\?|float\\?|number\\?|lambda\\?|primitive\\?|callable\\?|list\\?|empty\\?|int|float|list|concat|first|last|rest|init|nth|index|reverse|slice|starts-with\\?|ends-with\\?|contains\\?|replace|join|split|upper|lower|trim|get|keys|values|assoc|dissoc|update)(?=[\\s\\(\\)]|$)",
+            "match": "(?<=^|[\\s\\(\\)])(do|def|set|let|if|when|unless|cond|and|or|not|assert!|throw!|lambda|quote|map|filter|reduce|sort|min|max|clamp|abs|floor|ceil|round|pow|log|sqrt|sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|asinh|acosh|atanh|rand|seed!|include|read-file|print!|println!|format|time|env|len|atom\\?|int\\?|float\\?|number\\?|lambda\\?|native\\?|callable\\?|list\\?|empty\\?|int|float|string|list|concat|first|last|rest|init|nth|index|reverse|slice|starts-with\\?|ends-with\\?|contains\\?|replace|join|split|upper|lower|trim|get|keys|values|assoc|dissoc|update)(?=[\\s\\(\\)]|$)",
             "name": "keyword.control.scon"
         },
         "operators": {

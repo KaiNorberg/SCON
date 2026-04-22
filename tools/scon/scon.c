@@ -110,7 +110,7 @@ int main(int argc, char **argv)
             {
                 char* str;
                 scon_size_t len;
-                scon_handle_get_string(scon, &result, &str, &len);
+                scon_handle_get_string_params(scon, &result, &str, &len);
                 printf("%.*s\n", (int)len, str);
                 goto cleanup;
             }

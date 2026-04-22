@@ -244,9 +244,24 @@ static inline void scon_expr_build_list(scon_compiler_t* compiler, scon_item_t* 
     }
 
     scon_item_t* head = SCON_LIST_GET_ITEM(list, 0);
-    if (head->type != SCON_ITEM_TYPE_ATOM || head->flags & SCON_ITEM_FLAG_QUOTED)
+    //if (head->type != SCON_ITEM_TYPE_ATOM || (head->flags & SCON_ITEM_FLAG_QUOTED | SCON_ITEM_FLAG_INT_SHAPED | SCON_ITEM_FLAG_FLOAT_SHAPED))
+    if (head->type != SCON_ITEM_TYPE_ATOM || (head->flags & (SCON_ITEM_FLAG_QUOTED | SCON_ITEM_FLAG_INT_SHAPED | SCON_ITEM_FLAG_FLOAT_SHAPED)))
     {
-        SCON_ERROR_COMPILE(compiler, head, "expected callable atom, got %s", scon_item_type_str(head->type));
+        scon_reg_t target = scon_expr_get_reg(compiler, out);
+        scon_compile_list(compiler, target);
+
+        for (scon_uint32_t i = 0; i < list->length; i++)
+        {
+            scon_expr_t argExpr = SCON_EXPR_NONE();
+            scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, i), &argExpr);
+
+            scon_compile_append(compiler, target, &argExpr);
+
+            scon_expr_done(compiler, &argExpr);
+        }
+
+        *out = SCON_EXPR_REG(target);
+        return;
     }
 
     if (head->flags & SCON_ITEM_FLAG_INTRINSIC)

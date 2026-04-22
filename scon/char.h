@@ -33,6 +33,7 @@ typedef enum scon_char_flags
 typedef struct scon_char_info
 {
     scon_char_flags_t flags; ///< Character classification flags.
+    char upper;              ///< Uppercase equivalent.
     char lower;              ///< Lowercase equivalent.
     char decodeEscape;       ///< The char to decode to when escaped.
     char encodeEscape;       ///< The char to use when encoding an escape.
@@ -59,6 +60,14 @@ extern scon_char_info_t sconCharTable[256];
  * @return The lowercase equivalent of the character.
  */
 #define SCON_CHAR_TO_LOWER(_c) (sconCharTable[(unsigned char)(_c)].lower)
+
+/**
+ * @brief Get the uppercase equivalent of a character.
+ *
+ * @param _c The character to get the uppercase equivalent of.
+ * @return The uppercase equivalent of the character.
+ */
+#define SCON_CHAR_TO_UPPER(_c) (sconCharTable[(unsigned char)(_c)].upper)
 
 /**
  * @brief Check if a character is whitespace.

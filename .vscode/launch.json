@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/tools/scon/build/scon",
             "args": [
-                "${workspaceFolder}/tests/04_sequences.scon"
+                "${workspaceFolder}/tests/08_assoc.scon"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

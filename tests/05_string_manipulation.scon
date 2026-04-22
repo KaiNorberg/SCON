@@ -1,0 +1,30 @@
+(do
+    (def text "  Hello, World!  ")
+    (def pure-text "Hello, World!")
+    (def words ("Hello" "World!"))
+
+    (assert! (= (starts-with? pure-text "Hello") true) "starts-with? should return true for string matching prefix")
+    (assert! (= (starts-with? pure-text "World") false) "starts-with? should return false for string non-matching prefix")
+    (assert! (= (starts-with? words "Hello") true) "starts-with? should return true for list matching first item")
+
+    (assert! (= (ends-with? pure-text "World!") true) "ends-with? should return true for string matching suffix")
+    (assert! (= (ends-with? pure-text "Hello") false) "ends-with? should return false for string non-matching suffix")
+    (assert! (= (ends-with? words "World!") true) "ends-with? should return true for list matching last item")
+
+    (assert! (= (contains? pure-text "o, W") true) "contains? should return true for string substring")
+    (assert! (= (contains? pure-text "xyz") false) "contains? should return false for missing substring")
+    (assert! (= (contains? words "Hello") true) "contains? should return true for list containing item")
+
+    (assert! (= (replace pure-text "World" "SCON") "Hello, SCON!") "replace should substitute substring in string")
+    (assert! (= (replace words "Hello" "Hi") (list "Hi" "World!")) "replace should substitute item in list")
+
+    (assert! (= (join words ", ") "Hello, World!") "join should combine list of strings with separator")
+
+    (assert! (= (split pure-text ", ") (list "Hello" "World!")) "split should divide string into list by separator")
+
+    (assert! (= (upper pure-text) "HELLO, WORLD!") "upper should convert string to uppercase")
+
+    (assert! (= (lower pure-text) "hello, world!") "lower should convert string to lowercase")
+
+    (assert! (= (trim text) "Hello, World!") "trim should remove leading and trailing whitespace from string")
+)

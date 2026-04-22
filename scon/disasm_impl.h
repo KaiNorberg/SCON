@@ -122,6 +122,9 @@ static void scon_disasm_internal(scon_t* scon, scon_function_t* function, scon_f
         case SCON_OPCODE_CAPTURE:
             opName = "CAPTURE";
             break;
+        case SCON_OPCODE_TAILCALL:
+            opName = "TAILCALL";
+            break;
         default:
             break;
         }
@@ -140,6 +143,7 @@ static void scon_disasm_internal(scon_t* scon, scon_function_t* function, scon_f
         case SCON_OPCODE_JMPT:
             SCON_FPRINTF(out, "R%-5u %-6d %-6s", a, sbx, "");
             break;
+        case SCON_OPCODE_TAILCALL:
         case SCON_OPCODE_CALL:
         case SCON_OPCODE_CAPTURE:
             SCON_FPRINTF(out, "R%-5u %-6u %c%-5u", a, b, isConst ? 'K' : 'R', c);
