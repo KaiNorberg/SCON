@@ -35,7 +35,7 @@ SCON_API scon_handle_t scon_get_int(scon_t* scon, scon_handle_t* handle)
         scon_atom_t* atom = scon_atom_lookup(scon, item->atom.string, item->length, SCON_ATOM_LOOKUP_NONE);
         if (atom == SCON_NULL)
         {
-            SCON_ERROR_RUNTIME(scon, item, "expected int, got %s", scon_item_type_str(item->type));
+            SCON_ERROR_RUNTIME(scon, "expected int, got %s", scon_item_type_str(item->type));
         }
         if (SCON_CONTAINER_OF(atom, scon_item_t, atom)->flags & SCON_ITEM_FLAG_INT_SHAPED)
         {
@@ -47,7 +47,7 @@ SCON_API scon_handle_t scon_get_int(scon_t* scon, scon_handle_t* handle)
         }
     }
 
-    SCON_ERROR_RUNTIME(scon, item, "expected int, got %s", scon_item_type_str(item->type));
+    SCON_ERROR_RUNTIME(scon, "expected int, got %s", scon_item_type_str(item->type));
 }
 
 SCON_API scon_handle_t scon_get_float(scon_t* scon, scon_handle_t* handle)
@@ -79,7 +79,7 @@ SCON_API scon_handle_t scon_get_float(scon_t* scon, scon_handle_t* handle)
         scon_atom_t* atom = scon_atom_lookup(scon, item->atom.string, item->length, SCON_ATOM_LOOKUP_NONE);
         if (atom == SCON_NULL)
         {
-            SCON_ERROR_RUNTIME(scon, item, "expected float, got %s", scon_item_type_str(item->type));
+            SCON_ERROR_RUNTIME(scon, "expected float, got %s", scon_item_type_str(item->type));
         }
         if (SCON_CONTAINER_OF(atom, scon_item_t, atom)->flags & SCON_ITEM_FLAG_FLOAT_SHAPED)
         {
@@ -89,10 +89,9 @@ SCON_API scon_handle_t scon_get_float(scon_t* scon, scon_handle_t* handle)
         {
             return SCON_HANDLE_FROM_FLOAT((scon_float_t)atom->integerValue);
         }
-        
     }
 
-    SCON_ERROR_RUNTIME(scon, item, "expected float, got %s", scon_item_type_str(item->type));
+    SCON_ERROR_RUNTIME(scon, "expected float, got %s", scon_item_type_str(item->type));
 }
 
 SCON_API scon_handle_t scon_get_string(scon_t* scon, scon_handle_t* handle)

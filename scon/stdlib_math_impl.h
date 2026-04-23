@@ -59,7 +59,7 @@ SCON_API scon_handle_t scon_max(scon_t* scon, scon_size_t argc, scon_handle_t* a
 SCON_API scon_handle_t scon_clamp(scon_t* scon, scon_handle_t* val, scon_handle_t* minVal, scon_handle_t* maxVal)
 {
     SCON_ASSERT(scon != SCON_NULL);
-    
+
     scon_handle_t current = *val;
     scon_promotion_t prom;
 
@@ -140,10 +140,10 @@ SCON_API scon_handle_t scon_round(struct scon* scon, scon_handle_t* val)
 SCON_API scon_handle_t scon_pow(scon_t* scon, scon_handle_t* base, scon_handle_t* exp)
 {
     SCON_ASSERT(scon != SCON_NULL);
-    
+
     scon_promotion_t prom;
     scon_handle_promote(scon, base, exp, &prom);
-    
+
     if (prom.type == SCON_PROMOTION_TYPE_INT)
     {
         return SCON_HANDLE_FROM_INT((scon_int64_t)SCON_POW((scon_float_t)prom.a.intVal, (scon_float_t)prom.b.intVal));
@@ -151,10 +151,26 @@ SCON_API scon_handle_t scon_pow(scon_t* scon, scon_handle_t* base, scon_handle_t
     return SCON_HANDLE_FROM_FLOAT((scon_float_t)SCON_POW(prom.a.floatVal, prom.b.floatVal));
 }
 
+SCON_API scon_handle_t scon_exp(struct scon* scon, scon_handle_t* val)
+{
+    SCON_ASSERT(scon != SCON_NULL);
+
+    if (SCON_HANDLE_IS_INT_SHAPED(val))
+    {
+        scon_handle_t iVal = scon_get_int(scon, val);
+        scon_int64_t i = SCON_HANDLE_TO_INT(&iVal);
+        return SCON_HANDLE_FROM_INT((scon_int64_t)SCON_EXP((scon_float_t)i));
+    }
+
+    scon_handle_t floatVal = scon_get_float(scon, val);
+    scon_float_t f = SCON_HANDLE_TO_FLOAT(&floatVal);
+    return SCON_HANDLE_FROM_FLOAT((scon_float_t)SCON_EXP(f));
+}
+
 SCON_API scon_handle_t scon_log(struct scon* scon, scon_handle_t* val, scon_handle_t* base)
 {
     SCON_ASSERT(scon != SCON_NULL);
-    
+
     if (base == SCON_NULL)
     {
         if (SCON_HANDLE_IS_INT_SHAPED(val))

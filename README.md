@@ -21,7 +21,98 @@
 
 SCON is a functional, immutable, and S-expression based configuration and scripting language. It aims to provide a flexible, simple, efficient and Turing complete way to store and manipulate hierarchical data, all as a freestanding C99 header-only library.
 
-## Setup and Usage
+## First Steps
+
+SCON should be familiar to anyone used to Lisp or functional languages, but it is intended to be easy to learn even for those who aren't.
+
+All expressions in SCON are either atoms or lists of atoms, and the process of evaluating expressions ought to be thought of as reducing these expressions into a simpler form. Much like how mathematical expressions are reduced to their final values.
+
+For example, the following SCON expression
+
+```lisp
+(+ 1 2)
+(* 3 4)
+```
+
+will evaluate to `(3 12)`. Note how the result of the evaluation is a list containing the results of each top-level expression.
+
+### Hello World
+
+An obvious way to write "Hello World" in SCON might look like:
+
+```lisp
+(println! "Hello, World!")
+```
+
+However, it could be even simpler. We could simply write:
+
+```lisp
+"Hello, World!"
+```
+
+Which will, of course, evaluate to `Hello, World!`.
+
+### Complex Example
+
+Finally, included is a slightly more complex example:
+
+```lisp
+(do
+    (def fib (lambda (n) 
+        (if (<= n 1)
+            n
+            (+ (fib (- n 1)) (fib (- n 2))))
+        )
+    )
+
+    (format "Fibonacci of 35 is {}" (fib 35))
+)
+```
+
+For more examples, see the `bench/` and `tests/` directories.
+
+## Tools
+
+### Command Line Interface (CLI)
+
+A simple CLI tool is provided to evaluate SCON files or expressions directly from the terminal.
+
+```bash
+scon my_file.scon
+scon -e "(+ 1 2 3)"
+scon -d my_file.scon # output the compiled bytecode
+scon -s my_file.scon # silent mode, wont output the result of the evaluation
+```
+
+#### Setup
+
+The CLI tool can be found at `tools/scon/` and uses CMake. To build the tool write:
+
+```bash
+cd tools/scon
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+To install the tool write:
+
+```bash
+cmake --install build # if that fails: sudo cmake --install build
+```
+
+### Visual Studio Code
+
+A syntax highlighting extension for Visual Studio Code can be found at `tools/scon-vscode/`.
+
+#### Setup
+
+The extension is not yet available in the marketplace.
+
+As such, to install it, copy the `tools/scon-vscode/` directory to `%USERPROFILE%\.vscode\extensions\` if you're on Windows or `~/.vscode/extensions/` if you're on macOS/Linux.
+
+Finally, restart Visual Studio Code.
+
+## C API
 
 Included is an example of using SCON as a single header without linking:
 
@@ -90,100 +181,32 @@ int main(int argc, char **argv)
 #include "scon.h"
 ```
 
-For examples on how to write SCON, see the `bench/` and `tests/` directories.
+### C Natives
 
-## First Steps
+SCON allows for the registration of C functions as "natives" that can be called from within SCON.
 
-SCON should be familiar to anyone used to Lisp or functional languages, but it is intended to be easy to learn even for those who aren't.
+To register a native function, use the `scon_native_register` function:
 
-All expressions in SCON are either atoms or lists of atoms, and the process of evaluating expressions ought to be thought of as reducing these expressions into a simpler form. Much like how mathematical expressions are reduced to their final values.
+```c
+scon_handle_t my_native(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    // ...
+    return scon_handle_nil(scon);
+}
 
-For example, the following SCON expression
+// ...
 
-```lisp
-(+ 1 2)
-(* 3 4)
+scon_native_t natives[] = {
+    {"my-native", my_native},
+};
+scon_native_register(scon, natives, sizeof(natives) / sizeof(scon_native_t));
 ```
 
-will evaluate to `(3 12)`. Note how the result of the evaluation is a list containing the results of each top-level expression.
-
-### Hello World
-
-An obvious way to write "Hello World" in SCON might look like:
-
-```lisp
-(println! "Hello, World!")
-```
-
-However, it could be even simpler. We could simply write:
-
-```lisp
-"Hello, World!"
-```
-
-Which will, of course, evaluate to `Hello, World!`.
-
-### Complex Example
-
-Finally, included is a slightly more complex example:
-
-```lisp
-(do
-    (def fib (lambda (n) 
-        (if (<= n 1)
-            n
-            (+ (fib (- n 1)) (fib (- n 2))))
-        )
-    )
-
-    (format "Fibonacci of 35 is {}" (fib 35))
-)
-```
-
-## Tools
-
-### Command Line Interface (CLI)
-
-A simple CLI tool is provided to evaluate SCON files or expressions directly from the terminal.
-
-```bash
-scon my_file.scon
-scon -e "(+ 1 2 3)"
-scon -d my_file.scon # output the compiled bytecode
-scon -s my_file.scon # silent mode, wont output the result of the evaluation
-```
-
-#### Setup
-
-The CLI tool can be found at `tools/scon/` and uses CMake. To build the tool write:
-
-```bash
-cd tools/scon
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-```
-
-To install the tool write:
-
-```bash
-cmake --install build # if that fails: sudo cmake --install build
-```
-
-### Visual Studio Code
-
-A syntax highlighting extension for Visual Studio Code can be found at `tools/scon-vscode/`.
-
-#### Setup
-
-The extension is not yet available in the marketplace.
-
-As such, to install it, copy the `tools/scon-vscode/` directory to `%USERPROFILE%\.vscode\extensions\` if you're on Windows or `~/.vscode/extensions/` if you're on macOS/Linux.
-
-Finally, restart Visual Studio Code.
+All SCON standard library functions are available in C, for example, `scon_is_atom()`, `scon_assoc()`, etc.
 
 ## Implementation
 
-SCON is implemented as a register-based bytecode compiled language, where the SCON source is first parsed into an Abstract Syntax Tree (AST) and then compiled into a custom bytecode format before being executed by the virtual machine/evaluator.
+SCON is implemented as a register-based bytecode language, where the SCON source is first parsed into an Abstract Syntax Tree (AST) and then compiled into a custom bytecode format before being executed by the virtual machine/evaluator.
 
 > Note that the "Abstract Syntax Tree" is just a SCON expression, lists and atoms, meaning that the compiler is itself written to operate on the same data structures as the evaluator produces.
 
@@ -200,6 +223,8 @@ To improve caching and reduce pointer indirection, SCON uses "handles" (`scon_ha
 *See [handle.h](https://github.com/KaiNorberg/SCON/blob/main/scon/handle.h) for more information on handles.*
 
 Items (`scon_item_t`) represent all heap allocated objects, such as lists, atoms and closures. All items are exactly 64 bytes in size and allocated using a custom pool allocator and freed using a garbage collector and free list.
+
+> Note that while we use the term "list", internally, lists are stored as dynamic arrays.
 
 Since SCON uses its handles to store most integers and floats, it can avoid heap allocations for many common values, significantly reducing the pressure on the garbage collector and improving caching.
 
@@ -219,7 +244,7 @@ Included below are a handful of benchmarks comparing SCON with python 3.14.3 and
 
 ### Fib35
 
-Benchmark to find the 35th Fibonacci number without tail call optimization.
+Finds the 35th Fibonacci number without tail call optimization.
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
@@ -229,13 +254,25 @@ Benchmark to find the 35th Fibonacci number without tail call optimization.
 
 ### Fib65
 
-Benchmark to find the 65th Fibonacci number with tail call optimization.
+Finds the 65th Fibonacci number with tail call optimization.
 
 | Command | Mean [µs] | Min [µs] | Max [µs] | Relative |
 |:---|---:|---:|---:|---:|
 | `scon bench/fib65.scon` | 613.9 ± 90.6 | 535.1 | 3310.0 | 1.00 |
 | `lua bench/fib65.lua` | 1049.5 ± 165.0 | 920.3 | 2663.3 | 1.71 ± 0.37 |
 | `python bench/fib65.py` | 13155.4 ± 1254.2 | 11688.3 | 23926.9 | 21.43 ± 3.76 |
+
+```
+
+### Brainfuck
+
+A simple jump-table optimized Brainfuck interpreter.
+
+> This benchmark also acts as a fun Turing completeness proof.
+
+| Command | Mean [µs] | Min [µs] | Max [µs] | Relative |
+|:---|---:|---:|---:|---:|
+| `scon bench/brainfuck.scon` | 884.6 ± 296.3 | 603.6 | 3571.1 | 1.00 |
 
 ## Grammar
 
@@ -466,7 +503,7 @@ Evaluates `<then>` if `<cond>` is truthy, otherwise evaluates `<else>` if provid
 
 **`(when <cond: item> {body: item}) -> <item>`**
 
-Evaluates each `<body>` expression in sequence if `<cond>` is truthy, returning the result of the last expression, or `false` if the condition is falsy.
+Evaluates each `<body>` expression in sequence if `<cond>` is truthy, returning the result of the last expression, or `nil` if the condition is falsy.
 
 **`(unless <cond: item> {body: item}) -> <item>`**
 
@@ -490,7 +527,7 @@ Returns `true` if the argument is falsy, otherwise `false`.
 
 ---
 
-#### Arithmetic
+#### Binary Operators
 
 **`(+ <number> {number}) -> <number>`**
 
@@ -516,11 +553,43 @@ Returns the remainder of dividing the first argument by the second (modulo).
 
 If a division by zero occurs, the evaluation fails.
 
+**`(++ <number>) -> <number>`**
+
+Returns the argument incremented by one.
+
+**`(-- <number>) -> <number>`**
+
+Returns the argument decremented by one.
+
+**`(& <integer> <integer> {integer}) -> <integer>`**
+
+Returns the bitwise AND of all arguments.
+
+**`(| <integer> <integer> {integer}) -> <integer>`**
+
+Returns the bitwise OR of all arguments.
+
+**`(^ <integer> <integer> {integer}) -> <integer>`**
+
+Returns the bitwise XOR of all arguments.
+
+**`(~ <integer>) -> <integer>`**
+
+Returns the bitwise NOT of the argument.
+
+**`(<< <val: integer> <shift: integer>) -> <integer>`**
+
+Returns the value bitwise shifted left.
+
+**`(>> <val: integer> <shift: integer>) -> <integer>`**
+
+Returns the value bitwise shifted right.
+
 ---
 
 #### Comparison
 
-**`(= <item> <item> {item}) -> <true|false>`**
+**`(== <item> <item> {item}) -> <true|false>`**
 
 Returns `true` if all arguments are equal (numerically if all are numbers, otherwise by string comparison), otherwise `false`.
 
@@ -532,13 +601,13 @@ Returns `true` if any arguments are not equal, otherwise `false`.
 
 Will stop evaluating arguments as soon as one is equal.
 
-**`(== <item> <item> {item}) -> <true|false>`**
+**`(eq? <item> <item> {item}) -> <true|false>`**
 
 Returns `true` if all arguments are exactly equal using string comparison, otherwise `false`.
 
 Will stop evaluating arguments as soon as one is not equal.
 
-**`(!== <item> <item> {item}) -> <true|false>`**
+**`(ne? <item> <item> {item}) -> <true|false>`**
 
 Returns `true` if any arguments are not exactly equal using string comparison, otherwise `false`.
 
@@ -570,34 +639,6 @@ Will stop evaluating arguments as soon as one is not greater than or equal to th
 
 ---
 
-#### Bitwise
-
-**`(& <integer> <integer> {integer}) -> <integer>`**
-
-Returns the bitwise AND of all arguments.
-
-**`(| <integer> <integer> {integer}) -> <integer>`**
-
-Returns the bitwise OR of all arguments.
-
-**`(^ <integer> <integer> {integer}) -> <integer>`**
-
-Returns the bitwise XOR of all arguments.
-
-**`(~ <integer>) -> <integer>`**
-
-Returns the bitwise NOT of the argument.
-
-**`(<< <val: integer> <shift: integer>) -> <integer>`**
-
-Returns the value bitwise shifted left.
-
-**`(>> <val: integer> <shift: integer>) -> <integer>`**
-
-Returns the value bitwise shifted right.
-
----
-
 ### Standard Library
 
 Since SCON is a functional language, side effects should be avoided when possible. As such, any native with side effects will be suffixed with an exclamation mark `!`.
@@ -612,21 +653,37 @@ Evaluates `<cond>`. If it is falsy, the evaluation fails and throws an error wit
 
 Throws an error with the given atom being the error message.
 
+**`(try <callable> <catch: lambda>) -> <item>`**
+
+Calls the provided callable. If an error occurs during evaluation, the `<catch>` lambda is executed with the error message as its argument. Otherwise, returns the result of the callable.
+
 ---
 
-#### Functions & Higher-Order
+#### Higher-Order Functions
 
-**`(map <callable> <list>) -> <list>`**
+**`(map <list> <callable>) -> <list>`**
 
 Returns a new list by applying `<callable>` to each item in `<list>`. The `<callable>` must accept a single argument.
 
-**`(filter <callable> <list>) -> <list>`**
+**`(filter <list> <callable>) -> <list>`**
 
 Returns a new list containing only items from `<list>` for which `<callable>` returns a truthy value. The `<callable>` must accept a single argument.
 
-**`(reduce <callable> <initial> <list>) -> <item>`**
+**`(reduce <list> [initial: item] <callable>) -> <item>`**
 
-Reduces `<list>` to a single value. The `<callable>` must accept two arguments: the `accumulator` (which starts as `<initial>`) and the current `item`, and it should return the new accumulator value.
+Reduces `<list>` to a single value. The `<callable>` must accept two arguments: the `accumulator` (which starts as `[initial]` or the first item of `<list>` in which case the first item is skipped) and the current `item`, and it should return the new accumulator value.
+
+**`(apply <list> <callable>) -> <item>`**
+
+Calls the callable with the items within the list as its arguments.
+
+**`(any? <list> [callable]) -> <true|false>`**
+
+Returns `true` if any item in the list satisfies the provided `callable` (or is truthy if no callable is provided), otherwise `false`.
+
+**`(all? <list> [callable]) -> <true|false>`**
+
+Returns `true` if all items in the list satisfy the provided `callable` (or are truthy if no callable is provided), otherwise `false`.
 
 **`(sort <list> [callable]) -> <list>`**
 
@@ -639,6 +696,14 @@ If no `callable` is specified, then items are sorted in ascending order.
 ---
 
 #### Sequences (Lists & Strings)
+
+**`(len <item> {item}) -> <number>`**
+
+Returns the total number of items in the lists and the number of characters in the atoms for all provided arguments.
+
+**`(range [start: number] <end: number> [step: number]) -> <list>`**
+
+Returns a new list containing a sequence of numbers from `<start>` up to (but not including) `<end>`, incremented by `<step>`. If `<step>` is not provided, it defaults to `1`.
 
 **`(concat {item}) -> <item>`**
 
@@ -660,13 +725,27 @@ Returns a new list containing all except the first item of a list or an atom con
 
 Returns a new list containing all but the last item of a list or an atom containing all but the last character of an atom.
 
-**`(nth <item> <n: number>) -> <atom>`**
+**`(nth <item> <n: number> [default: item]) -> <item>`**
 
-Returns the n-th item of a list or the n-th character of an atom as a new atom, if n is negative, it returns the n-th item from the end.
+Returns the n-th item of a list or the n-th character of an atom as a new atom, if n is negative, it returns the n-th item or character from the end.
 
-If the index is out of bounds, returns nil.
+If the index is out of bounds, returns `[default]` or `nil`.
 
-**`(index <item> <subitem: item>) -> <number>`**
+**`(assoc <item> <n: number> <value: item>) -> <item>`**
+
+Returns a new list or tom with the n-th element replaced by `<value>`. If n is negative, it replaces the n-th item or character from the end.
+
+If the index is out of bounds, the list or atom will be extended to accommodate the new value, padding with `0` or ` ` respectively.
+
+**`(dissoc <item> <n: number>) -> <item>`**
+
+Returns a new list or atom with the n-th element removed. If n is negative, it removes the n-th item or character from the end.
+
+**`(update <item> <n: number> <callable>) -> <item>`**
+
+Returns a new list or atom with the n-th element updated by applying `<callable>` to it. The `<callable>` must accept a single argument. If n is negative, it updates the n-th item or character from the end.
+
+**`(index-of <item> <subitem: item>) -> <number>`**
 
 Returns the index of the first occurrence of the subitem in the item.
 
@@ -680,6 +759,67 @@ Returns a new list containing the items of `<item>` in reverse order or an atom 
 
 Returns a sub-list or sub-atom of `<item>` starting from the `<start>` index to the `<end>` index. If `<end>` is not provided, it slices to the end of the item. Negative indices can be used to count from the end.
 
+**`(flatten <list> [depth: number]) -> <list>`**
+
+Returns a new list with all sub-lists flattened into a single list. If a `depth` is provided, it specifies how many levels of nesting should be flattened.
+
+**`(contains? <item> <subitem: item>) -> <true|false>`**
+
+Returns `true` if the provided item is an atom that contains the subitem as a substring or a list that contains an item equal to the subitem, otherwise `false`.
+
+**`(replace <item> <old: item> <new: item>) -> <item>`**
+
+Returns a new atom or list with all occurrences of `<old>` replaced by `<new>`.
+
+**`(unique <list>) -> <list>`**
+
+Returns a new list containing only the unique items from the provided list, preserving their original order.
+
+**`(chunk <list> <n: number>) -> <list>`**
+
+Returns a new list of sub-lists, where each sub-list contains <n> items from the original list.
+
+**`(find <list> <callable>) -> <item>`**
+
+Returns the first item in the list for which the `<callable>` returns a truthy value. If no such item is found, returns `nil`.
+
+**`(get-in <list> <path: list|atom> [default: item]) -> <item>`**
+
+Returns the second item of the sub-list at the specified path within a nested association list. The path can be an atom for a single level or a list for nested access. If the path is not found, returns `[default]` or `nil`.
+
+```lisp
+(def data (("a" 1) ("b" 2) ("c" ("d" 3))))
+(get-in data ("c" "d")) // Returns "3"
+```
+
+**`(assoc-in <list> <path: list|atom> <value: item>) -> <list>`**
+
+Returns a new list with the value at the specified path replaced by `<value>`. If the path does not exist, it will be created.
+
+**`(dissoc-in <list> <path: list|atom>) -> <list>`**
+
+Returns a new list with the item at the specified path removed.
+
+**`(update-in <list> <path: list|atom> <callable>) -> <list>`**
+
+Returns a new list with the value at the specified path updated by applying `<callable>` to it.
+
+**`(keys <list>) -> <list>`**
+
+Returns a new list containing the first item of every sub-list.
+
+**`(values <list>) -> <list>`**
+
+Returns a new list containing the second item of every sub-list.
+
+**`(merge <list> {list}) -> <list>`**
+
+Returns a new list containing all unique keys from all provided association lists, with values from later lists overwriting those from earlier ones.
+
+**`(zip <list> {list}) -> <list>`**
+
+Returns a new list of sub-lists, where each sub-list contains the i-th element from each of the provided lists. The length of the resulting list is determined by the shortest input list.
+
 ---
 
 #### String Manipulation
@@ -691,14 +831,6 @@ Returns `true` if the provided item is an atom that starts with the prefix or a 
 **`(ends-with? <item> <suffix: item>) -> <true|false>`**
 
 Returns `true` if the provided item is an atom that ends with the suffix or a list whose last item is the suffix, otherwise `false`.
-
-**`(contains? <item> <subitem: item>) -> <true|false>`**
-
-Returns `true` if the provided item is an atom that contains the subitem as a substring or a list that contains an item equal to the subitem, otherwise `false`.
-
-**`(replace <item> <old: item> <new: item>) -> <item>`**
-
-Returns a new atom or list with all occurrences of `<old>` replaced by `<new>`.
 
 **`(join <list> <separator: string>) -> <string>`**
 
@@ -724,10 +856,6 @@ Returns a new atom with leading and trailing whitespace removed.
 
 #### Introspection
 
-**`(len <item> {item}) -> <number>`**
-
-Returns the total number of items in the lists and the number of characters in the atoms for all provided arguments.
-
 **`(atom? <item> {item}) -> <true|false>`**
 
 Returns `true` if all items are atoms, otherwise `false`.
@@ -743,6 +871,10 @@ Returns `true` if all items are float shaped atoms, otherwise `false`.
 **`(number? <item> {item}) -> <true|false>`**
 
 Returns `true` if all items are integer or float shaped atoms, otherwise `false`.
+
+**`(string? <item> {item}) -> <true|false>`**
+
+Returns `true` if all items are string shaped (not number shaped) atoms, otherwise `false`.
 
 **`(lambda? <item> {item}) -> <true|false>`**
 
@@ -764,6 +896,10 @@ Returns `true` if all items are lists, otherwise `false`.
 
 Returns `true` if all items are empty lists `()`, or empty atoms `""`, otherwise `false`.
 
+**`(nil? <item> {item}) -> <true|false>`**
+
+Returns `true` if all items are `nil`, otherwise `false`.
+
 ---
 
 #### Type Casting
@@ -782,43 +918,35 @@ Returns the stringified representation of the item.
 
 ---
 
-#### Association Lists (Dictionaries)
-
-**`(get <list> <name: item>) -> <item>`**
-
-Returns the second item of the first sub-list whose first item evaluates to `<name>`.
-
-**`(keys <list>) -> <list>`**
-
-Returns a new list containing the first item of every sub-list.
-
-**`(values <list>) -> <list>`**
-
-Returns a new list containing the second item of every sub-list.
-
-**`(assoc <list> <key: item> <value: item>) -> <list>`**
-
-Returns a new list with the sub-list whose first item is `<key>` having the second item replaced or added with `<value>`.
-
-**`(dissoc <list> <key: item>) -> <list>`**
-
-Returns a new list with the sub-list whose first item is `<key>` removed.
-
-**`(update <list> <key: item> <lambda>) -> <list>`**
-
-Returns a new list with the sub-list whose first item is `<key>` having its second item updated by applying `<lambda>` to it.
-
----
-
 #### System & Environment
 
-**`(include <path: string>) -> <item>`**
+**`(eval <item>) -> <item>`**
 
-Returns the result of evaluating the SCON file at the given path, variables defined in the included file will be available in the current scope.
+Evaluates the provided item and returns the result.
 
-**`(read-file <path: string>) -> <string>`**
+**`(parse <atom>) -> <expression>`**
+
+Parses the provided string into a SCON expression without evaluating it.
+
+**`(load! <path: string>) -> <item>`**
+
+Parses and evaluates the file at the provided path, returning the result.
+
+**`(read-file! <path: string>) -> <string>`**
 
 Reads the file at the given path and returns its contents as a raw string atom without evaluating it.
+
+**`(write-file! <path: string> <content: item>) -> <content: item>`**
+
+Writes the string representation of `<content>` to the file at the given path.
+
+**`(read-line!) -> <string>`**
+
+Reads a single line of input from the standard input and returns it as an atom.
+
+**`(read-char!) -> <string>`**
+
+Reads a single character from the standard input and returns it as an atom.
 
 **`(print! {item}) -> nil`**
 
@@ -827,6 +955,14 @@ Prints the string representation of all arguments to the standard output.
 **`(println! {item}) -> nil`**
 
 Prints the string representation of all arguments to the standard output, followed by a newline.
+
+**`(ord <atom: string>) -> <number>`**
+
+Converts an ascii character to its integer value.
+
+**`(chr <number>) -> <atom>`**
+
+Converts an integer value to its ascii character.
 
 **`(format <format: string> {item}) -> <string>`**
 
@@ -838,17 +974,21 @@ Positional arguments can be used to specify the index of the argument to be used
 (format "{1} {0}" "World" "Hello") // Returns "Hello World"
 ```
 
-**`(time) -> <number>`**
+**`(now!) -> <number>`**
 
 Returns the current time in seconds since the Unix epoch.
 
-**`(clock) -> <number>`**
+**`(uptime!) -> <number>`**
 
-Returns the current time in nanoseconds since program start.
+Returns the current time in milliseconds since program start.
 
-**`(env <name: string>) -> <string>`**
+**`(env!) -> <list>`**
 
-Returns the value of the environment variable as an atom, or an empty string if it is not set.
+Returns all environment variables as association sub-lists.
+
+**`(args!) -> <list>`**
+
+Returns a list of all command line arguments.
 
 ---
 
@@ -885,6 +1025,10 @@ Returns the argument rounded to the nearest integer.
 **`(pow <base: number> <exp: number>) -> <number>`**
 
 Returns the base raised to the power of the exponent.
+
+**`(exp <val: number>) -> <number>`**
+
+Returns the exponential of the argument.
 
 **`(log <val: number> [base: number]) -> <number>`**
 
@@ -950,6 +1094,6 @@ Returns the inverse hyperbolic tangent of the argument.
 
 Returns a random number between the given range.
 
-**`(seed! <val: number>)`**
+**`(seed! <val: number>) -> nil`**
 
 Seeds the random number generator.

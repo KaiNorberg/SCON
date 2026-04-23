@@ -73,6 +73,16 @@ SCON_API void scon_list_deinit(struct scon* scon, scon_list_t* list);
 SCON_API scon_list_t* scon_list_new(struct scon* scon, scon_size_t capacity);
 
 /**
+ * @brief Create a new list and copy data into it.
+ *
+ * @param scon Pointer to the SCON structure.
+ * @param data Pointer to the handle array to copy.
+ * @param count The number of handles to copy.
+ * @return A pointer to the newly created list.
+ */
+SCON_API scon_list_t* scon_list_new_from_data(struct scon* scon, const scon_handle_t* data, scon_size_t count);
+
+/**
  * @brief Append a handle to a list.
  *
  * @param scon Pointer to the SCON structure.

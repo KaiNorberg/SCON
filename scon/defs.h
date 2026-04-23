@@ -9,6 +9,7 @@
 
 #ifndef SCON_FREESTANDING
 #include <assert.h>
+#include <math.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -17,7 +18,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <math.h>
 
 #define SCON_NULL NULL
 
@@ -45,6 +45,7 @@ typedef FILE* scon_file_t;
 #define SCON_FCLOSE(_file) fclose(_file)
 #define SCON_FREAD(_ptr, _size, _nmemb, _file) fread(_ptr, _size, _nmemb, _file)
 #define SCON_FWRITE(_ptr, _size, _nmemb, _file) fwrite(_ptr, _size, _nmemb, _file)
+#define SCON_FGETC(_file) fgetc(_file)
 #define SCON_FPRINTF fprintf
 #define SCON_SNPRINTF snprintf
 #define SCON_VSNPRINTF vsnprintf
@@ -60,6 +61,7 @@ typedef FILE* scon_file_t;
 #define SCON_CEIL(_x) ceil(_x)
 #define SCON_ROUND(_x) round(_x)
 #define SCON_POW(_x, _y) pow(_x, _y)
+#define SCON_EXP(_x) exp(_x)
 #define SCON_LOG(_x) log(_x)
 #define SCON_SQRT(_x) sqrt(_x)
 #define SCON_SIN(_x) sin(_x)

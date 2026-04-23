@@ -1,37 +1,94 @@
 (do
-    (def nums (list 1 2 3 4 5))
+    (def nums (1 2 3 4 5))
     (def text "hello")
 
-    (assert! (= (concat nums (list 6 7)) (list 1 2 3 4 5 6 7)) "concat should join lists")
-    (assert! (= (concat "he" "llo") "hello") "concat should join strings")
-    (assert! (= (concat nums 6) (list 1 2 3 4 5 6)) "concat should append an atom to a list")
-    (assert! (= (concat 0 nums) (list 0 1 2 3 4 5)) "concat should prepend an atom to a list")
+    (assert! (== (len nums) 5) "len should return the number of items in a list")
+    (assert! (== (len text) 5) "len should return the number of characters in a string")
+    (assert! (== (len ()) 0) "len of an empty list should be 0")
+    (assert! (== (len "") 0) "len of an empty string should be 0")
 
-    (assert! (= (first nums) 1) "first should return the first item of a list")
-    (assert! (= (first text) "h") "first should return the first character of a string")
+    (assert! (== (range 5) (0 1 2 3 4)) "range with one argument should go from 0 to n-1")
+    (assert! (== (range 2 5) (2 3 4)) "range with two arguments should go from start to end-1")
+    (assert! (== (range 0 10 2) (0 2 4 6 8)) "range with three arguments should use the step")
+    (assert! (== (range 5 0 -1) (5 4 3 2 1)) "range should support negative steps")
 
-    (assert! (= (last nums) 5) "last should return the last item of a list")
-    (assert! (= (last text) "o") "last should return the last character of a string")
+    (assert! (== (concat nums (6 7)) (1 2 3 4 5 6 7)) "concat should join lists")
+    (assert! (== (concat "he" "llo") "hello") "concat should join strings")
+    (assert! (== (concat nums 6) (1 2 3 4 5 6)) "concat should append an atom to a list")
+    (assert! (== (concat 0 nums) (0 1 2 3 4 5)) "concat should prepend an atom to a list")
 
-    (assert! (= (rest nums) (list 2 3 4 5)) "rest should return all but the first item of a list")
-    (assert! (= (rest text) "ello") "rest should return all but the first character of a string")
+    (assert! (== (first nums) 1) "first should return the first item of a list")
+    (assert! (== (first text) "h") "first should return the first character of a string")
 
-    (assert! (= (init nums) (list 1 2 3 4)) "init should return all but the last item of a list")
-    (assert! (= (init text) "hell") "init should return all but the last character of a string")
+    (assert! (== (last nums) 5) "last should return the last item of a list")
+    (assert! (== (last text) "o") "last should return the last character of a string")
 
-    (assert! (= (nth nums 2) 3) "nth should return the n-th item of a list")
-    (assert! (= (nth text 1) "e") "nth should return the n-th character of a string")
-    (assert! (= (nth nums -1) 5) "nth should return the n-th item from the end of a list")
-    (assert! (= (nth text -2) "l") "nth should return the n-th character from the end of a string")
+    (assert! (== (rest nums) (2 3 4 5)) "rest should return all but the first item of a list")
+    (assert! (== (rest text) "ello") "rest should return all but the first character of a string")
 
-    (assert! (= (index nums 3) 2) "index should return the first occurrence of an item in a list")
-    (assert! (= (index text "l") 2) "index should return the first occurrence of a character/subitem in a string")
-    (assert! (= (index text "lo") 3) "index should return the first occurrence of a substring in a string")
+    (assert! (== (init nums) (1 2 3 4)) "init should return all but the last item of a list")
+    (assert! (== (init text) "hell") "init should return all but the last character of a string")
 
-    (assert! (= (reverse nums) (list 5 4 3 2 1)) "reverse should return the list in reverse order")
-    (assert! (= (reverse text) "olleh") "reverse should return the string in reverse order")
+    (assert! (== (nth nums 2) 3) "nth should return the n-th item of a list")
+    (assert! (== (nth text 1) "e") "nth should return the n-th character of a string")
+    (assert! (== (nth nums -1) 5) "nth should return the n-th item from the end of a list")
+    (assert! (== (nth text -2) "l") "nth should return the n-th character from the end of a string")
 
-    (assert! (= (slice nums 1 4) (list 2 3 4)) "slice should return a sub-list from start to end index")
-    (assert! (= (slice text 1 4) "ell") "slice should return a substring from start to end index")
-    (assert! (= (slice nums 0 2) (list 1 2)) "slice should return a sub-list starting from 0")
+    (assert! (== (assoc nums 0 2) (2 2 3 4 5) ) "assoc should return a new list with the element at the index replaced")
+    (assert! (== (assoc nums -1 10) (1 2 3 4 10)) "assoc should return handle negative indices")
+
+    (assert! (== (dissoc nums 2) (1 2 4 5)) "dissoc should return a new list with the element at the index removed")
+    (assert! (== (dissoc nums -1) (1 2 3 4)) "dissoc should handle negative indices")
+
+    (assert! (== (update nums 0 (lambda (x) (+ x 10))) (11 2 3 4 5)) "update should apply a function to the element at the index")
+    (assert! (== (update nums -1 (lambda (x) (* x 2))) (1 2 3 4 10)) "update should handle negative indices")
+
+    (assert! (== (index-of nums 3) 2) "index should return the first occurrence of an item in a list")
+    (assert! (== (index-of text "l") 2) "index should return the first occurrence of a character/subitem in a string")
+    (assert! (== (index-of text "lo") 3) "index should return the first occurrence of a substring in a string")
+
+    (assert! (== (reverse nums) (5 4 3 2 1)) "reverse should return the list in reverse order")
+    (assert! (== (reverse text) "olleh") "reverse should return the string in reverse order")
+
+    (assert! (== (slice nums 1 4) (2 3 4)) "slice should return a sub-list from start to end index")
+    (assert! (== (slice text 1 4) "ell") "slice should return a substring from start to end index")
+    (assert! (== (slice nums 0 2) (1 2)) "slice should return a sub-list starting from 0")
+
+    (assert! (== (flatten (1 (2 3) (4 (5)))) (1 2 3 4 5)) "flatten should recursively flatten nested lists")
+    (assert! (== (flatten (() (1) ())) (1)) "flatten should handle empty nested lists")
+
+    (assert! (contains? nums 3) "contains? should return true if the item is in the list")
+    (assert! (not (contains? nums 10)) "contains? should return false if the item is not in the list")
+    (assert! (contains? text "ell") "contains? should return true if the substring is in the string")
+    (assert! (not (contains? text "world")) "contains? should return false if the substring is not in the string")
+
+    (assert! (== (replace nums 3 30) (1 2 30 4 5)) "replace should substitute all occurrences of an item in a list")
+    (assert! (== (replace text "l" "z") "hezzo") "replace should substitute all occurrences of a character in a string")
+    (assert! (== (replace "banana" "a" "o") "bonono") "replace should work on strings with multiple matches")
+
+    (assert! (== (unique (1 2 2 3 1 4)) (1 2 3 4)) "unique should remove duplicate items from a list")
+
+    (assert! (== (chunk (1 2 3 4 5 6) 2) ((1 2) (3 4) (5 6))) "chunk should split a list into sub-lists of a given size")
+    (assert! (== (chunk (1 2 3 4 5) 3) ((1 2 3) (4 5))) "chunk should handle lists not perfectly divisible by the size")
+
+    (assert! (== (find nums (lambda (x) (> x 3))) 4) "find should return the first item that satisfies the predicate")
+    (assert! (== (find nums (lambda (x) (> x 10))) nil) "find should return nil if no item satisfies the predicate")
+
+    (def data (("a" 1) ("b" 2) ("c" (("d" 3)))))
+    (assert! (== (get-in data ("c" "d")) 3) "get-in should retrieve a value from a nested association list")
+    (assert! (== (get-in data "a") 1) "get-in should work with a single atom path")
+    (assert! (== (get-in data ("c" "x") 42) 42) "get-in should return the default value if the path is not found")
+
+    (assert! (== (assoc-in data ("c" "d") 4) (("a" 1) ("b" 2) ("c" (("d" 4))))) "assoc-in should update a nested value")
+    (assert! (== (assoc-in data ("e") 5) (("a" 1) ("b" 2) ("c" (("d" 3))) ("e" 5))) "assoc-in should create the path if it does not exist")
+
+    (assert! (== (dissoc-in data ("c" "d")) (("a" 1) ("b" 2) ("c" ()))) "dissoc-in should remove the item at the specified path")
+
+    (assert! (== (update-in data ("a") (lambda (x) (+ x 10))) (("a" 11) ("b" 2) ("c" (("d" 3))))) "update-in should apply a function to the value at the path")
+
+    (def alist (("a" 1) ("b" 2) ("c" 3)))
+    (assert! (== (keys alist) ("a" "b" "c")) "keys should return the first item of every sub-list")
+    (assert! (== (values alist) (1 2 3)) "values should return the second item of every sub-list")
+
+    (assert! (== (merge (("a" 1) ("b" 2)) (("b" 3) ("c" 4))) (("a" 1) ("b" 3) ("c" 4))) "merge should combine association lists and overwrite duplicate keys")
 )

@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/tools/scon/build/scon",
             "args": [
-                "${workspaceFolder}/tests/09_system_environment.scon"
+                "${workspaceFolder}/bench/brainfuck.scon"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

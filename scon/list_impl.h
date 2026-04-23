@@ -24,7 +24,7 @@ SCON_API scon_list_t* scon_list_new(scon_t* scon, scon_size_t capacity)
     item->type = SCON_ITEM_TYPE_LIST;
     scon_list_t* list = &item->list;
     list->length = 0;
-    if (capacity < SCON_LIST_SMALL_MAX)
+    if (capacity <= SCON_LIST_SMALL_MAX)
     {
         list->handles = list->small;
         list->capacity = SCON_LIST_SMALL_MAX;
@@ -38,6 +38,18 @@ SCON_API scon_list_t* scon_list_new(scon_t* scon, scon_size_t capacity)
         SCON_ERROR_INTERNAL(scon, "out of memory");
     }
 
+    return list;
+}
+
+SCON_API scon_list_t* scon_list_new_from_data(scon_t* scon, const scon_handle_t* data, scon_size_t count)
+{
+    scon_list_t* list = scon_list_new(scon, count);
+    if (count > 0 && data != SCON_NULL)
+    {
+        SCON_MEMCPY(list->handles, data, count * sizeof(scon_handle_t));
+    }
+
+    list->length = (scon_uint32_t)count;
     return list;
 }
 

@@ -7,25 +7,31 @@
 #include "gc.h"
 #include "stdlib_higher_order.h"
 
-SCON_API scon_handle_t scon_map(scon_t* scon, scon_handle_t* callable, scon_handle_t* listHandle)
+SCON_API scon_handle_t scon_map(scon_t* scon, scon_handle_t* list, scon_handle_t* callable)
 {
     SCON_ASSERT(scon != SCON_NULL);
 
-    if (!SCON_HANDLE_IS_LIST(listHandle))
+    if (!SCON_HANDLE_IS_LIST(list))
     {
-        SCON_ERROR_RUNTIME(scon, SCON_NULL, "map expects a list as the second argument, got %s",
-            scon_item_type_str(scon_handle_get_type(scon, listHandle)));
+        SCON_ERROR_RUNTIME(scon,  "map expects a list as the first argument, got %s",
+            scon_item_type_str(scon_handle_get_type(scon, list)));
     }
 
-    scon_item_t* list = SCON_HANDLE_TO_ITEM(listHandle);
+    if (!SCON_HANDLE_IS_CALLABLE(callable))
+    {
+        SCON_ERROR_RUNTIME(scon,  "map expects a callable as the second argument, got %s",
+            scon_item_type_str(scon_handle_get_type(scon, callable)));
+    }
 
-    scon_list_t* mappedList = scon_list_new(scon, list->length);
+    scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
+
+    scon_list_t* mappedList = scon_list_new(scon, listItem->length);
     scon_handle_t mappedHandle = SCON_HANDLE_FROM_LIST(mappedList);
     SCON_GC_RETAIN(scon, mappedHandle);
 
-    for (scon_size_t i = 0; i < list->length; i++)
+    for (scon_size_t i = 0; i < listItem->length; i++)
     {
-        scon_handle_t arg = SCON_LIST_GET_HANDLE(list, i);
+        scon_handle_t arg = SCON_LIST_GET_HANDLE(listItem, i);
         scon_handle_t result = scon_eval_call(scon, *callable, 1, &arg);
         scon_list_append(scon, mappedList, result);
     }
@@ -34,25 +40,31 @@ SCON_API scon_handle_t scon_map(scon_t* scon, scon_handle_t* callable, scon_hand
     return mappedHandle;
 }
 
-SCON_API scon_handle_t scon_filter(scon_t* scon, scon_handle_t* callable, scon_handle_t* listHandle)
+SCON_API scon_handle_t scon_filter(scon_t* scon, scon_handle_t* list, scon_handle_t* callable)
 {
     SCON_ASSERT(scon != SCON_NULL);
 
-    if (!SCON_HANDLE_IS_LIST(listHandle))
+    if (!SCON_HANDLE_IS_LIST(list))
     {
-        SCON_ERROR_RUNTIME(scon, SCON_NULL, "filter expects a list as the second argument, got %s",
-            scon_item_type_str(scon_handle_get_type(scon, listHandle)));
+        SCON_ERROR_RUNTIME(scon,  "filter expects a list as the first argument, got %s",
+            scon_item_type_str(scon_handle_get_type(scon, list)));
     }
 
-    scon_item_t* list = SCON_HANDLE_TO_ITEM(listHandle);
+    if (!SCON_HANDLE_IS_CALLABLE(callable))
+    {
+        SCON_ERROR_RUNTIME(scon,  "filter expects a callable as the second argument, got %s",
+            scon_item_type_str(scon_handle_get_type(scon, callable)));
+    }
+
+    scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
 
     scon_list_t* filteredList = scon_list_new(scon, 0);
     scon_handle_t filteredHandle = SCON_HANDLE_FROM_LIST(filteredList);
     SCON_GC_RETAIN(scon, filteredHandle);
 
-    for (scon_size_t i = 0; i < list->length; i++)
+    for (scon_size_t i = 0; i < listItem->length; i++)
     {
-        scon_handle_t arg = SCON_LIST_GET_HANDLE(list, i);
+        scon_handle_t arg = SCON_LIST_GET_HANDLE(listItem, i);
         scon_handle_t result = scon_eval_call(scon, *callable, 1, &arg);
         if (SCON_HANDLE_IS_TRUTHY(&result))
         {
@@ -64,34 +76,146 @@ SCON_API scon_handle_t scon_filter(scon_t* scon, scon_handle_t* callable, scon_h
     return filteredHandle;
 }
 
-SCON_API scon_handle_t scon_reduce(scon_t* scon, scon_handle_t* callable, scon_handle_t* accumulator, scon_handle_t* listHandle)
+SCON_API scon_handle_t scon_reduce(scon_t* scon, scon_handle_t* list, scon_handle_t* initial, scon_handle_t* callable)
 {
     SCON_ASSERT(scon != SCON_NULL);
 
-    if (!SCON_HANDLE_IS_LIST(listHandle))
+    if (!SCON_HANDLE_IS_LIST(list))
     {
-        SCON_ERROR_RUNTIME(scon, SCON_NULL, "reduce expects a list as the third argument, got %s",
-            scon_item_type_str(scon_handle_get_type(scon, listHandle)));
+        SCON_ERROR_RUNTIME(scon,  "reduce expects a list as the first argument, got %s",
+            scon_item_type_str(scon_handle_get_type(scon, list)));
     }
 
-    scon_item_t* list = SCON_HANDLE_TO_ITEM(listHandle);
+    if (!SCON_HANDLE_IS_CALLABLE(callable))
+    {        
+        SCON_ERROR_RUNTIME(scon,  "reduce expects a callable as the second/third argument, got %s",
+            scon_item_type_str(scon_handle_get_type(scon, callable)));
+    }
 
-    scon_handle_t result = *accumulator;
-    SCON_GC_RETAIN(scon, result);
+    scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
+    scon_handle_t accumulator = (initial != SCON_NULL) ? *initial : SCON_HANDLE_NONE;
+    scon_size_t startIdx = 0;
 
-    for (scon_size_t i = 0; i < list->length; i++)
+    if (accumulator == SCON_HANDLE_NONE)
     {
-        scon_handle_t args[2];
-        args[0] = result;
-        args[1] = SCON_LIST_GET_HANDLE(list, i);
-        scon_handle_t next = scon_eval_call(scon, *callable, 2, args);
-        SCON_GC_RETAIN(scon, next);
+        if (listItem->length == 0)
+        {
+            return SCON_HANDLE_NONE;
+        }
+        accumulator = SCON_LIST_GET_HANDLE(listItem, 0);
+        startIdx = 1;
+    }
+
+    SCON_GC_RETAIN(scon, accumulator);
+
+    for (scon_size_t i = startIdx; i < listItem->length; i++)
+    {
+        scon_handle_t args[2] = {accumulator, SCON_LIST_GET_HANDLE(listItem, i)};
+        scon_handle_t result = scon_eval_call(scon, *callable, 2, args);
+        
+        if (accumulator != result)
+        {
+            SCON_GC_RELEASE(scon, accumulator);
+            accumulator = result;
+            SCON_GC_RETAIN(scon, accumulator);
+        }
+    }
+
+    SCON_GC_RELEASE(scon, accumulator);
+    return accumulator;
+}
+
+SCON_API scon_handle_t scon_apply(scon_t* scon, scon_handle_t* list, scon_handle_t* callable)
+{
+    SCON_ASSERT(scon != SCON_NULL);
+
+    if (!SCON_HANDLE_IS_LIST(list))
+    {
+        SCON_ERROR_RUNTIME(scon, "apply expects a list as the first argument, got %s",
+            scon_item_type_str(scon_handle_get_type(scon, list)));
+    }
+
+    if (!SCON_HANDLE_IS_CALLABLE(callable))
+    {
+        SCON_ERROR_RUNTIME(scon, "apply expects a callable as the second argument, got %s",
+            scon_item_type_str(scon_handle_get_type(scon, callable)));
+    }
+
+    scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
+    return scon_eval_call(scon, *callable, listItem->length, listItem->list.handles);
+}
+
+SCON_API scon_handle_t scon_any(scon_t* scon, scon_handle_t* list, scon_handle_t* callable)
+{
+    SCON_ASSERT(scon != SCON_NULL);
+
+    if (!SCON_HANDLE_IS_LIST(list))
+    {
+        SCON_ERROR_RUNTIME(scon, "any? expects a list as the first argument, got %s",
+            scon_item_type_str(scon_handle_get_type(scon, list)));
+    }
+
+    scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
+    scon_handle_t fn = (callable != SCON_NULL) ? *callable : SCON_HANDLE_NONE;
+
+    for (scon_size_t i = 0; i < listItem->length; i++)
+    {
+        scon_handle_t arg = SCON_LIST_GET_HANDLE(listItem, i);
+        scon_handle_t result;
+        if (fn != SCON_HANDLE_NONE)
+        {
+            result = scon_eval_call(scon, fn, 1, &arg);
+        }
+        else
+        {
+            result = arg;
+        }
+
+        if (SCON_HANDLE_IS_TRUTHY(&result))
+        {
+            return SCON_HANDLE_TRUE();
+        }
+    }
+
+    return SCON_HANDLE_FALSE();
+}
+
+SCON_API scon_handle_t scon_all(scon_t* scon, scon_handle_t* list, scon_handle_t* callable)
+{
+    SCON_ASSERT(scon != SCON_NULL);
+
+    if (!SCON_HANDLE_IS_LIST(list))
+    {
+        SCON_ERROR_RUNTIME(scon, "all? expects a list as the first argument, got %s",
+            scon_item_type_str(scon_handle_get_type(scon, list)));
+    }
+
+    scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
+    scon_handle_t fn = (callable != SCON_NULL) ? *callable : SCON_HANDLE_NONE;
+
+    for (scon_size_t i = 0; i < listItem->length; i++)
+    {
+        scon_handle_t arg = SCON_LIST_GET_HANDLE(listItem, i);
+        scon_handle_t result;
+        if (fn != SCON_HANDLE_NONE)
+        {
+            result = scon_eval_call(scon, fn, 1, &arg);
+        }
+        else
+        {
+            result = arg;
+        }
+        SCON_GC_RETAIN(scon, result);
+
+        if (!SCON_HANDLE_IS_TRUTHY(&result))
+        {
+            SCON_GC_RELEASE(scon, result);
+            return SCON_HANDLE_FALSE();
+        }
         SCON_GC_RELEASE(scon, result);
-        result = next;
     }
 
-    SCON_GC_RELEASE(scon, result);
-    return result;
+    return SCON_HANDLE_TRUE();
 }
 
 static void scon_sort_merge(scon_t* scon, scon_handle_t callable, scon_list_t* a, size_t left, size_t right, size_t end, scon_list_t* b)
@@ -151,7 +275,7 @@ SCON_API scon_handle_t scon_sort(scon_t* scon, scon_handle_t* listHandle, scon_h
 
     if (!SCON_HANDLE_IS_LIST(listHandle))
     {
-        SCON_ERROR_RUNTIME(scon, SCON_NULL, "sort expects a list as the first argument, got %s",
+        SCON_ERROR_RUNTIME(scon,  "sort expects a list as the first argument, got %s",
             scon_item_type_str(scon_handle_get_type(scon, listHandle)));
     }
 
@@ -159,7 +283,7 @@ SCON_API scon_handle_t scon_sort(scon_t* scon, scon_handle_t* listHandle, scon_h
 
     if (callable != SCON_HANDLE_NONE && !SCON_HANDLE_IS_CALLABLE(&callable))
     {
-        SCON_ERROR_RUNTIME(scon, SCON_NULL, "sort expects a callable as the second argument, got %s",
+        SCON_ERROR_RUNTIME(scon,  "sort expects a callable as the second argument, got %s",
             scon_item_type_str(scon_handle_get_type(scon, &callable)));
     }
 

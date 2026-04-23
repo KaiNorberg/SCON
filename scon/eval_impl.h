@@ -39,7 +39,8 @@ SCON_API void scon_eval_state_deinit(scon_eval_state_t* state)
     SCON_FREE(state->regs);
 }
 
-static inline SCON_ALWAYS_INLINE void scon_eval_ensure_regs(scon_t* scon, scon_eval_state_t* state, scon_uint32_t neededRegs)
+static inline SCON_ALWAYS_INLINE void scon_eval_ensure_regs(scon_t* scon, scon_eval_state_t* state,
+    scon_uint32_t neededRegs)
 {
     SCON_ASSERT(scon != SCON_NULL);
     SCON_ASSERT(state != SCON_NULL);
@@ -62,7 +63,8 @@ static inline SCON_ALWAYS_INLINE void scon_eval_ensure_regs(scon_t* scon, scon_e
     state->regs = newRegs;
 }
 
-static inline SCON_ALWAYS_INLINE void scon_eval_push_frame(scon_t* scon, scon_eval_state_t* state, scon_closure_t* closure, scon_uint32_t target)
+static inline SCON_ALWAYS_INLINE void scon_eval_push_frame(scon_t* scon, scon_eval_state_t* state,
+    scon_closure_t* closure, scon_uint32_t target)
 {
     SCON_ASSERT(scon != SCON_NULL);
     SCON_ASSERT(state != SCON_NULL);
@@ -88,6 +90,7 @@ static inline SCON_ALWAYS_INLINE void scon_eval_push_frame(scon_t* scon, scon_ev
     frame->closure = closure;
     frame->ip = closure->function->insts;
     frame->base = target;
+    frame->prevRegCount = state->regCount;
 
     state->regCount = neededRegs;
 }
@@ -98,10 +101,11 @@ static inline SCON_ALWAYS_INLINE void scon_eval_pop_frame(scon_eval_state_t* sta
     SCON_ASSERT(state->frameCount > 0);
 
     scon_eval_frame_t* frame = &state->frames[--state->frameCount];
-    state->regCount = frame->base;
+    state->regCount = frame->prevRegCount;
 }
 
-static inline SCON_ALWAYS_INLINE void scon_eval_tail_frame(scon_t* scon, scon_eval_state_t* state, scon_closure_t* closure)
+static inline SCON_ALWAYS_INLINE void scon_eval_tail_frame(scon_t* scon, scon_eval_state_t* state,
+    scon_closure_t* closure)
 {
     SCON_ASSERT(scon != SCON_NULL);
     SCON_ASSERT(state != SCON_NULL);
@@ -160,13 +164,9 @@ static scon_handle_t scon_eval_run(scon_t* scon, scon_eval_state_t* state, scon_
         } \
     } while (0)
 
-#define OP_ENTRY(_op, _label) \
-    [_op] = &&_label, \
-    [_op | SCON_MODE_CONST] = &&_label
+#define OP_ENTRY(_op, _label) [_op] = &&_label, [_op | SCON_MODE_CONST] = &&_label
 
-#define OP_ENTRY_C(_op, _label) \
-    [_op] = &&_label, \
-    [_op | SCON_MODE_CONST] = &&_label##_k
+#define OP_ENTRY_C(_op, _label) [_op] = &&_label, [_op | SCON_MODE_CONST] = &&_label##_k
 
     void* dispatchTable[] = {
         OP_ENTRY(SCON_OPCODE_NONE, label_none),
@@ -203,11 +203,11 @@ static scon_handle_t scon_eval_run(scon_t* scon, scon_eval_state_t* state, scon_
     };
 
 #define LABEL_C_OP(_label, ...) \
-    _label: \
-    { \
-        DECODE_C_REG(); \
-        __VA_ARGS__ \
-    } \
+_label: \
+{ \
+    DECODE_C_REG(); \
+    __VA_ARGS__ \
+} \
     _label##_k: \
     { \
         DECODE_C_CONST(); \
@@ -217,7 +217,7 @@ static scon_handle_t scon_eval_run(scon_t* scon, scon_eval_state_t* state, scon_
     DISPATCH();
 label_none:
     frame->ip = ip;
-    SCON_ERROR_RUNTIME(scon, SCON_NULL, "invalid opcode, %u", inst);
+    SCON_ERROR_RUNTIME(scon, "invalid opcode, %u", inst);
 label_list:
 {
     DECODE_A();
@@ -235,7 +235,8 @@ label_jmpf:
     DECODE_A();
     DECODE_SBX();
     scon_handle_t val = base[a];
-    if (SCON_LIKELY(val == SCON_HANDLE_FALSE()) || SCON_UNLIKELY(val != SCON_HANDLE_TRUE() && !SCON_HANDLE_IS_TRUTHY(&val)))
+    if (SCON_LIKELY(val == SCON_HANDLE_FALSE()) ||
+        SCON_UNLIKELY(val != SCON_HANDLE_TRUE() && !SCON_HANDLE_IS_TRUTHY(&val)))
     {
         ip += sbx;
     }
@@ -246,90 +247,120 @@ label_jmpt:
     DECODE_A();
     DECODE_SBX();
     scon_handle_t val = base[a];
-    if (SCON_LIKELY(val == SCON_HANDLE_TRUE()) || SCON_UNLIKELY(val != SCON_HANDLE_FALSE() && SCON_HANDLE_IS_TRUTHY(&val)))
+    if (SCON_LIKELY(val == SCON_HANDLE_TRUE()) ||
+        SCON_UNLIKELY(val != SCON_HANDLE_FALSE() && SCON_HANDLE_IS_TRUTHY(&val)))
     {
         ip += sbx;
     }
     DISPATCH();
 }
-LABEL_C_OP(label_call,
-{
-    DECODE_A();
-    DECODE_B();
-    ERROR_CHECK(SCON_HANDLE_IS_ITEM(&valC), scon, SCON_NULL, "attempt to call non-callable %s", scon_item_type_str(scon_handle_get_type(scon, &valC)));
-    scon_item_t* item = SCON_HANDLE_TO_ITEM(&valC);
-    if (SCON_LIKELY(item->type == SCON_ITEM_TYPE_CLOSURE))
-    {
-        scon_closure_t* closure = &item->closure;
-        ERROR_CHECK(b == closure->function->arity, scon, SCON_NULL, "expected %d arguments, got %d", closure->function->arity, b);
-
-        frame->ip = ip;
-        scon_eval_push_frame(scon, state, closure, frame->base + a);
-
-        frame = &state->frames[state->frameCount - 1];
-        ip = frame->ip;
-        base = state->regs + frame->base;
-        constants = frame->closure->constants;
-
-        DISPATCH();
-    }
-    if (SCON_LIKELY(item->flags & SCON_ITEM_FLAG_NATIVE))
-    {
-        scon_handle_t* args = &base[a];
-        frame->ip = ip;
-        scon_handle_t result = item->atom.native(scon, b, args);
-
-        frame = &state->frames[state->frameCount - 1];
-        base = state->regs + frame->base;
-        base[a] = result;
-        constants = frame->closure->constants;
-
-        DISPATCH();
-    }
-
-    frame->ip = ip;
-    SCON_ERROR_RUNTIME(scon, SCON_NULL,  "attempt to call non-callable %s", scon_item_type_str(item->type));
-})
-LABEL_C_OP(label_tailcall,
-{
-    DECODE_A();
-    DECODE_B();
-    ERROR_CHECK(SCON_HANDLE_IS_ITEM(&valC), scon, SCON_NULL, "attempt to call non-callable %s", scon_item_type_str(scon_handle_get_type(scon, &valC)));
-    scon_item_t* item = SCON_HANDLE_TO_ITEM(&valC);
-    if (SCON_LIKELY(item->type == SCON_ITEM_TYPE_CLOSURE))
-    {
-        scon_closure_t* closure = &item->closure;
-        ERROR_CHECK(b == closure->function->arity, scon, SCON_NULL, "expected %d arguments, got %d", closure->function->arity, b);
-
-        if (a != 0)
+    LABEL_C_OP(label_call, {
+        DECODE_A();
+        DECODE_B();
+        ERROR_CHECK(SCON_HANDLE_IS_ITEM(&valC), scon, SCON_NULL, "attempt to call non-callable %s",
+            scon_item_type_str(scon_handle_get_type(scon, &valC)));
+        scon_item_t* item = SCON_HANDLE_TO_ITEM(&valC);
+        if (SCON_LIKELY(item->type == SCON_ITEM_TYPE_CLOSURE))
         {
-            for (scon_uint32_t i = 0; i < b; i++)
-            {
-                base[i] = base[a + i];
-            }
+            scon_closure_t* closure = &item->closure;
+            ERROR_CHECK(b == closure->function->arity, scon, SCON_NULL, "expected %d arguments, got %d",
+                closure->function->arity, b);
+
+            frame->ip = ip;
+            scon_eval_push_frame(scon, state, closure, frame->base + a);
+
+            frame = &state->frames[state->frameCount - 1];
+            ip = frame->ip;
+            base = state->regs + frame->base;
+            constants = frame->closure->constants;
+
+            DISPATCH();
+        }
+        if (SCON_LIKELY(item->flags & SCON_ITEM_FLAG_NATIVE))
+        {
+            scon_handle_t* args = &base[a];
+            frame->ip = ip;
+            scon_handle_t result = item->atom.native(scon, b, args);
+
+            frame = &state->frames[state->frameCount - 1];
+            base = state->regs + frame->base;
+            base[a] = result;
+            constants = frame->closure->constants;
+
+            DISPATCH();
         }
 
-        scon_eval_tail_frame(scon, state, closure);
-
-        frame = &state->frames[state->frameCount - 1];
-        ip = frame->ip;
-        base = state->regs + frame->base;
-        constants = frame->closure->constants;
-
-        DISPATCH();
-    }
-    if (SCON_LIKELY(item->flags & SCON_ITEM_FLAG_NATIVE))
-    {
-        scon_handle_t* args = &base[a];
         frame->ip = ip;
-        scon_handle_t res = item->atom.native(scon, b, args);
+        SCON_ERROR_RUNTIME(scon, "attempt to call non-callable %s", scon_item_type_str(item->type));
+    })
+    LABEL_C_OP(label_tailcall, {
+        DECODE_A();
+        DECODE_B();
+        ERROR_CHECK(SCON_HANDLE_IS_ITEM(&valC), scon, SCON_NULL, "attempt to call non-callable %s",
+            scon_item_type_str(scon_handle_get_type(scon, &valC)));
+        scon_item_t* item = SCON_HANDLE_TO_ITEM(&valC);
+        if (SCON_LIKELY(item->type == SCON_ITEM_TYPE_CLOSURE))
+        {
+            scon_closure_t* closure = &item->closure;
+            ERROR_CHECK(b == closure->function->arity, scon, SCON_NULL, "expected %d arguments, got %d",
+                closure->function->arity, b);
 
-        state->regs[frame->base] = res;
+            if (a != 0)
+            {
+                for (scon_uint32_t i = 0; i < b; i++)
+                {
+                    base[i] = base[a + i];
+                }
+            }
+
+            scon_eval_tail_frame(scon, state, closure);
+
+            frame = &state->frames[state->frameCount - 1];
+            ip = frame->ip;
+            base = state->regs + frame->base;
+            constants = frame->closure->constants;
+
+            DISPATCH();
+        }
+        if (SCON_LIKELY(item->flags & SCON_ITEM_FLAG_NATIVE))
+        {
+            scon_handle_t* args = &base[a];
+            frame->ip = ip;
+            scon_handle_t res = item->atom.native(scon, b, args);
+
+            frame = &state->frames[state->frameCount - 1];
+            state->regs[frame->base] = res;
+            scon_eval_pop_frame(state);
+
+            if (SCON_UNLIKELY(state->frameCount == initialFrameCount))
+            {
+                result = res;
+                goto eval_end;
+            }
+
+            frame = &state->frames[state->frameCount - 1];
+            ip = frame->ip;
+            base = state->regs + frame->base;
+            constants = frame->closure->constants;
+
+            DISPATCH();
+        }
+
+        frame->ip = ip;
+        SCON_ERROR_RUNTIME(scon, "attempt to call non-callable %s", scon_item_type_str(item->type));
+    })
+    LABEL_C_OP(label_mov, {
+        DECODE_A();
+        base[a] = valC;
+        DISPATCH();
+    })
+    LABEL_C_OP(label_ret, {
+        state->regs[frame->base] = valC;
         scon_eval_pop_frame(state);
 
         if (SCON_UNLIKELY(state->frameCount == initialFrameCount))
         {
-            result = res;
+            result = valC;
             goto eval_end;
         }
 
@@ -339,188 +370,140 @@ LABEL_C_OP(label_tailcall,
         constants = frame->closure->constants;
 
         DISPATCH();
-    }
+    })
+    LABEL_C_OP(label_append, {
+        DECODE_A();
+        ERROR_CHECK(SCON_HANDLE_IS_ITEM(&base[a]), scon, SCON_NULL, "APPEND expected a list");
 
-    frame->ip = ip;
-    SCON_ERROR_RUNTIME(scon, SCON_NULL,  "attempt to call non-callable %s", scon_item_type_str(item->type));
-})
-LABEL_C_OP(label_mov,
-{
-    DECODE_A();
-    base[a] = valC;
-    DISPATCH();
-})
-LABEL_C_OP(label_ret,
-{
-    state->regs[frame->base] = valC;
-    scon_eval_pop_frame(state);
+        scon_item_t* item = SCON_HANDLE_TO_ITEM(&base[a]);
+        ERROR_CHECK(item->type == SCON_ITEM_TYPE_LIST, scon, SCON_NULL, "APPEND expected a list");
 
-    if (SCON_UNLIKELY(state->frameCount == initialFrameCount))
-    {
-        result = valC;
-        goto eval_end;
-    }
+        scon_list_t* listPtr = &item->list;
+        scon_list_append(scon, listPtr, valC);
 
-    frame = &state->frames[state->frameCount - 1];
-    ip = frame->ip;
-    base = state->regs + frame->base;
-    constants = frame->closure->constants;
-
-    DISPATCH();
-})
-LABEL_C_OP(label_append,
-{
-    DECODE_A();
-    ERROR_CHECK(SCON_HANDLE_IS_ITEM(&base[a]), scon, SCON_NULL, "APPEND expected a list");
-
-    scon_item_t* item = SCON_HANDLE_TO_ITEM(&base[a]);
-    ERROR_CHECK(item->type == SCON_ITEM_TYPE_LIST, scon, SCON_NULL, "APPEND expected a list");
-
-    scon_list_t* listPtr = &item->list;
-    scon_list_append(scon, listPtr, valC);
-
-    DISPATCH();
-})
-LABEL_C_OP(label_eq,
-{
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, ==) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_neq,
-{
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, !=) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_seq,
-{
-    DECODE_A();
-    DECODE_B();
-    base[a] = scon_handle_is_equal(scon, &base[b], &valC) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_sneq,
-{
-    DECODE_A();
-    DECODE_B();
-    base[a] = scon_handle_is_equal(scon, &base[b], &valC) ? SCON_HANDLE_FALSE() : SCON_HANDLE_TRUE();
-    DISPATCH();
-})
-LABEL_C_OP(label_lt,
-{
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, <) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_le,
-{
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, <=) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_gt,
-{
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, >) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_ge,
-{
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, >=) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_add,
-{
-    DECODE_A();
-    DECODE_B();
-    SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, +);
-    DISPATCH();
-})
-LABEL_C_OP(label_sub,
-{
-    DECODE_A();
-    DECODE_B();
-    SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, -);
-    DISPATCH();
-})
-LABEL_C_OP(label_mul,
-{
-    DECODE_A();
-    DECODE_B();
-    SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, *);
-    DISPATCH();
-})
-LABEL_C_OP(label_div,
-{
-    DECODE_A();
-    DECODE_B();
-    SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, /);
-    DISPATCH();
-})
-LABEL_C_OP(label_mod,
-{
-    DECODE_A();
-    DECODE_B();
-    scon_promotion_t prom;
-    scon_handle_promote(scon, &base[b], &valC, &prom);
-    ERROR_CHECK(prom.type == SCON_PROMOTION_TYPE_INT, scon, SCON_NULL, "invalid item type");
-    ERROR_CHECK(prom.b.intVal != 0, scon, SCON_NULL, "modulo by zero");
-    base[a] = SCON_HANDLE_FROM_INT(prom.a.intVal % prom.b.intVal);
-    DISPATCH();
-})
-LABEL_C_OP(label_band,
-{
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) & scon_get_int(scon, &valC));
-    DISPATCH();
-})
-LABEL_C_OP(label_bor,
-{
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) | scon_get_int(scon, &valC));
-    DISPATCH();
-})
-LABEL_C_OP(label_bxor,
-{
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) ^ scon_get_int(scon, &valC));
-    DISPATCH();
-})
-LABEL_C_OP(label_bnot,
-{
-    DECODE_A();
-    base[a] = SCON_HANDLE_FROM_INT(~scon_get_int(scon, &valC));
-    DISPATCH();
-})
-LABEL_C_OP(label_shl,
-{
-    DECODE_A();
-    DECODE_B();
-    scon_int64_t left = scon_get_int(scon, &valC);
-    ERROR_CHECK(left >= 0 && left < 64, scon, SCON_NULL, "expected left shift amount 0-63, got %ld", left);
-    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) << left);
-    DISPATCH();
-})
-LABEL_C_OP(label_shr,
-{
-    DECODE_A();
-    DECODE_B();
-    scon_int64_t right = scon_get_int(scon, &valC);
-    ERROR_CHECK(right >= 0 && right < 64, scon, SCON_NULL, "expected right shift amount 0-63, got %ld", right);
-    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) >> right);
-    DISPATCH();
-})
+        DISPATCH();
+    })
+    LABEL_C_OP(label_eq, {
+        DECODE_A();
+        DECODE_B();
+        base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, ==) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
+        DISPATCH();
+    })
+    LABEL_C_OP(label_neq, {
+        DECODE_A();
+        DECODE_B();
+        base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, !=) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
+        DISPATCH();
+    })
+    LABEL_C_OP(label_seq, {
+        DECODE_A();
+        DECODE_B();
+        base[a] = scon_handle_is_equal(scon, &base[b], &valC) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
+        DISPATCH();
+    })
+    LABEL_C_OP(label_sneq, {
+        DECODE_A();
+        DECODE_B();
+        base[a] = scon_handle_is_equal(scon, &base[b], &valC) ? SCON_HANDLE_FALSE() : SCON_HANDLE_TRUE();
+        DISPATCH();
+    })
+    LABEL_C_OP(label_lt, {
+        DECODE_A();
+        DECODE_B();
+        base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, <) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
+        DISPATCH();
+    })
+    LABEL_C_OP(label_le, {
+        DECODE_A();
+        DECODE_B();
+        base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, <=) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
+        DISPATCH();
+    })
+    LABEL_C_OP(label_gt, {
+        DECODE_A();
+        DECODE_B();
+        base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, >) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
+        DISPATCH();
+    })
+    LABEL_C_OP(label_ge, {
+        DECODE_A();
+        DECODE_B();
+        base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, >=) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
+        DISPATCH();
+    })
+    LABEL_C_OP(label_add, {
+        DECODE_A();
+        DECODE_B();
+        SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, +);
+        DISPATCH();
+    })
+    LABEL_C_OP(label_sub, {
+        DECODE_A();
+        DECODE_B();
+        SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, -);
+        DISPATCH();
+    })
+    LABEL_C_OP(label_mul, {
+        DECODE_A();
+        DECODE_B();
+        SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, *);
+        DISPATCH();
+    })
+    LABEL_C_OP(label_div, {
+        DECODE_A();
+        DECODE_B();
+        SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, /);
+        DISPATCH();
+    })
+    LABEL_C_OP(label_mod, {
+        DECODE_A();
+        DECODE_B();
+        scon_promotion_t prom;
+        scon_handle_promote(scon, &base[b], &valC, &prom);
+        ERROR_CHECK(prom.type == SCON_PROMOTION_TYPE_INT, scon, SCON_NULL, "invalid item type");
+        ERROR_CHECK(prom.b.intVal != 0, scon, SCON_NULL, "modulo by zero");
+        base[a] = SCON_HANDLE_FROM_INT(prom.a.intVal % prom.b.intVal);
+        DISPATCH();
+    })
+    LABEL_C_OP(label_band, {
+        DECODE_A();
+        DECODE_B();
+        base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) & scon_get_int(scon, &valC));
+        DISPATCH();
+    })
+    LABEL_C_OP(label_bor, {
+        DECODE_A();
+        DECODE_B();
+        base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) | scon_get_int(scon, &valC));
+        DISPATCH();
+    })
+    LABEL_C_OP(label_bxor, {
+        DECODE_A();
+        DECODE_B();
+        base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) ^ scon_get_int(scon, &valC));
+        DISPATCH();
+    })
+    LABEL_C_OP(label_bnot, {
+        DECODE_A();
+        base[a] = SCON_HANDLE_FROM_INT(~scon_get_int(scon, &valC));
+        DISPATCH();
+    })
+    LABEL_C_OP(label_shl, {
+        DECODE_A();
+        DECODE_B();
+        scon_int64_t left = scon_get_int(scon, &valC);
+        ERROR_CHECK(left >= 0 && left < 64, scon, SCON_NULL, "expected left shift amount 0-63, got %ld", left);
+        base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) << left);
+        DISPATCH();
+    })
+    LABEL_C_OP(label_shr, {
+        DECODE_A();
+        DECODE_B();
+        scon_int64_t right = scon_get_int(scon, &valC);
+        ERROR_CHECK(right >= 0 && right < 64, scon, SCON_NULL, "expected right shift amount 0-63, got %ld", right);
+        base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) >> right);
+        DISPATCH();
+    })
 label_closure:
 {
     DECODE_A();
@@ -528,23 +511,23 @@ label_closure:
     scon_handle_t protoHandle = frame->closure->constants[c];
     ERROR_CHECK(SCON_HANDLE_IS_ITEM(&protoHandle), scon, SCON_NULL, "expected closure prototype to be an item");
     scon_item_t* protoItem = SCON_HANDLE_TO_ITEM(&protoHandle);
-    ERROR_CHECK(protoItem->type == SCON_ITEM_TYPE_FUNCTION, scon, SCON_NULL, "expected closure prototype to be a function, got %s", scon_item_type_str(protoItem->type));
+    ERROR_CHECK(protoItem->type == SCON_ITEM_TYPE_FUNCTION, scon, SCON_NULL,
+        "expected closure prototype to be a function, got %s", scon_item_type_str(protoItem->type));
 
     scon_function_t* proto = &protoItem->function;
     base[a] = SCON_HANDLE_FROM_CLOSURE(scon_closure_new(scon, proto));
     DISPATCH();
 }
-LABEL_C_OP(label_capture,
-{
-    DECODE_A();
-    DECODE_B();
-    scon_handle_t closureHandle = base[a];
-    scon_closure_t* closurePtr = &SCON_HANDLE_TO_ITEM(&closureHandle)->closure;
-    closurePtr->constants[b] = valC;
-    DISPATCH();
-})
+    LABEL_C_OP(label_capture, {
+        DECODE_A();
+        DECODE_B();
+        scon_handle_t closureHandle = base[a];
+        scon_closure_t* closurePtr = &SCON_HANDLE_TO_ITEM(&closureHandle)->closure;
+        closurePtr->constants[b] = valC;
+        DISPATCH();
+    })
 eval_end:
-// clang-format on
+    // clang-format on
     return result;
 }
 
@@ -575,7 +558,7 @@ SCON_API scon_handle_t scon_eval_call(scon_t* scon, scon_handle_t callable, scon
 
     if (!SCON_HANDLE_IS_ITEM(&callable))
     {
-        SCON_ERROR_RUNTIME(scon, SCON_NULL, "attempt to call non-callable value");
+        SCON_ERROR_RUNTIME(scon, "attempt to call non-callable value");
     }
 
     scon_item_t* item = SCON_HANDLE_TO_ITEM(&callable);
@@ -589,7 +572,7 @@ SCON_API scon_handle_t scon_eval_call(scon_t* scon, scon_handle_t callable, scon
         scon_closure_t* closure = &item->closure;
         if (argc != closure->function->arity)
         {
-            SCON_ERROR_RUNTIME(scon, SCON_NULL, "expected %ld arguments, got %ld", closure->function->arity, argc);
+            SCON_ERROR_RUNTIME(scon, "expected %ld arguments, got %ld", closure->function->arity, argc);
         }
 
         if (scon->evalState == SCON_NULL)
@@ -629,7 +612,7 @@ SCON_API scon_handle_t scon_eval_call(scon_t* scon, scon_handle_t callable, scon
         return scon_eval_run(scon, state, initialFrameCount);
     }
 
-    SCON_ERROR_RUNTIME(scon, SCON_NULL, "attempt to call non-callable value");
+    SCON_ERROR_RUNTIME(scon, "attempt to call non-callable value");
 }
 
 #endif

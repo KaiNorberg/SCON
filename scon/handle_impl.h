@@ -1,14 +1,14 @@
 #ifndef SCON_HANDLE_IMPL_H
 #define SCON_HANDLE_IMPL_H 1
 
+#include "char.h"
 #include "core.h"
 #include "defs.h"
+#include "eval.h"
+#include "gc.h"
 #include "handle.h"
 #include "item.h"
-#include "gc.h"
-#include "eval.h"
 #include "stringify.h"
-#include "char.h"
 
 SCON_API void scon_handle_get_string_params(scon_t* scon, scon_handle_t* handle, char** outStr, scon_size_t* outLen)
 {
@@ -16,7 +16,7 @@ SCON_API void scon_handle_get_string_params(scon_t* scon, scon_handle_t* handle,
     scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
     if (item->type != SCON_ITEM_TYPE_ATOM)
     {
-        SCON_ERROR_RUNTIME(scon, item, "expected atom, got %s", scon_item_type_str(item->type));
+        SCON_ERROR_RUNTIME(scon, "expected atom, got %s", scon_item_type_str(item->type));
     }
     *outStr = item->atom.string;
     *outLen = item->length;
@@ -86,7 +86,8 @@ SCON_API void scon_handle_promote(struct scon* scon, scon_handle_t* a, scon_hand
     scon_item_t* itemA = SCON_HANDLE_TO_ITEM(a);
     scon_item_t* itemB = SCON_HANDLE_TO_ITEM(b);
 
-    if ((SCON_HANDLE_GET_FLAGS(a) & SCON_ITEM_FLAG_FLOAT_SHAPED) || (SCON_HANDLE_GET_FLAGS(b) & SCON_ITEM_FLAG_FLOAT_SHAPED))
+    if ((SCON_HANDLE_GET_FLAGS(a) & SCON_ITEM_FLAG_FLOAT_SHAPED) ||
+        (SCON_HANDLE_GET_FLAGS(b) & SCON_ITEM_FLAG_FLOAT_SHAPED))
     {
         out->type = SCON_PROMOTION_TYPE_FLOAT;
         if (SCON_HANDLE_GET_FLAGS(a) & SCON_ITEM_FLAG_FLOAT_SHAPED)
@@ -107,7 +108,8 @@ SCON_API void scon_handle_promote(struct scon* scon, scon_handle_t* a, scon_hand
             out->b.floatVal = (scon_float_t)itemB->atom.integerValue;
         }
     }
-    else if ((SCON_HANDLE_GET_FLAGS(a) & SCON_ITEM_FLAG_INT_SHAPED) && (SCON_HANDLE_GET_FLAGS(b) & SCON_ITEM_FLAG_INT_SHAPED))
+    else if ((SCON_HANDLE_GET_FLAGS(a) & SCON_ITEM_FLAG_INT_SHAPED) &&
+        (SCON_HANDLE_GET_FLAGS(b) & SCON_ITEM_FLAG_INT_SHAPED))
     {
         out->type = SCON_PROMOTION_TYPE_INT;
         out->a.intVal = itemA->atom.integerValue;
@@ -115,7 +117,7 @@ SCON_API void scon_handle_promote(struct scon* scon, scon_handle_t* a, scon_hand
     }
     else
     {
-        SCON_ERROR_RUNTIME(scon, itemA, "unsupported operand type %s and %s", scon_item_type_str(itemA->type),
+        SCON_ERROR_RUNTIME(scon, "unsupported operand type %s and %s", scon_item_type_str(itemA->type),
             scon_item_type_str(itemB->type));
     }
 }

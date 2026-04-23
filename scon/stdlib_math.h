@@ -13,6 +13,7 @@ SCON_API scon_handle_t scon_floor(struct scon* scon, scon_handle_t* val);
 SCON_API scon_handle_t scon_ceil(struct scon* scon, scon_handle_t* val);
 SCON_API scon_handle_t scon_round(struct scon* scon, scon_handle_t* val);
 SCON_API scon_handle_t scon_pow(struct scon* scon, scon_handle_t* base, scon_handle_t* exp);
+SCON_API scon_handle_t scon_exp(struct scon* scon, scon_handle_t* val);
 SCON_API scon_handle_t scon_log(struct scon* scon, scon_handle_t* val, scon_handle_t* base);
 SCON_API scon_handle_t scon_sqrt(struct scon* scon, scon_handle_t* val);
 SCON_API scon_handle_t scon_sin(struct scon* scon, scon_handle_t* val);

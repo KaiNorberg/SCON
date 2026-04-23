@@ -78,6 +78,7 @@ typedef struct scon_function
     scon_uint32_t instCount;        ///< Number of instructions.
     scon_uint32_t instCapacity;     ///< Capacity of the instruction array.
     scon_inst_t* insts;             ///< An array of instructions.
+    scon_uint32_t* positions;       ///< An array of source positions parallel to the instructions.
     scon_const_slot_t* constants;   ///< The array of constant slots forming the constant template.
     scon_uint16_t constantCount;    ///< Number of constants.
     scon_uint16_t constantCapacity; ///< Capacity of the constant array.
@@ -121,8 +122,10 @@ SCON_API void scon_function_grow(struct scon* scon, scon_function_t* func);
  * @param scon The SCON structure.
  * @param func The function to emit to.
  * @param inst The instruction to emit.
+ * @param position The position in the source code.
  */
-static inline void scon_function_emit(struct scon* scon, scon_function_t* func, scon_inst_t inst)
+static inline void scon_function_emit(struct scon* scon, scon_function_t* func, scon_inst_t inst,
+    scon_uint32_t position)
 {
     SCON_ASSERT(scon != SCON_NULL);
     SCON_ASSERT(func != SCON_NULL);
@@ -130,6 +133,7 @@ static inline void scon_function_emit(struct scon* scon, scon_function_t* func, 
     {
         scon_function_grow(scon, func);
     }
+    func->positions[func->instCount] = position;
     func->insts[func->instCount++] = inst;
 }
 

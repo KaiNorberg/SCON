@@ -7,5 +7,6 @@ struct scon;
 
 SCON_API scon_handle_t scon_assert(struct scon* scon, scon_handle_t* cond, scon_handle_t* msg);
 SCON_API scon_handle_t scon_throw(struct scon* scon, scon_handle_t* msg);
+SCON_API scon_handle_t scon_try(struct scon* scon, scon_handle_t* callable, scon_handle_t* catchFn);
 
 #endif

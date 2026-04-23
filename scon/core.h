@@ -67,6 +67,8 @@ typedef struct scon
     scon_uint32_t constantCount;
     scon_error_t* error;
     struct scon_eval_state* evalState;
+    int argc;
+    char** argv;
 } scon_t;
 
 /**
@@ -83,6 +85,17 @@ SCON_API scon_t* scon_new(scon_error_t* error);
  * @param scon Pointer to the SCON structure to free.
  */
 SCON_API void scon_free(scon_t* scon);
+
+/**
+ * @brief Set the command line arguments for the SCON structure.
+ * 
+ * Will be utilized by the `(args!)` native.
+ * 
+ * @param scon Pointer to the SCON structure.
+ * @param argc The number of arguments.
+ * @param argv The argument strings.
+ */
+SCON_API void scon_args_set(scon_t* scon, int argc, char** argv);
 
 /**
  * @brief Register a constant in a SCON structure.

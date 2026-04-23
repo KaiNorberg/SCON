@@ -40,26 +40,28 @@ typedef enum
     SCON_INTRINSIC_AND,      ///< And
     SCON_INTRINSIC_OR,       ///< Or
     SCON_INTRINSIC_NOT,      ///< Not
-    SCON_INTRINSIC_ADD,      ///< Add
-    SCON_INTRINSIC_SUB,      ///< Sub
-    SCON_INTRINSIC_MUL,      ///< Mul
-    SCON_INTRINSIC_DIV,      ///< Div
-    SCON_INTRINSIC_MOD,      ///< Mod
-    SCON_INTRINSIC_EQ,       ///< Equal
-    SCON_INTRINSIC_NEQ,      ///< Not Equal
-    SCON_INTRINSIC_SEQ,      ///< Strict Equal
-    SCON_INTRINSIC_SNEQ,     ///< Strict Not Equal
-    SCON_INTRINSIC_LT,       ///< Less
-    SCON_INTRINSIC_LE,       ///< Less Equal
-    SCON_INTRINSIC_GT,       ///< Greater
-    SCON_INTRINSIC_GE,       ///< Greater Equal
-    SCON_INTRINSIC_BAND,     ///< Bitwise And
-    SCON_INTRINSIC_BOR,      ///< Bitwise Or
-    SCON_INTRINSIC_BXOR,     ///< Bitwise Xor
-    SCON_INTRINSIC_BNOT,     ///< Bitwise Not
-    SCON_INTRINSIC_SHL,      ///< Bitwise Shift Left
-    SCON_INTRINSIC_SHR,      ///< Bitwise Shift Right
-    SCON_INTRINSIC_MAX       ///< The amount of intrinsics
+    SCON_INTRINSIC_ADD,  ///< Add
+    SCON_INTRINSIC_SUB,  ///< Sub
+    SCON_INTRINSIC_MUL,  ///< Mul
+    SCON_INTRINSIC_DIV,  ///< Div
+    SCON_INTRINSIC_MOD,  ///< Mod
+    SCON_INTRINSIC_INC,  ///< Inc
+    SCON_INTRINSIC_DEC,  ///< Dec
+    SCON_INTRINSIC_BAND, ///< Bitwise And
+    SCON_INTRINSIC_BOR,  ///< Bitwise Or
+    SCON_INTRINSIC_BXOR, ///< Bitwise Xor
+    SCON_INTRINSIC_BNOT, ///< Bitwise Not
+    SCON_INTRINSIC_SHL,  ///< Bitwise Shift Left
+    SCON_INTRINSIC_SHR,  ///< Bitwise Shift Right
+    SCON_INTRINSIC_EQ,   ///< Equal
+    SCON_INTRINSIC_NEQ,  ///< Not Equal
+    SCON_INTRINSIC_SEQ,  ///< Strict Equal
+    SCON_INTRINSIC_SNEQ, ///< Strict Not Equal
+    SCON_INTRINSIC_LT,   ///< Less
+    SCON_INTRINSIC_LE,   ///< Less Equal
+    SCON_INTRINSIC_GT,   ///< Greater
+    SCON_INTRINSIC_GE,   ///< Greater Equal
+    SCON_INTRINSIC_MAX   ///< The amount of intrinsics
 } scon_intrinsic_t;
 
 /**

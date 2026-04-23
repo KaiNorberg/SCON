@@ -143,37 +143,6 @@ SCON_API scon_reg_t scon_reg_alloc_range(scon_compiler_t* compiler, scon_uint32_
     return (scon_reg_t)-1;
 }
 
-SCON_API scon_reg_t scon_reg_alloc_range_hint(scon_compiler_t* compiler, scon_uint32_t count, scon_reg_t hint)
-{
-    SCON_ASSERT(compiler != SCON_NULL);
-
-    if (hint != (scon_reg_t)-1 && hint + count <= SCON_REGISTER_MAX)
-    {
-        scon_bool_t canUseHint = SCON_TRUE;
-        for (scon_uint32_t i = 1; i < count; i++)
-        {
-            scon_uint32_t reg = hint + i;
-            if (SCON_REG_IS_ALLOCATED(compiler, reg))
-            {
-                canUseHint = SCON_FALSE;
-                break;
-            }
-        }
-
-        if (canUseHint)
-        {
-            for (scon_uint32_t i = 0; i < count; i++)
-            {
-                scon_uint32_t reg = hint + i;
-                SCON_REG_SET_ALLOCATED(compiler, reg);
-            }
-            return hint;
-        }
-    }
-
-    return scon_reg_alloc_range(compiler, count);
-}
-
 SCON_API void scon_reg_free(scon_compiler_t* compiler, scon_reg_t reg)
 {
     SCON_ASSERT(compiler != SCON_NULL);
@@ -246,7 +215,8 @@ static inline void scon_expr_build_list(scon_compiler_t* compiler, scon_item_t* 
     }
 
     scon_item_t* head = SCON_LIST_GET_ITEM(list, 0);
-    if (head->type != SCON_ITEM_TYPE_ATOM || (head->flags & (SCON_ITEM_FLAG_QUOTED | SCON_ITEM_FLAG_INT_SHAPED | SCON_ITEM_FLAG_FLOAT_SHAPED)))
+    if (head->type != SCON_ITEM_TYPE_ATOM ||
+        (head->flags & (SCON_ITEM_FLAG_QUOTED | SCON_ITEM_FLAG_INT_SHAPED | SCON_ITEM_FLAG_FLOAT_SHAPED)))
     {
         scon_reg_t target = scon_expr_get_reg(compiler, out);
         scon_compile_list(compiler, target);

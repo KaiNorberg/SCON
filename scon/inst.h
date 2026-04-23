@@ -48,37 +48,37 @@ typedef enum
 typedef enum
 {
     SCON_OPCODE_NONE,
-    SCON_OPCODE_LIST,    ///< (A) Create a new list and store it in R(A).
-    SCON_OPCODE_JMP,     ///< (sBx) Unconditional jump by relative offset sBx.
-    SCON_OPCODE_JMPF,    ///< (A, sBx) Jump by sBx if R(A) is falsy.
-    SCON_OPCODE_JMPT,    ///< (A, sBx) Jump by sBx if R(A) is truthy.
-    SCON_OPCODE_JEQ,     ///< (A, C) Skip the next instruction if R(A) == R/K(C), else continue.
-    SCON_OPCODE_CALL,    ///< (A, B, C) Call callable in R/K(C) with B args starting from R(A). Result in R(A).
-    SCON_OPCODE_MOV,     ///< (A, C) Move value in R/K(C) to R(A).
-    SCON_OPCODE_RET,     ///< (C) Return value in R/K(C).
-    SCON_OPCODE_APPEND,  ///< (A, C) Append value in R/K(C) to the back of the list in R(A).
-    SCON_OPCODE_EQ,      ///< (A, B, C) If R(B) == R/K(C) store true in R(A), else false.
-    SCON_OPCODE_NEQ,     ///< (A, B, C) If R(B) != R/K(C) store true in R(A), else false.
-    SCON_OPCODE_SEQ,     ///< (A, B, C) If R(B) === R/K(C) store true in R(A), else false.
-    SCON_OPCODE_SNEQ,    ///< (A, B, C) If R(B) !== R/K(C) store true in R(A), else false.
-    SCON_OPCODE_LT,      ///< (A, B, C) If R(B) < R/K(C) store true in R(A), else false.
-    SCON_OPCODE_LE,      ///< (A, B, C) If R(B) <= R/K(C) store true in R(A), else false.
-    SCON_OPCODE_GT,      ///< (A, B, C) If R(B) > R/K(C) store true in R(A), else false.
-    SCON_OPCODE_GE,      ///< (A, B, C) If R(B) >= R/K(C) store true in R(A), else false.
-    SCON_OPCODE_ADD,     ///< (A, B, C) R(A) = R(B) + R/K(C)
-    SCON_OPCODE_SUB,     ///< (A, B, C) R(A) = R(B) - R/K(C)
-    SCON_OPCODE_MUL,     ///< (A, B, C) R(A) = R(B) * R/K(C)
-    SCON_OPCODE_DIV,     ///< (A, B, C) R(A) = R(B) / R/K(C)
-    SCON_OPCODE_MOD,     ///< (A, B, C) R(A) = R(B) % R/K(C)
-    SCON_OPCODE_BAND,    ///< (A, B, C) R(A) = R(B) & R/K(C)
-    SCON_OPCODE_BOR,     ///< (A, B, C) R(A) = R(B) | R/K(C)
-    SCON_OPCODE_BXOR,    ///< (A, B, C) R(A) = R(B) ^ R/K(C)
-    SCON_OPCODE_BNOT,    ///< (A, C) R(A) = ~R/K(C)
-    SCON_OPCODE_SHL,     ///< (A, B, C) R(A) = R(B) << R/K(C)
-    SCON_OPCODE_SHR,     ///< (A, B, C) R(A) = R(B) >> R/K(C)
-    SCON_OPCODE_CLOSURE, ///< (A, C) Wrap the function prototype in K(C) in a closure and store in R(A).
-    SCON_OPCODE_CAPTURE, ///< (A, B, C) Capture R/K(C) into constant slot B in closure R(A).
-    SCON_OPCODE_TAILCALL,///< (A, B, C) Tail call callable in R/K(C) with B args starting from R(A).
+    SCON_OPCODE_LIST,     ///< (A) Create a new list and store it in R(A).
+    SCON_OPCODE_JMP,      ///< (sBx) Unconditional jump by relative offset sBx.
+    SCON_OPCODE_JMPF,     ///< (A, sBx) Jump by sBx if R(A) is falsy.
+    SCON_OPCODE_JMPT,     ///< (A, sBx) Jump by sBx if R(A) is truthy.
+    SCON_OPCODE_JEQ,      ///< (A, C) Skip the next instruction if R(A) == R/K(C), else continue.
+    SCON_OPCODE_CALL,     ///< (A, B, C) Call callable in R/K(C) with B args starting from R(A). Result in R(A).
+    SCON_OPCODE_MOV,      ///< (A, C) Move value in R/K(C) to R(A).
+    SCON_OPCODE_RET,      ///< (C) Return value in R/K(C).
+    SCON_OPCODE_APPEND,   ///< (A, C) Append value in R/K(C) to the back of the list in R(A).
+    SCON_OPCODE_EQ,       ///< (A, B, C) If R(B) == R/K(C) store true in R(A), else false.
+    SCON_OPCODE_NEQ,      ///< (A, B, C) If R(B) != R/K(C) store true in R(A), else false.
+    SCON_OPCODE_SEQ,      ///< (A, B, C) If R(B) === R/K(C) store true in R(A), else false.
+    SCON_OPCODE_SNEQ,     ///< (A, B, C) If R(B) !== R/K(C) store true in R(A), else false.
+    SCON_OPCODE_LT,       ///< (A, B, C) If R(B) < R/K(C) store true in R(A), else false.
+    SCON_OPCODE_LE,       ///< (A, B, C) If R(B) <= R/K(C) store true in R(A), else false.
+    SCON_OPCODE_GT,       ///< (A, B, C) If R(B) > R/K(C) store true in R(A), else false.
+    SCON_OPCODE_GE,       ///< (A, B, C) If R(B) >= R/K(C) store true in R(A), else false.
+    SCON_OPCODE_ADD,      ///< (A, B, C) R(A) = R(B) + R/K(C)
+    SCON_OPCODE_SUB,      ///< (A, B, C) R(A) = R(B) - R/K(C)
+    SCON_OPCODE_MUL,      ///< (A, B, C) R(A) = R(B) * R/K(C)
+    SCON_OPCODE_DIV,      ///< (A, B, C) R(A) = R(B) / R/K(C)
+    SCON_OPCODE_MOD,      ///< (A, B, C) R(A) = R(B) % R/K(C)
+    SCON_OPCODE_BAND,     ///< (A, B, C) R(A) = R(B) & R/K(C)
+    SCON_OPCODE_BOR,      ///< (A, B, C) R(A) = R(B) | R/K(C)
+    SCON_OPCODE_BXOR,     ///< (A, B, C) R(A) = R(B) ^ R/K(C)
+    SCON_OPCODE_BNOT,     ///< (A, C) R(A) = ~R/K(C)
+    SCON_OPCODE_SHL,      ///< (A, B, C) R(A) = R(B) << R/K(C)
+    SCON_OPCODE_SHR,      ///< (A, B, C) R(A) = R(B) >> R/K(C)
+    SCON_OPCODE_CLOSURE,  ///< (A, C) Wrap the function prototype in K(C) in a closure and store in R(A).
+    SCON_OPCODE_CAPTURE,  ///< (A, B, C) Capture R/K(C) into constant slot B in closure R(A).
+    SCON_OPCODE_TAILCALL, ///< (A, B, C) Tail call callable in R/K(C) with B args starting from R(A).
 } scon_opcode_t;
 
 /**

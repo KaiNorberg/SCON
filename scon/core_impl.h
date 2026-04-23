@@ -38,6 +38,8 @@ SCON_API scon_t* scon_new(scon_error_t* error)
     scon_intrinsic_register_all(scon);
 
     scon->evalState = SCON_NULL;
+    scon->argc = 0;
+    scon->argv = SCON_NULL;
 
     return scon;
 }
@@ -85,6 +87,12 @@ SCON_API void scon_free(scon_t* scon)
     }
 
     SCON_FREE(scon);
+}
+
+SCON_API void scon_args_set(scon_t* scon, int argc, char** argv)
+{
+    scon->argc = argc;
+    scon->argv = argv;
 }
 
 SCON_API void scon_constant_register(scon_t* scon, const char* name, scon_item_t* item)

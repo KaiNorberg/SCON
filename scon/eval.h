@@ -30,6 +30,7 @@ typedef struct scon_eval_frame
     struct scon_closure* closure; ///< The closure being evaluated.
     scon_inst_t* ip;              ///< The current instruction pointer.
     scon_uint32_t base;           ///< The base register, where the functions registers start.
+    scon_uint32_t prevRegCount;   ///< The previous register count to restore upon return.
 } scon_eval_frame_t;
 
 /**

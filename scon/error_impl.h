@@ -5,6 +5,80 @@
 #include "eval.h"
 #include "item.h"
 
+static inline scon_size_t scon_error_get_region_length(const char* ptr, const char* end)
+{
+    if (ptr >= end)
+    {
+        return 0;
+    }
+
+    if (*ptr == '(')
+    {
+        scon_size_t depth = 0;
+        scon_bool_t inString = SCON_FALSE;
+        const char* current = ptr;
+        while (current < end)
+        {
+            if (*current == '\\' && current + 1 < end)
+            {
+                current += 2;
+                continue;
+            }
+            if (*current == '"')
+            {
+                inString = !inString;
+            }
+            else if (!inString)
+            {
+                if (*current == '(')
+                {
+                    depth++;
+                }
+                else if (*current == ')')
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        current++;
+                        break;
+                    }
+                }
+            }
+            current++;
+        }
+        return (scon_size_t)(current - ptr);
+    }
+    else if (*ptr == '"')
+    {
+        const char* current = ptr + 1;
+        while (current < end)
+        {
+            if (*current == '\\' && current + 1 < end)
+            {
+                current += 2;
+                continue;
+            }
+            if (*current == '"')
+            {
+                current++;
+                break;
+            }
+            current++;
+        }
+        return (scon_size_t)(current - ptr);
+    }
+    else
+    {
+        const char* current = ptr;
+        while (current < end && *current != ' ' && *current != '\t' && *current != '\n' && *current != '\r' &&
+            *current != '(' && *current != ')')
+        {
+            current++;
+        }
+        return (scon_size_t)(current - ptr);
+    }
+}
+
 SCON_API void scon_error_print(scon_error_t* error, scon_file_t file)
 {
     SCON_ASSERT(error != SCON_NULL);
@@ -39,7 +113,7 @@ SCON_API void scon_error_print(scon_error_t* error, scon_file_t file)
         scon_size_t lineLen = (scon_size_t)(lineEnd - lineStart);
         SCON_FPRINTF(file, " %4zu | %.*s\n", row, (int)lineLen, lineStart);
         SCON_FPRINTF(file, "      | ");
-        
+
         for (scon_size_t i = 0; i < column - 1; i++)
         {
             SCON_FWRITE(" ", 1, 1, file);
@@ -111,42 +185,10 @@ SCON_API void scon_error_get_item_params(struct scon_item* item, const char** pa
         *path = item->input->path;
         *input = item->input->buffer;
         *inputLength = item->input->end - item->input->buffer;
-        switch (item->type)
+        *regionLength = scon_error_get_region_length(item->input->buffer + item->position, item->input->end);
+        if (*regionLength == 0)
         {
-        case SCON_ITEM_TYPE_ATOM:
-            *regionLength = item->atom.length;
-            break;
-        case SCON_ITEM_TYPE_LIST:
-        {
-            scon_size_t depth = 1;
-            const char* ptr = item->input->buffer + item->position;
-            const char* start = ptr;
-            while (ptr < item->input->end)
-            {
-                if (*ptr == '\\')
-                {
-                    ptr++;
-                }
-                if (*ptr == '(')
-                {
-                    depth++;
-                }
-                else if (*ptr == ')')
-                {
-                    depth--;
-                    if (depth == 0)
-                    {
-                        break;
-                    }
-                }
-                ptr++;
-            }
-            *regionLength = (scon_size_t)(ptr - start);
-        }
-        break;
-        default:
             *regionLength = 1;
-            break;
         }
 
         *position = item->position;
@@ -159,6 +201,52 @@ SCON_API void scon_error_get_item_params(struct scon_item* item, const char** pa
         *regionLength = 0;
         *position = 0;
     }
+}
+
+SCON_API void scon_error_throw_runtime(struct scon* scon, const char* message, ...)
+{
+    const char* path = SCON_NULL;
+    const char* input = SCON_NULL;
+    scon_size_t inputLength = 0;
+    scon_size_t regionLength = 0;
+    scon_size_t position = 0;
+
+    if (scon->evalState != SCON_NULL && scon->evalState->frameCount > 0)
+    {
+        scon_eval_frame_t* frame = &scon->evalState->frames[scon->evalState->frameCount - 1];
+        if (frame->closure != SCON_NULL && frame->closure->function != SCON_NULL)
+        {
+            scon_function_t* func = frame->closure->function;
+            scon_size_t instIndex = frame->ip > func->insts ? (scon_size_t)(frame->ip - func->insts - 1) : 0;
+            if (instIndex < func->instCount && func->positions != SCON_NULL)
+            {
+                position = func->positions[instIndex];
+            }
+
+            scon_item_t* funcItem = SCON_CONTAINER_OF(func, scon_item_t, function);
+            if (funcItem->input != SCON_NULL)
+            {
+                path = funcItem->input->path;
+                input = funcItem->input->buffer;
+                inputLength = (scon_size_t)(funcItem->input->end - funcItem->input->buffer);
+                regionLength = scon_error_get_region_length(input + position, funcItem->input->end);
+                if (regionLength == 0)
+                {
+                    regionLength = 1;
+                }
+            }
+        }
+    }
+
+    scon_va_list args;
+    SCON_VA_START(args, message);
+    char formattedMessage[SCON_ERROR_MAX_LEN];
+    SCON_VSNPRINTF(formattedMessage, SCON_ERROR_MAX_LEN, message, args);
+    SCON_VA_END(args);
+
+    scon_error_set(scon->error, path, input, inputLength, regionLength, position, SCON_ERROR_TYPE_RUNTIME, "%s",
+        formattedMessage);
+    SCON_LONGJMP(scon->error->jmp, SCON_TRUE);
 }
 
 #endif

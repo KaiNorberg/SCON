@@ -72,6 +72,8 @@ int main(int argc, char **argv)
 
     scon = scon_new(&error);
 
+    scon_args_set(scon, argc, argv);
+
     scon_handle_t ast;
     if (evalExpr != NULL)
     {

@@ -38,7 +38,7 @@ SCON_API scon_handle_t scon_starts_with(scon_t* scon, scon_handle_t* handle, sco
         return (SCON_MEMCMP(srcStr, preStr, preLen) == 0) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
     }
     default:
-        SCON_ERROR_RUNTIME(scon, item, "starts-with? expected list or atom, got %s", scon_item_type_str(item->type));
+        SCON_ERROR_RUNTIME(scon, "starts-with? expected list or atom, got %s", scon_item_type_str(item->type));
     }
 }
 
@@ -74,143 +74,7 @@ SCON_API scon_handle_t scon_ends_with(scon_t* scon, scon_handle_t* handle, scon_
         return (SCON_MEMCMP(srcStr + srcLen - sufLen, sufStr, sufLen) == 0) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
     }
     default:
-        SCON_ERROR_RUNTIME(scon, item, "ends-with expected list or atom, got %s", scon_item_type_str(item->type));
-    }  
-}
-
-SCON_API scon_handle_t scon_contains(scon_t* scon, scon_handle_t* handle, scon_handle_t* target)
-{
-    SCON_ASSERT(scon != SCON_NULL);
-
-    scon_handle_ensure_item(scon, handle);
-    scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
-
-    switch (item->type)
-    {
-    case SCON_ITEM_TYPE_LIST:
-    {
-        for (scon_size_t i = 0; i < item->length; i++)
-        {
-            scon_handle_t current = item->list.handles[i];
-            if (scon_handle_compare(scon, &current, target) == 0)
-            {
-                return SCON_HANDLE_TRUE();
-            }
-        }
-        break;
-    }
-    case SCON_ITEM_TYPE_ATOM:
-    {
-        char *srcStr, *targetStr;
-        scon_size_t srcLen, targetLen;
-        scon_handle_get_string_params(scon, handle, &srcStr, &srcLen);
-        scon_handle_get_string_params(scon, target, &targetStr, &targetLen);
-
-        if (targetLen == 0)
-        {
-            return SCON_HANDLE_TRUE();
-        }
-
-        if (targetLen <= srcLen)
-        {
-            for (scon_size_t i = 0; i <= srcLen - targetLen; i++)
-            {
-                if (SCON_MEMCMP(srcStr + i, targetStr, targetLen) == 0)
-                {
-                    return SCON_HANDLE_TRUE();
-                }
-            }
-        }
-        break;
-    }
-    default:
-        SCON_ERROR_RUNTIME(scon, item, "contains? expected list or atom, got %s", scon_item_type_str(item->type));
-    }
-
-    return SCON_HANDLE_FALSE();
-}
-
-SCON_API scon_handle_t scon_replace(scon_t* scon, scon_handle_t* handle, scon_handle_t* oldVal, scon_handle_t* newVal)
-{   
-    SCON_ASSERT(scon != SCON_NULL);
-
-    scon_handle_ensure_item(scon, handle);
-    scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
-
-    if (item->type == SCON_ITEM_TYPE_LIST)
-    {
-        scon_list_t* newList = scon_list_new(scon, item->length);
-        for (scon_size_t i = 0; i < item->length; i++)
-        {
-            scon_handle_t current = item->list.handles[i];
-            if (scon_handle_compare(scon, &current, oldVal) == 0)
-            {
-                scon_list_append(scon, newList, *newVal);
-            }
-            else
-            {
-                scon_list_append(scon, newList, current);
-            }
-        }
-        return SCON_HANDLE_FROM_LIST(newList);
-    }
-    else if (item->type == SCON_ITEM_TYPE_ATOM)
-    {
-        char *srcStr, *oldStr, *newStr;
-        scon_size_t srcLen, oldLen, newLen;
-
-        scon_handle_get_string_params(scon, handle, &srcStr, &srcLen);
-        scon_handle_get_string_params(scon, oldVal, &oldStr, &oldLen);
-        scon_handle_get_string_params(scon, newVal, &newStr, &newLen);
-
-        if (oldLen == 0)
-        {
-            return *handle;
-        }
-
-        scon_size_t count = 0;
-        for (scon_size_t i = 0; i <= srcLen - oldLen; i++)
-        {
-            if (SCON_MEMCMP(srcStr + i, oldStr, oldLen) == 0)
-            {
-                count++;
-                i += oldLen - 1;
-            }
-        }
-
-        if (count == 0)
-        {
-            return *handle;      
-        }  
-        scon_size_t resultLen = srcLen + count * (newLen - oldLen);
-        char* resultBuffer = (char*)SCON_MALLOC(resultLen);
-        if (resultBuffer == SCON_NULL)
-        {
-            SCON_ERROR_INTERNAL(scon, "out of memory");
-        }
-
-        scon_size_t currentPos = 0;
-        for (scon_size_t i = 0; i < srcLen; i++)
-        {
-            if (i <= srcLen - oldLen && SCON_MEMCMP(srcStr + i, oldStr, oldLen) == 0)
-            {
-                SCON_MEMCPY(resultBuffer + currentPos, newStr, newLen);
-                currentPos += newLen;
-                i += oldLen - 1;
-            }
-            else
-            {
-                resultBuffer[currentPos++] = srcStr[i];
-            }
-        }
-
-        scon_handle_t result = SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, resultBuffer, resultLen, SCON_ATOM_LOOKUP_NONE));
-        SCON_FREE(resultBuffer);
-        return result;
-    }
-    else
-    {
-        SCON_ERROR_RUNTIME(scon, item, "replace expected list or atom, got %s", scon_item_type_str(item->type));
+        SCON_ERROR_RUNTIME(scon, "ends-with expected list or atom, got %s", scon_item_type_str(item->type));
     }
 }
 
@@ -220,7 +84,7 @@ SCON_API scon_handle_t scon_join(scon_t* scon, scon_handle_t* listHandle, scon_h
 
     if (!SCON_HANDLE_IS_LIST(listHandle))
     {
-        SCON_ERROR_RUNTIME(scon, SCON_NULL, "join expects a list as the first argument, got %s",
+        SCON_ERROR_RUNTIME(scon, "join expects a list as the first argument, got %s",
             scon_item_type_str(scon_handle_get_type(scon, listHandle)));
     }
 
@@ -293,7 +157,8 @@ SCON_API scon_handle_t scon_split(scon_t* scon, scon_handle_t* srcHandle, scon_h
     {
         for (scon_size_t i = 0; i < srcLen; i++)
         {
-            scon_list_append(scon, resultList, SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, srcStr + i, 1, SCON_ATOM_LOOKUP_NONE)));
+            scon_list_append(scon, resultList,
+                SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, srcStr + i, 1, SCON_ATOM_LOOKUP_NONE)));
         }
     }
     else
@@ -303,13 +168,16 @@ SCON_API scon_handle_t scon_split(scon_t* scon, scon_handle_t* srcHandle, scon_h
         {
             if (SCON_MEMCMP(srcStr + i, sepStr, sepLen) == 0)
             {
-                scon_list_append(scon, resultList, SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, srcStr + lastPos, i - lastPos, SCON_ATOM_LOOKUP_NONE)));
+                scon_list_append(scon, resultList,
+                    SCON_HANDLE_FROM_ATOM(
+                        scon_atom_lookup(scon, srcStr + lastPos, i - lastPos, SCON_ATOM_LOOKUP_NONE)));
                 i += sepLen - 1;
                 lastPos = i + 1;
             }
         }
 
-        scon_list_append(scon, resultList, SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, srcStr + lastPos, srcLen - lastPos, SCON_ATOM_LOOKUP_NONE)));
+        scon_list_append(scon, resultList,
+            SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, srcStr + lastPos, srcLen - lastPos, SCON_ATOM_LOOKUP_NONE)));
     }
 
     SCON_GC_RELEASE(scon, resultHandle);

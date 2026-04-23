@@ -98,6 +98,15 @@ SCON_API void scon_error_get_item_params(struct scon_item* item, const char** pa
     scon_size_t* inputLength, scon_size_t* regionLength, scon_size_t* position);
 
 /**
+ * @brief Throw a runtime error utilizing the evaluation state to determine the context.
+ *
+ * @param scon Pointer to the SCON instance.
+ * @param message The error message format string.
+ * @param ... Additional arguments.
+ */
+SCON_API SCON_NORETURN void scon_error_throw_runtime(struct scon* scon, const char* message, ...);
+
+/**
  * @brief Catch an error using the jump buffer in the error structure.
  *
  * @param _error Pointer to the error structure.
@@ -162,7 +171,7 @@ SCON_API void scon_error_get_item_params(struct scon_item* item, const char** pa
  * @param _scon Pointer to the scon instance.
  * @param ... The error message format string and any optional arguments.
  */
-#define SCON_ERROR_RUNTIME(_scon, item, ...) SCON_ERROR_THROW((_scon)->error, item, RUNTIME, __VA_ARGS__)
+#define SCON_ERROR_RUNTIME(_scon, ...) scon_error_throw_runtime((_scon), __VA_ARGS__)
 
 /**
  * @brief Throw an internal error using the jump buffer in the error structure.

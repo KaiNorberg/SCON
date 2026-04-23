@@ -47,7 +47,7 @@ typedef scon_uint8_t scon_item_flags_t;
  * @struct scon_item_t
  *
  * Should be exactly 64 bytes for caching.
- * 
+ *
  * @see handle
  */
 typedef struct scon_item

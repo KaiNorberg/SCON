@@ -19,7 +19,8 @@
  * @param handle The handle to stringify.
  * @param buffer The destination buffer.
  * @param size The size of the destination buffer.
- * @return The number of characters that would have been written if the buffer was large enough, excluding the null terminator.
+ * @return The number of characters that would have been written if the buffer was large enough, excluding the null
+ * terminator.
  */
 SCON_API scon_size_t scon_stringify(scon_t* scon, scon_handle_t* handle, char* buffer, scon_size_t size);
 

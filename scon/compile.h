@@ -162,16 +162,6 @@ SCON_API scon_reg_t scon_reg_alloc(scon_compiler_t* compiler);
 SCON_API scon_reg_t scon_reg_alloc_range(scon_compiler_t* compiler, scon_uint32_t count);
 
 /**
- * @brief Allocate a range of registers, with a preferred starting register.
- *
- * @param compiler The compiler context.
- * @param count The number of registers to allocate.
- * @param hint The preferred starting register, or `(scon_reg_t)-1` for no preference.
- * @return The first register index in the allocated range.
- */
-SCON_API scon_reg_t scon_reg_alloc_range_hint(scon_compiler_t* compiler, scon_uint32_t count, scon_reg_t hint);
-
-/**
  * @brief Free a register.
  *
  * @param compiler The compiler context.
@@ -359,7 +349,8 @@ SCON_API scon_local_t* scon_local_lookup(scon_compiler_t* compiler, scon_atom_t*
 static inline void scon_compile_inst(scon_compiler_t* compiler, scon_inst_t inst)
 {
     SCON_ASSERT(compiler != SCON_NULL);
-    scon_function_emit(compiler->scon, compiler->function, inst);
+    scon_uint32_t pos = compiler->lastItem != SCON_NULL ? compiler->lastItem->position : 0;
+    scon_function_emit(compiler->scon, compiler->function, inst, pos);
 }
 
 /**
@@ -481,41 +472,49 @@ static inline void scon_compile_return(scon_compiler_t* compiler, scon_expr_t* e
             scon_inst_t inst = compiler->function->insts[i];
             scon_opcode_t op = SCON_INST_GET_OP_BASE(inst);
 
-            if (op != SCON_OPCODE_CALL || SCON_INST_GET_A(inst) != retReg)
+            if (op != SCON_OPCODE_CALL)
             {
                 continue;
             }
 
             scon_bool_t isTail = SCON_FALSE;
 
-            if (i == retInstPos - 1)
+            scon_size_t curr = i + 1;
+            scon_reg_t currentReg = SCON_INST_GET_A(inst);
+            scon_bool_t valid = SCON_TRUE;
+
+            while (curr < retInstPos)
             {
-                isTail = SCON_TRUE;
-            }
-            else
-            {
-                scon_size_t curr = i + 1;
-                while (curr < retInstPos)
+                scon_inst_t nextInst = compiler->function->insts[curr];
+                scon_opcode_t nextOp = SCON_INST_GET_OP(nextInst);
+                scon_opcode_t nextOpBase = SCON_INST_GET_OP_BASE(nextInst);
+
+                if (nextOp == SCON_OPCODE_MOV && SCON_INST_GET_A(nextInst) == retReg &&
+                    SCON_INST_GET_C(nextInst) == currentReg)
                 {
-                    scon_inst_t nextInst = compiler->function->insts[curr];
-                    if (SCON_INST_GET_OP_BASE(nextInst) == SCON_OPCODE_JMP)
+                    currentReg = retReg;
+                    curr++;
+                }
+                else if (nextOpBase == SCON_OPCODE_JMP)
+                {
+                    scon_int32_t offset = SCON_INST_GET_SBX(nextInst);
+                    if (offset < 0)
                     {
-                        scon_int32_t offset = SCON_INST_GET_SBX(nextInst);
-                        if (offset < 0)
-                        {
-                            break;
-                        }
-                        curr = curr + 1 + offset;
-                    }
-                    else
-                    {
+                        valid = SCON_FALSE;
                         break;
                     }
+                    curr = curr + 1 + offset;
                 }
-                if (curr == retInstPos)
+                else
                 {
-                    isTail = SCON_TRUE;
+                    valid = SCON_FALSE;
+                    break;
                 }
+            }
+
+            if (valid && currentReg == retReg && curr == retInstPos)
+            {
+                isTail = SCON_TRUE;
             }
 
             if (isTail)
@@ -530,8 +529,9 @@ static inline void scon_compile_return(scon_compiler_t* compiler, scon_expr_t* e
     if (expr->mode == SCON_MODE_NONE)
     {
         scon_expr_t nilExpr = SCON_EXPR_NIL(compiler);
+        scon_uint32_t pos = compiler->lastItem != SCON_NULL ? compiler->lastItem->position : 0;
         scon_function_emit(compiler->scon, compiler->function,
-            SCON_INST_MAKE_ABC(SCON_OPCODE_RET | SCON_MODE_CONST, 0, 0, nilExpr.constant));
+            SCON_INST_MAKE_ABC(SCON_OPCODE_RET | SCON_MODE_CONST, 0, 0, nilExpr.constant), pos);
         return;
     }
 
