@@ -123,6 +123,30 @@ struct scon;
 #define SCON_HANDLE_IS_FLOAT(_handle) ((*(_handle)) >= SCON_HANDLE_OFFSET_FLOAT)
 
 /**
+ * @brief Check if a handle is integer shaped.
+ *
+ * @param _handle Pointer to the handle.
+ * @return Non-zero if the handle is integer shaped, zero otherwise.
+ */
+#define SCON_HANDLE_IS_INT_SHAPED(_handle) (SCON_HANDLE_IS_INT(_handle) || (SCON_HANDLE_IS_ITEM(_handle) && (SCON_HANDLE_GET_FLAGS(_handle) & SCON_ITEM_FLAG_INT_SHAPED)))
+
+/**
+ * @brief Check if a handle is float shaped.
+ *
+ * @param _handle Pointer to the handle.
+ * @return Non-zero if the handle is float shaped, zero otherwise.
+ */
+#define SCON_HANDLE_IS_FLOAT_SHAPED(_handle) (SCON_HANDLE_IS_FLOAT(_handle) || (SCON_HANDLE_IS_ITEM(_handle) && (SCON_HANDLE_GET_FLAGS(_handle) & SCON_ITEM_FLAG_FLOAT_SHAPED)))
+
+/**
+ * @brief Check if a handle is a number.
+ *
+ * @param _handle Pointer to the handle.
+ * @return Non-zero if the handle is a number, zero otherwise.
+ */
+#define SCON_HANDLE_IS_NUMBER(_handle) (SCON_HANDLE_IS_INT_SHAPED(_handle) || SCON_HANDLE_IS_FLOAT_SHAPED(_handle))
+
+/**
  * @brief Check if a handle is an item.
  *
  * @param _handle Pointer to the handle.
@@ -138,7 +162,7 @@ struct scon;
  */
 #define SCON_HANDLE_IS_ATOM(_handle) \
     (SCON_HANDLE_IS_INT(_handle) || SCON_HANDLE_IS_FLOAT(_handle) || \
-     (SCON_HANDLE_IS_ITEM(_handle) && (SCON_HANDLE_GET_FLAGS(_handle) & SCON_ITEM_TYPE_ATOM)))
+     (SCON_HANDLE_IS_ITEM(_handle) && (SCON_HANDLE_TO_ITEM(_handle)->type == SCON_ITEM_TYPE_ATOM)))
 
 /**
  * @brief Check if a handle is a list.
@@ -165,12 +189,28 @@ struct scon;
 #define SCON_HANDLE_IS_CLOSURE(_handle) (SCON_HANDLE_IS_ITEM(_handle) && (SCON_HANDLE_TO_ITEM(_handle)->type == SCON_ITEM_TYPE_CLOSURE))
 
 /**
+ * @brief Check if a handle is a lambda.
+ *
+ * @param _handle Pointer to the handle.
+ * @return Non-zero if the handle is a lambda, zero otherwise.
+ */
+#define SCON_HANDLE_IS_LAMBDA(_handle) (SCON_HANDLE_IS_FUNCTION(_handle) || SCON_HANDLE_IS_CLOSURE(_handle))
+
+/**
  * @brief Check if a handle is a native function.
  *
  * @param _handle Pointer to the handle.
  * @return Non-zero if the handle is a native function, zero otherwise.
  */
-#define SCON_HANDLE_IS_NATIVE(_handle) (SCON_HANDLE_IS_ITEM(_handle) && (SCON_HANDLE_TO_ITEM(_handle)->type == SCON_ITEM_TYPE_NATIVE))
+#define SCON_HANDLE_IS_NATIVE(_handle) (SCON_HANDLE_IS_ITEM(_handle) && (SCON_HANDLE_GET_FLAGS(_handle) & SCON_ITEM_FLAG_NATIVE))
+
+/**
+ * @brief Check if a handle is callable.
+ *
+ * @param _handle Pointer to the handle.
+ * @return Non-zero if the handle is callable, zero otherwise.
+ */
+#define SCON_HANDLE_IS_CALLABLE(_handle) (SCON_HANDLE_IS_LAMBDA(_handle) || SCON_HANDLE_IS_NATIVE(_handle))
 
 /**
  * @brief Get the integer value of a handle.

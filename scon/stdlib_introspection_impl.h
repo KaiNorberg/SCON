@@ -26,7 +26,7 @@ SCON_API scon_handle_t scon_is_atom(scon_t* scon, scon_size_t argc, scon_handle_
 
     for (scon_size_t i = 0; i < argc; i++)
     {
-        if (scon_handle_get_type(scon, &argv[i]) != SCON_ITEM_TYPE_ATOM)
+        if (!SCON_HANDLE_IS_ATOM(&argv[i]))
         {
             return SCON_HANDLE_FALSE();
         }
@@ -41,19 +41,7 @@ SCON_API scon_handle_t scon_is_int(scon_t* scon, scon_size_t argc, scon_handle_t
 
     for (scon_size_t i = 0; i < argc; i++)
     {
-        scon_bool_t isInt = SCON_FALSE;
-        if (SCON_HANDLE_IS_INT(&argv[i]))
-        {
-            isInt = SCON_TRUE;
-        }
-        else if (SCON_HANDLE_IS_ITEM(&argv[i]))
-        {
-            if (SCON_HANDLE_GET_FLAGS(&argv[i]) & SCON_ITEM_FLAG_INT_SHAPED)
-            {
-                isInt = SCON_TRUE;
-            }
-        }
-        if (!isInt)
+        if (!SCON_HANDLE_IS_INT_SHAPED(&argv[i]))
         {
             return SCON_HANDLE_FALSE();
         }
@@ -68,19 +56,7 @@ SCON_API scon_handle_t scon_is_float(scon_t* scon, scon_size_t argc, scon_handle
 
     for (scon_size_t i = 0; i < argc; i++)
     {
-        scon_bool_t isFloat = SCON_FALSE;
-        if (SCON_HANDLE_IS_FLOAT(&argv[i]))
-        {
-            isFloat = SCON_TRUE;
-        }
-        else if (SCON_HANDLE_IS_ITEM(&argv[i]))
-        {
-            if (SCON_HANDLE_GET_FLAGS(&argv[i]) & SCON_ITEM_FLAG_FLOAT_SHAPED)
-            {
-                isFloat = SCON_TRUE;
-            }
-        }
-        if (!isFloat)
+        if (!SCON_HANDLE_IS_FLOAT_SHAPED(&argv[i]))
         {
             return SCON_HANDLE_FALSE();
         }
@@ -95,20 +71,7 @@ SCON_API scon_handle_t scon_is_number(scon_t* scon, scon_size_t argc, scon_handl
 
     for (scon_size_t i = 0; i < argc; i++)
     {
-        scon_bool_t isNum = SCON_FALSE;
-        if (SCON_HANDLE_IS_INT(&argv[i]) || SCON_HANDLE_IS_FLOAT(&argv[i]))
-        {
-            isNum = SCON_TRUE;
-        }
-        else if (SCON_HANDLE_IS_ITEM(&argv[i]))
-        {
-            scon_uint8_t flags = SCON_HANDLE_GET_FLAGS(&argv[i]);
-            if (flags & (SCON_ITEM_FLAG_INT_SHAPED | SCON_ITEM_FLAG_FLOAT_SHAPED))
-            {
-                isNum = SCON_TRUE;
-            }
-        }
-        if (!isNum)
+        if (!SCON_HANDLE_IS_NUMBER(&argv[i]))
         {
             return SCON_HANDLE_FALSE();
         }
@@ -123,8 +86,7 @@ SCON_API scon_handle_t scon_is_lambda(scon_t* scon, scon_size_t argc, scon_handl
 
     for (scon_size_t i = 0; i < argc; i++)
     {
-        scon_item_type_t type = scon_handle_get_type(scon, &argv[i]);
-        if (type != SCON_ITEM_TYPE_FUNCTION && type != SCON_ITEM_TYPE_CLOSURE)
+        if (!SCON_HANDLE_IS_LAMBDA(&argv[i]))
         {
             return SCON_HANDLE_FALSE();
         }
@@ -139,7 +101,7 @@ SCON_API scon_handle_t scon_is_native(scon_t* scon, scon_size_t argc, scon_handl
 
     for (scon_size_t i = 0; i < argc; i++)
     {
-        if (!SCON_HANDLE_IS_ITEM(&argv[i]) || !(SCON_HANDLE_GET_FLAGS(&argv[i]) & SCON_ITEM_FLAG_NATIVE))
+        if (!SCON_HANDLE_IS_NATIVE(&argv[i]))
         {
             return SCON_HANDLE_FALSE();
         }
@@ -154,10 +116,7 @@ SCON_API scon_handle_t scon_is_callable(scon_t* scon, scon_size_t argc, scon_han
 
     for (scon_size_t i = 0; i < argc; i++)
     {
-        scon_item_type_t type = scon_handle_get_type(scon, &argv[i]);
-        scon_bool_t is_callable = (type == SCON_ITEM_TYPE_FUNCTION || type == SCON_ITEM_TYPE_CLOSURE ||
-                                   (SCON_HANDLE_IS_ITEM(&argv[i]) && (SCON_HANDLE_GET_FLAGS(&argv[i]) & SCON_ITEM_FLAG_NATIVE)));
-        if (!is_callable)
+        if (!SCON_HANDLE_IS_CALLABLE(&argv[i]))
         {
             return SCON_HANDLE_FALSE();
         }
@@ -172,7 +131,7 @@ SCON_API scon_handle_t scon_is_list(scon_t* scon, scon_size_t argc, scon_handle_
 
     for (scon_size_t i = 0; i < argc; i++)
     {
-        if (scon_handle_get_type(scon, &argv[i]) != SCON_ITEM_TYPE_LIST)
+        if (!SCON_HANDLE_IS_LIST(&argv[i]))
         {
             return SCON_HANDLE_FALSE();
         }

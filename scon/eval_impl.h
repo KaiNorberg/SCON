@@ -39,6 +39,29 @@ SCON_API void scon_eval_state_deinit(scon_eval_state_t* state)
     SCON_FREE(state->regs);
 }
 
+static inline SCON_ALWAYS_INLINE void scon_eval_ensure_regs(scon_t* scon, scon_eval_state_t* state, scon_uint32_t neededRegs)
+{
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(state != SCON_NULL);
+
+    if (SCON_LIKELY(neededRegs <= state->regCapacity))
+    {
+        return;
+    }
+
+    while (neededRegs > state->regCapacity)
+    {
+        state->regCapacity *= SCON_EVAL_REGS_GROWTH_FACTOR;
+    }
+    scon_handle_t* newRegs = (scon_handle_t*)SCON_REALLOC(state->regs, sizeof(scon_handle_t) * state->regCapacity);
+    if (newRegs == SCON_NULL)
+    {
+        scon_eval_state_deinit(state);
+        SCON_ERROR_INTERNAL(scon, "out of memory");
+    }
+    state->regs = newRegs;
+}
+
 static inline SCON_ALWAYS_INLINE void scon_eval_push_frame(scon_t* scon, scon_eval_state_t* state, scon_closure_t* closure, scon_uint32_t target)
 {
     SCON_ASSERT(scon != SCON_NULL);
@@ -59,26 +82,12 @@ static inline SCON_ALWAYS_INLINE void scon_eval_push_frame(scon_t* scon, scon_ev
     }
 
     scon_uint32_t neededRegs = target + closure->function->registerCount;
-    if (SCON_UNLIKELY(neededRegs > state->regCapacity))
-    {
-        while (neededRegs > state->regCapacity)
-        {
-            state->regCapacity *= SCON_EVAL_REGS_GROWTH_FACTOR;
-        }
-        scon_handle_t* newRegs = (scon_handle_t*)SCON_REALLOC(state->regs, sizeof(scon_handle_t) * state->regCapacity);
-        if (newRegs == SCON_NULL)
-        {
-            scon_eval_state_deinit(state);
-            SCON_ERROR_INTERNAL(scon, "out of memory");
-        }
-        state->regs = newRegs;
-    }
+    scon_eval_ensure_regs(scon, state, neededRegs);
 
     scon_eval_frame_t* frame = &state->frames[state->frameCount++];
     frame->closure = closure;
     frame->ip = closure->function->insts;
     frame->base = target;
-    frame->target = target;
 
     state->regCount = neededRegs;
 }
@@ -90,6 +99,23 @@ static inline SCON_ALWAYS_INLINE void scon_eval_pop_frame(scon_eval_state_t* sta
 
     scon_eval_frame_t* frame = &state->frames[--state->frameCount];
     state->regCount = frame->base;
+}
+
+static inline SCON_ALWAYS_INLINE void scon_eval_tail_frame(scon_t* scon, scon_eval_state_t* state, scon_closure_t* closure)
+{
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(state != SCON_NULL);
+    SCON_ASSERT(state->frameCount > 0);
+    SCON_ASSERT(closure != SCON_NULL);
+
+    scon_eval_frame_t* frame = &state->frames[state->frameCount - 1];
+
+    scon_uint32_t neededRegs = frame->base + closure->function->registerCount;
+    scon_eval_ensure_regs(scon, state, neededRegs);
+    state->regCount = neededRegs;
+
+    frame->closure = closure;
+    frame->ip = closure->function->insts;
 }
 
 static scon_handle_t scon_eval_run(scon_t* scon, scon_eval_state_t* state, scon_uint32_t initialFrameCount)
@@ -283,28 +309,11 @@ LABEL_C_OP(label_tailcall,
             }
         }
 
-        scon_uint32_t neededRegs = frame->base + closure->function->registerCount;
-        if (SCON_UNLIKELY(neededRegs > state->regCapacity))
-        {
-            while (neededRegs > state->regCapacity)
-            {
-                state->regCapacity *= SCON_EVAL_REGS_GROWTH_FACTOR;
-            }
-            scon_handle_t* newRegs = (scon_handle_t*)SCON_REALLOC(state->regs, sizeof(scon_handle_t) * state->regCapacity);
-            if (newRegs == SCON_NULL)
-            {
-                scon_eval_state_deinit(state);
-                SCON_ERROR_INTERNAL(scon, "out of memory");
-            }
-            state->regs = newRegs;
-            base = state->regs + frame->base;
-        }
-        state->regCount = neededRegs;
+        scon_eval_tail_frame(scon, state, closure);
 
-        frame->closure = closure;
-        frame->ip = closure->function->insts;
-
+        frame = &state->frames[state->frameCount - 1];
         ip = frame->ip;
+        base = state->regs + frame->base;
         constants = frame->closure->constants;
 
         DISPATCH();
@@ -315,7 +324,7 @@ LABEL_C_OP(label_tailcall,
         frame->ip = ip;
         scon_handle_t res = item->atom.native(scon, b, args);
 
-        state->regs[frame->target] = res;
+        state->regs[frame->base] = res;
         scon_eval_pop_frame(state);
 
         if (SCON_UNLIKELY(state->frameCount == initialFrameCount))
@@ -343,7 +352,7 @@ LABEL_C_OP(label_mov,
 })
 LABEL_C_OP(label_ret,
 {
-    state->regs[frame->target] = valC;
+    state->regs[frame->base] = valC;
     scon_eval_pop_frame(state);
 
     if (SCON_UNLIKELY(state->frameCount == initialFrameCount))
@@ -596,15 +605,17 @@ SCON_API scon_handle_t scon_eval_call(scon_t* scon, scon_handle_t callable, scon
         scon_eval_state_t* state = scon->evalState;
         scon_uint32_t target = state->regCount;
 
-        while (target + argc > state->regCapacity)
+        if (SCON_UNLIKELY(target + argc > state->regCapacity))
         {
-            state->regCapacity *= SCON_EVAL_REGS_GROWTH_FACTOR;
-            scon_handle_t* newRegs = (scon_handle_t*)SCON_REALLOC(state->regs, sizeof(scon_handle_t) * state->regCapacity);
-            if (newRegs == SCON_NULL)
+            scon_bool_t argvInRegs = (argv >= state->regs && argv < state->regs + state->regCapacity);
+            scon_uint32_t argvOffset = argvInRegs ? (scon_uint32_t)(argv - state->regs) : 0;
+
+            scon_eval_ensure_regs(scon, state, target + argc);
+
+            if (argvInRegs)
             {
-                SCON_ERROR_INTERNAL(scon, "out of memory");
+                argv = state->regs + argvOffset;
             }
-            state->regs = newRegs;
         }
 
         for (scon_size_t i = 0; i < argc; i++)

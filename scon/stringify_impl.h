@@ -4,7 +4,7 @@
 
 #include "stringify.h"
 
-SCON_API scon_size_t scon_stringify(scon_t* scon, scon_handle_t* handle, char* buffer, scon_size_t size)
+static inline scon_size_t scon_stringify_internal(scon_t* scon, scon_handle_t* handle, char* buffer, scon_size_t size)
 {
     SCON_ASSERT(scon != SCON_NULL);
     SCON_ASSERT(buffer != SCON_NULL || size == 0);
@@ -83,6 +83,25 @@ SCON_API scon_size_t scon_stringify(scon_t* scon, scon_handle_t* handle, char* b
         return SCON_SNPRINTF(buffer, size, "<unknown>");
     }
     return 0;
+}
+
+SCON_API scon_size_t scon_stringify(scon_t* scon, scon_handle_t* handle, char* buffer, scon_size_t size)
+{
+    if (SCON_HANDLE_IS_ATOM(handle))
+    {
+        char* str;
+        scon_size_t len;
+        scon_handle_get_string_params(scon, handle, &str, &len);
+        if (buffer != SCON_NULL && size > 0)
+        {
+            scon_size_t copyLen = (len < size) ? len : size - 1;
+            SCON_MEMCPY(buffer, str, copyLen);
+            buffer[copyLen] = '\0';
+        }
+        return len;
+    }
+
+    return scon_stringify_internal(scon, handle, buffer, size);
 }
 
 #endif

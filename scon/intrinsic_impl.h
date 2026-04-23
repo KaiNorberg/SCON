@@ -104,6 +104,7 @@ static void scon_intrinsic_lambda(scon_compiler_t* compiler, scon_item_t* list, 
 
     scon_function_t* func = scon_function_new(compiler->scon);
     scon_item_t* funcItem = SCON_CONTAINER_OF(func, scon_item_t, function);
+    funcItem->input = list->input;
     scon_const_slot_t slot = SCON_CONST_SLOT_ITEM(funcItem);
     scon_const_t funcConst = scon_function_lookup_constant(compiler->scon, compiler->function, &slot);
 

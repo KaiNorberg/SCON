@@ -94,32 +94,18 @@ int main(int argc, char **argv)
     if (shouldDump)
     {
         scon_disasm(scon, function, stdout);
+        goto cleanup;
     }
-    else
+
+    scon_handle_t eval = scon_eval(scon, function);
+    if (isSilent)
     {
-        scon_handle_t result = scon_eval(scon, function);
-        if (isSilent)
-        {
-            goto cleanup;
-        }
-
-        if (SCON_HANDLE_IS_ITEM(&result))
-        {
-            scon_item_t* item = SCON_HANDLE_TO_ITEM(&result);
-            if (item->type == SCON_ITEM_TYPE_ATOM)
-            {
-                char* str;
-                scon_size_t len;
-                scon_handle_get_string_params(scon, &result, &str, &len);
-                printf("%.*s\n", (int)len, str);
-                goto cleanup;
-            }
-        }
-
-        scon_stringify(scon, &result, buffer, sizeof(buffer));
-        printf("%s\n", buffer);
+        goto cleanup;
     }
 
+    scon_stringify(scon, &eval, buffer, sizeof(buffer));
+    printf("%s\n", buffer);
+    
 cleanup:
     scon_free(scon);
 

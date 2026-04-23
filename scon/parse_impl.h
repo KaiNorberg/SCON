@@ -89,7 +89,8 @@ static void scon_parse_quoted_atom(scon_t* scon, scon_parse_ctx_t* ctx)
     scon_atom_t* atom = scon_atom_lookup(scon, start, len, SCON_ATOM_LOOKUP_QUOTED);
 
     scon_item_t* item = SCON_CONTAINER_OF(atom, scon_item_t, atom);
-    item->position = (scon_size_t)(start - ctx->input->end);
+    item->input = ctx->input;
+    item->position = (scon_size_t)(start - ctx->input->buffer);
     item->flags |= SCON_ITEM_FLAG_QUOTED;
 
     scon_atom_normalize(scon, atom);
@@ -117,6 +118,7 @@ static void scon_parse_unquoted_atom(scon_t* scon, scon_parse_ctx_t* ctx)
 
     scon_atom_t* atom = scon_atom_lookup(scon, start, len, SCON_ATOM_LOOKUP_NONE);
     scon_item_t* item = SCON_CONTAINER_OF(atom, scon_item_t, atom);
+    item->input = ctx->input;
     item->position = (scon_size_t)(start - ctx->input->buffer);
 
     scon_atom_normalize(scon, atom);
@@ -146,7 +148,9 @@ SCON_API scon_handle_t scon_parse(scon_t* scon, const char* str, scon_size_t len
         SCON_ERROR_INTERNAL(scon, "out of memory");
     }
 
-    scon_handle_t result = SCON_HANDLE_FROM_ITEM(SCON_CONTAINER_OF(root, scon_item_t, list));
+    scon_item_t* rootItem = SCON_CONTAINER_OF(root, scon_item_t, list);
+    rootItem->input = input;
+    scon_handle_t result = SCON_HANDLE_FROM_ITEM(rootItem);
     SCON_GC_RETAIN(scon, result);
 
     scon_parse_ctx_t ctx;

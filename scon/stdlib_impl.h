@@ -19,6 +19,7 @@
 #include "stdlib_type_casting_impl.h"
 #include "stdlib_assoc_impl.h"
 #include "stdlib_system_impl.h"
+#include "stdlib_math_impl.h"
 
 static scon_handle_t scon_stdlib_assert(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
 {
@@ -71,7 +72,7 @@ static scon_handle_t scon_stdlib_sort(scon_t* scon, scon_size_t argc, scon_handl
     {
         SCON_ERROR_RUNTIME(scon, SCON_NULL, "sort expects 1 or 2 arguments, got %zu", argc);
     }
-    return scon_sort(scon, argc, argv);
+    return scon_sort(scon, &argv[0], argc == 2 ? &argv[1] : SCON_NULL);
 }
 
 static scon_handle_t scon_stdlib_concat(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
@@ -148,7 +149,7 @@ static scon_handle_t scon_stdlib_slice(scon_t* scon, scon_size_t argc, scon_hand
     {
         SCON_ERROR_RUNTIME(scon, SCON_NULL, "slice expects 2 or 3 arguments (list/atom, start, [end]), got %zu", argc);
     }
-    return scon_slice(scon, argc, argv);
+    return scon_slice(scon, &argv[0], &argv[1], argc == 3 ? &argv[2] : SCON_NULL);
 }
 
 static scon_handle_t scon_stdlib_starts_with(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
@@ -403,6 +404,24 @@ static scon_handle_t scon_stdlib_update(scon_t* scon, scon_size_t argc, scon_han
     return scon_update(scon, &argv[0], &argv[1], &argv[2]);
 }
 
+static scon_handle_t scon_stdlib_include(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "include expects exactly 1 argument (path), got %zu", argc);
+    }
+    return scon_include(scon, argv[0]);
+}
+
+static scon_handle_t scon_stdlib_read_file(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "read-file expects exactly 1 argument (path), got %zu", argc);
+    }
+    return scon_read_file(scon, argv[0]);
+}
+
 static scon_handle_t scon_stdlib_print(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
 {
     return scon_print(scon, argc, argv);
@@ -411,6 +430,263 @@ static scon_handle_t scon_stdlib_print(scon_t* scon, scon_size_t argc, scon_hand
 static scon_handle_t scon_stdlib_println(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
 {
     return scon_println(scon, argc, argv);
+}
+
+static scon_handle_t scon_stdlib_format(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    return scon_format(scon, argc, argv);
+}
+
+static scon_handle_t scon_stdlib_time(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 0)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "time expects exactly 0 arguments, got %zu", argc);
+    }
+    return scon_time(scon);
+}
+
+static scon_handle_t scon_stdlib_clock(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 0)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "clock expects exactly 0 arguments, got %zu", argc);
+    }
+    return scon_clock(scon);
+}
+
+static scon_handle_t scon_stdlib_env(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "getenv expects exactly 1 argument (name), got %zu", argc);
+    }
+    return scon_env(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_min(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc < 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "min expects at least 1 argument, got %zu", argc);
+    }
+    return scon_min(scon, argc, argv);
+}
+
+static scon_handle_t scon_stdlib_max(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc < 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "max expects at least 1 argument, got %zu", argc);
+    }
+    return scon_max(scon, argc, argv);
+}
+
+static scon_handle_t scon_stdlib_clamp(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 3)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "clamp expects exactly 3 arguments, got %zu", argc);
+    }
+    return scon_clamp(scon, &argv[0], &argv[1], &argv[2]);
+}
+
+static scon_handle_t scon_stdlib_abs(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "abs expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_abs(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_floor(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "floor expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_floor(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_ceil(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "ceil expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_ceil(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_round(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "round expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_round(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_pow(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 2)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "pow expects exactly 2 arguments, got %zu", argc);
+    }
+    return scon_pow(scon, &argv[0], &argv[1]);
+}
+
+static scon_handle_t scon_stdlib_log(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc < 1 || argc > 2)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "log expects 1 or 2 arguments, got %zu", argc);
+    }
+    return scon_log(scon, &argv[0], argc == 2 ? &argv[1] : SCON_NULL);
+}
+
+static scon_handle_t scon_stdlib_sqrt(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "sqrt expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_sqrt(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_sin(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "sin expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_sin(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_cos(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "cos expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_cos(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_tan(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "tan expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_tan(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_asin(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "asin expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_asin(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_acos(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "acos expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_acos(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_atan(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "atan expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_atan(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_atan2(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 2)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "atan2 expects exactly 2 arguments, got %zu", argc);
+    }
+    return scon_atan2(scon, &argv[0], &argv[1]);
+}
+
+static scon_handle_t scon_stdlib_sinh(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "sinh expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_sinh(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_cosh(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "cosh expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_cosh(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_tanh(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "tanh expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_tanh(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_asinh(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "asinh expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_asinh(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_acosh(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "acosh expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_acosh(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_atanh(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "atanh expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_atanh(scon, &argv[0]);
+}
+
+static scon_handle_t scon_stdlib_rand(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 2)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "rand expects exactly 2 arguments, got %zu", argc);
+    }
+    return scon_rand(scon, &argv[0], &argv[1]);
+}
+
+static scon_handle_t scon_stdlib_seed(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 1)
+    {
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "seed! expects exactly 1 argument, got %zu", argc);
+    }
+    return scon_seed(scon, &argv[0]);
 }
 
 SCON_API void scon_stdlib_register(scon_t* scon, scon_stdlib_sets_t sets)
@@ -505,8 +781,45 @@ SCON_API void scon_stdlib_register(scon_t* scon, scon_stdlib_sets_t sets)
     if (sets & SCON_STDLIB_SYSTEM)
     {
         scon_native_t natives[] = {
+            {"include", scon_stdlib_include},
+            {"read-file", scon_stdlib_read_file},
             {"print!", scon_stdlib_print},
             {"println!", scon_stdlib_println},
+            {"format", scon_stdlib_format},
+            {"time", scon_stdlib_time},
+            {"clock", scon_stdlib_clock},
+            {"env", scon_stdlib_env},
+        };
+        scon_native_register(scon, natives, sizeof(natives) / sizeof(scon_native_t));
+    }
+    if (sets & SCON_STDLIB_MATH)
+    {
+        scon_native_t natives[] = {
+            {"min", scon_stdlib_min},
+            {"max", scon_stdlib_max},
+            {"clamp", scon_stdlib_clamp},
+            {"abs", scon_stdlib_abs},
+            {"floor", scon_stdlib_floor},
+            {"ceil", scon_stdlib_ceil},
+            {"round", scon_stdlib_round},
+            {"pow", scon_stdlib_pow},
+            {"log", scon_stdlib_log},
+            {"sqrt", scon_stdlib_sqrt},
+            {"sin", scon_stdlib_sin},
+            {"cos", scon_stdlib_cos},
+            {"tan", scon_stdlib_tan},
+            {"asin", scon_stdlib_asin},
+            {"acos", scon_stdlib_acos},
+            {"atan", scon_stdlib_atan},
+            {"atan2", scon_stdlib_atan2},
+            {"sinh", scon_stdlib_sinh},
+            {"cosh", scon_stdlib_cosh},
+            {"tanh", scon_stdlib_tanh},
+            {"asinh", scon_stdlib_asinh},
+            {"acosh", scon_stdlib_acosh},
+            {"atanh", scon_stdlib_atanh},
+            {"rand", scon_stdlib_rand},
+            {"seed!", scon_stdlib_seed},
         };
         scon_native_register(scon, natives, sizeof(natives) / sizeof(scon_native_t));
     }

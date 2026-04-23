@@ -21,8 +21,6 @@
 
 SCON is a functional, immutable, and S-expression based configuration and scripting language. It aims to provide a flexible, simple, efficient and Turing complete way to store and manipulate hierarchical data, all as a freestanding C99 header-only library.
 
-> SCON is currently very work in progress.
-
 ## Setup and Usage
 
 Included is an example of using SCON as a single header without linking:
@@ -187,8 +185,7 @@ Finally, restart Visual Studio Code.
 
 SCON is implemented as a register-based bytecode compiled language, where the SCON source is first parsed into an Abstract Syntax Tree (AST) and then compiled into a custom bytecode format before being executed by the virtual machine/evaluator.
 
-> Note that the "Abstract Syntax Tree" is just a SCON expression, lists and atoms, meaning that the compiler is itself written to operate on the same data structures as  evaluator produces.
-the
+> Note that the "Abstract Syntax Tree" is just a SCON expression, lists and atoms, meaning that the compiler is itself written to operate on the same data structures as the evaluator produces.
 
 The bytecode format itself is a stream of 32bit instructions, with all instructions able to read/write to an array of registers, or read from an array of constants.
 
@@ -844,6 +841,10 @@ Positional arguments can be used to specify the index of the argument to be used
 **`(time) -> <number>`**
 
 Returns the current time in seconds since the Unix epoch.
+
+**`(clock) -> <number>`**
+
+Returns the current time in nanoseconds since program start.
 
 **`(env <name: string>) -> <string>`**
 

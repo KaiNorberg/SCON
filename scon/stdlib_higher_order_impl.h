@@ -4,24 +4,20 @@
 #include "core.h"
 #include "eval.h"
 #include "handle.h"
+#include "gc.h"
 #include "stdlib_higher_order.h"
 
 SCON_API scon_handle_t scon_map(scon_t* scon, scon_handle_t* callable, scon_handle_t* listHandle)
 {
     SCON_ASSERT(scon != SCON_NULL);
 
-    if (!SCON_HANDLE_IS_ITEM(listHandle))
+    if (!SCON_HANDLE_IS_LIST(listHandle))
     {
         SCON_ERROR_RUNTIME(scon, SCON_NULL, "map expects a list as the second argument, got %s",
             scon_item_type_str(scon_handle_get_type(scon, listHandle)));
     }
 
     scon_item_t* list = SCON_HANDLE_TO_ITEM(listHandle);
-    if (list->type != SCON_ITEM_TYPE_LIST)
-    {
-        SCON_ERROR_RUNTIME(scon, SCON_NULL, "map expects a list as the second argument, got %s",
-            scon_item_type_str(list->type));
-    }
 
     scon_list_t* mappedList = scon_list_new(scon, list->length);
     scon_handle_t mappedHandle = SCON_HANDLE_FROM_LIST(mappedList);
@@ -42,18 +38,13 @@ SCON_API scon_handle_t scon_filter(scon_t* scon, scon_handle_t* callable, scon_h
 {
     SCON_ASSERT(scon != SCON_NULL);
 
-    if (!SCON_HANDLE_IS_ITEM(listHandle))
+    if (!SCON_HANDLE_IS_LIST(listHandle))
     {
         SCON_ERROR_RUNTIME(scon, SCON_NULL, "filter expects a list as the second argument, got %s",
             scon_item_type_str(scon_handle_get_type(scon, listHandle)));
     }
 
     scon_item_t* list = SCON_HANDLE_TO_ITEM(listHandle);
-    if (list->type != SCON_ITEM_TYPE_LIST)
-    {
-        SCON_ERROR_RUNTIME(scon, SCON_NULL, "filter expects a list as the second argument, got %s",
-            scon_item_type_str(list->type));
-    }
 
     scon_list_t* filteredList = scon_list_new(scon, 0);
     scon_handle_t filteredHandle = SCON_HANDLE_FROM_LIST(filteredList);
@@ -77,18 +68,13 @@ SCON_API scon_handle_t scon_reduce(scon_t* scon, scon_handle_t* callable, scon_h
 {
     SCON_ASSERT(scon != SCON_NULL);
 
-    if (!SCON_HANDLE_IS_ITEM(listHandle))
+    if (!SCON_HANDLE_IS_LIST(listHandle))
     {
         SCON_ERROR_RUNTIME(scon, SCON_NULL, "reduce expects a list as the third argument, got %s",
             scon_item_type_str(scon_handle_get_type(scon, listHandle)));
     }
 
     scon_item_t* list = SCON_HANDLE_TO_ITEM(listHandle);
-    if (list->type != SCON_ITEM_TYPE_LIST)
-    {
-        SCON_ERROR_RUNTIME(scon, SCON_NULL, "reduce expects a list as the third argument, got %s",
-            scon_item_type_str(list->type));
-    }
 
     scon_handle_t result = *accumulator;
     SCON_GC_RETAIN(scon, result);
@@ -156,28 +142,22 @@ static void scon_sort_merge(scon_t* scon, scon_handle_t callable, scon_list_t* a
     }
 }
 
-SCON_API scon_handle_t scon_sort(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+SCON_API scon_handle_t scon_sort(scon_t* scon, scon_handle_t* listHandle, scon_handle_t* callableHandle)
 {
     SCON_ASSERT(scon != SCON_NULL);
-    SCON_ASSERT(argv != SCON_NULL || argc == 0);
+    SCON_ASSERT(listHandle != SCON_NULL);
 
-    scon_handle_t listHandle = argv[0];
-    scon_handle_t callable = (argc == 2) ? argv[1] : SCON_HANDLE_NONE;
+    scon_handle_t callable = (callableHandle != SCON_NULL) ? *callableHandle : SCON_HANDLE_NONE;
 
-    if (!SCON_HANDLE_IS_ITEM(&listHandle))
+    if (!SCON_HANDLE_IS_LIST(listHandle))
     {
         SCON_ERROR_RUNTIME(scon, SCON_NULL, "sort expects a list as the first argument, got %s",
-            scon_item_type_str(scon_handle_get_type(scon, &listHandle)));
+            scon_item_type_str(scon_handle_get_type(scon, listHandle)));
     }
 
-    scon_item_t* list = SCON_HANDLE_TO_ITEM(&listHandle);
-    if (list->type != SCON_ITEM_TYPE_LIST)
-    {
-        SCON_ERROR_RUNTIME(scon, SCON_NULL, "sort expects a list as the first argument, got %s",
-            scon_item_type_str(list->type));
-    }
+    scon_item_t* list = SCON_HANDLE_TO_ITEM(listHandle);
 
-    if (callable != SCON_HANDLE_NONE && !SCON_HANDLE_IS_ITEM(&callable))
+    if (callable != SCON_HANDLE_NONE && !SCON_HANDLE_IS_CALLABLE(&callable))
     {
         SCON_ERROR_RUNTIME(scon, SCON_NULL, "sort expects a callable as the second argument, got %s",
             scon_item_type_str(scon_handle_get_type(scon, &callable)));

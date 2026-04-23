@@ -15,13 +15,15 @@ SCON_API scon_function_t* scon_compile(scon_t* scon, scon_handle_t* ast)
     SCON_ASSERT(ast != SCON_NULL);
 
     scon_function_t* func = scon_function_new(scon);
-    SCON_GC_RETAIN_ITEM(scon, SCON_CONTAINER_OF(func, scon_item_t, function));
+    scon_item_t* funcItem = SCON_CONTAINER_OF(func, scon_item_t, function);
+    SCON_GC_RETAIN_ITEM(scon, funcItem);
     scon_compiler_t compiler;
 
     scon_compiler_init(&compiler, scon, func, SCON_NULL);
     compiler.lastItem = SCON_HANDLE_TO_ITEM(ast);
 
     scon_item_t* astItem = SCON_HANDLE_TO_ITEM(ast);
+    funcItem->input = astItem->input;
     if (astItem->length == 0)
     {
         SCON_ERROR_COMPILE(&compiler, astItem, "empty function");
@@ -244,7 +246,6 @@ static inline void scon_expr_build_list(scon_compiler_t* compiler, scon_item_t* 
     }
 
     scon_item_t* head = SCON_LIST_GET_ITEM(list, 0);
-    //if (head->type != SCON_ITEM_TYPE_ATOM || (head->flags & SCON_ITEM_FLAG_QUOTED | SCON_ITEM_FLAG_INT_SHAPED | SCON_ITEM_FLAG_FLOAT_SHAPED))
     if (head->type != SCON_ITEM_TYPE_ATOM || (head->flags & (SCON_ITEM_FLAG_QUOTED | SCON_ITEM_FLAG_INT_SHAPED | SCON_ITEM_FLAG_FLOAT_SHAPED)))
     {
         scon_reg_t target = scon_expr_get_reg(compiler, out);
@@ -277,14 +278,24 @@ static inline void scon_expr_build_list(scon_compiler_t* compiler, scon_item_t* 
     scon_uint32_t arity = list->length - 1;
     scon_uint32_t regCount = arity == 0 ? 1 : arity;
 
-    scon_reg_t base;
-    if (out != SCON_NULL && out->mode == SCON_MODE_TARGET)
+    scon_reg_t base = 0;
+    for (scon_int32_t i = SCON_REGISTER_MAX - 1; i >= 0; i--)
     {
-        base = scon_reg_alloc_range_hint(compiler, regCount, out->reg);
+        if (SCON_REG_IS_ALLOCATED(compiler, i))
+        {
+            base = i + 1;
+            break;
+        }
     }
-    else
+
+    if (base + regCount > SCON_REGISTER_MAX)
     {
-        base = scon_reg_alloc_range(compiler, regCount);
+        SCON_ERROR_COMPILE(compiler, list, "too many registers in function");
+    }
+
+    for (scon_uint32_t i = 0; i < regCount; i++)
+    {
+        SCON_REG_SET_ALLOCATED(compiler, base + i);
     }
 
     scon_expr_t callable = SCON_EXPR_NONE();

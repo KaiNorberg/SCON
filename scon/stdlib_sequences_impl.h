@@ -16,8 +16,7 @@ SCON_API scon_handle_t scon_concat(scon_t* scon, scon_size_t argc, scon_handle_t
 
     for (scon_size_t i = 0; i < argc; i++)
     {
-        scon_item_type_t type = scon_handle_get_type(scon, &argv[i]);
-        if (type == SCON_ITEM_TYPE_LIST)
+        if (SCON_HANDLE_IS_LIST(&argv[i]))
         {
             resultIsList = SCON_TRUE;
         }
@@ -30,8 +29,7 @@ SCON_API scon_handle_t scon_concat(scon_t* scon, scon_size_t argc, scon_handle_t
         scon_list_t* newList = scon_list_new(scon, totalLen);
         for (scon_size_t i = 0; i < argc; i++)
         {
-            scon_item_type_t type = scon_handle_get_type(scon, &argv[i]);
-            if (type == SCON_ITEM_TYPE_LIST)
+            if (SCON_HANDLE_IS_LIST(&argv[i]))
             {
                 scon_item_t* item = SCON_HANDLE_TO_ITEM(&argv[i]);
                 for (scon_size_t j = 0; j < item->list.length; j++)
@@ -315,23 +313,23 @@ SCON_API scon_handle_t scon_reverse(scon_t* scon, scon_handle_t* handle)
     }
 }
 
-SCON_API scon_handle_t scon_slice(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+SCON_API scon_handle_t scon_slice(scon_t* scon, scon_handle_t* handle, scon_handle_t* startH, scon_handle_t* endH)
 {
     SCON_ASSERT(scon != SCON_NULL);
-    SCON_ASSERT(argv != SCON_NULL || argc == 0);
+    SCON_ASSERT(handle != SCON_NULL);
+    SCON_ASSERT(startH != SCON_NULL);
 
-    scon_handle_t* handle = &argv[0];
-    scon_handle_t startH = scon_get_int(scon, &argv[1]);
-    scon_int64_t start = SCON_HANDLE_TO_INT(&startH);
+    scon_handle_t startHVal = scon_get_int(scon, startH);
+    scon_int64_t start = SCON_HANDLE_TO_INT(&startHVal);
     
     scon_handle_ensure_item(scon, handle);
     scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
 
     scon_int64_t end;
-    if (argc == 3)
+    if (endH != SCON_NULL)
     {
-        scon_handle_t endH = scon_get_int(scon, &argv[2]);
-        end = SCON_HANDLE_TO_INT(&endH);
+        scon_handle_t endHVal = scon_get_int(scon, endH);
+        end = SCON_HANDLE_TO_INT(&endHVal);
     }
     else
     {

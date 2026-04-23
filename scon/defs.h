@@ -16,6 +16,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <math.h>
 
 #define SCON_NULL NULL
 
@@ -49,6 +51,35 @@ typedef FILE* scon_file_t;
 #define SCON_STDIN stdin
 #define SCON_STDOUT stdout
 #define SCON_STDERR stderr
+
+#define SCON_TIME() time(SCON_NULL)
+#define SCON_CLOCK() clock()
+#define SCON_GETENV(_name) getenv(_name)
+
+#define SCON_FLOOR(_x) floor(_x)
+#define SCON_CEIL(_x) ceil(_x)
+#define SCON_ROUND(_x) round(_x)
+#define SCON_POW(_x, _y) pow(_x, _y)
+#define SCON_LOG(_x) log(_x)
+#define SCON_SQRT(_x) sqrt(_x)
+#define SCON_SIN(_x) sin(_x)
+#define SCON_COS(_x) cos(_x)
+#define SCON_TAN(_x) tan(_x)
+#define SCON_ASIN(_x) asin(_x)
+#define SCON_ACOS(_x) acos(_x)
+#define SCON_ATAN(_x) atan(_x)
+#define SCON_ATAN2(_y, _x) atan2(_y, _x)
+#define SCON_SINH(_x) sinh(_x)
+#define SCON_COSH(_x) cosh(_x)
+#define SCON_TANH(_x) tanh(_x)
+#define SCON_ASINH(_x) asinh(_x)
+#define SCON_ACOSH(_x) acosh(_x)
+#define SCON_ATANH(_x) atanh(_x)
+#define SCON_FABS(_x) fabs(_x)
+
+#define SCON_RAND() rand()
+#define SCON_SRAND(_seed) srand(_seed)
+#define SCON_RAND_MAX RAND_MAX
 
 #define SCON_VA_START(_ap, _last) va_start(_ap, _last)
 #define SCON_VA_END(_ap) va_end(_ap)

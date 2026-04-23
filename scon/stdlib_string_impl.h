@@ -218,14 +218,13 @@ SCON_API scon_handle_t scon_join(scon_t* scon, scon_handle_t* listHandle, scon_h
 {
     SCON_ASSERT(scon != SCON_NULL);
 
-    scon_handle_ensure_item(scon, listHandle);
-    scon_item_t* list = SCON_HANDLE_TO_ITEM(listHandle);
-
-    if (list->type != SCON_ITEM_TYPE_LIST)
+    if (!SCON_HANDLE_IS_LIST(listHandle))
     {
-        SCON_ERROR_RUNTIME(scon, list, "join expects a list as the first argument, got %s",
-            scon_item_type_str(list->type));
+        SCON_ERROR_RUNTIME(scon, SCON_NULL, "join expects a list as the first argument, got %s",
+            scon_item_type_str(scon_handle_get_type(scon, listHandle)));
     }
+
+    scon_item_t* list = SCON_HANDLE_TO_ITEM(listHandle);
 
     if (list->length == 0)
     {
