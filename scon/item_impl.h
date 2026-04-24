@@ -13,10 +13,11 @@ static inline scon_item_t* scon_item_pop_free_list(scon_t* scon)
 
     scon_item_t* item = scon->freeList;
     scon->freeList = item->free;
-    item->type = SCON_ITEM_TYPE_NONE;
     item->flags = 0;
     item->retainCount = 0;
     item->length = 0;
+    item->input = SCON_NULL;
+    item->position = 0;
     return item;
 }
 
@@ -24,26 +25,18 @@ SCON_API scon_item_t* scon_item_new(scon_t* scon)
 {
     SCON_ASSERT(scon != SCON_NULL);
 
-    scon_item_t* item = SCON_NULL;
+    if (SCON_LIKELY(scon->freeList != SCON_NULL))
+    {
+        return scon_item_pop_free_list(scon);
+    }
+
+    scon_gc_if_needed(scon);
     if (scon->freeList != SCON_NULL)
     {
-        item = scon_item_pop_free_list(scon);
+        return scon_item_pop_free_list(scon);
     }
 
-    if (item == SCON_NULL)
-    {
-        scon_gc_if_needed(scon);
-        if (scon->freeList != SCON_NULL)
-        {
-            item = scon_item_pop_free_list(scon);
-        }
-    }
-
-    if (item != SCON_NULL)
-    {
-        return item;
-    }
-
+    scon_item_t* item = SCON_NULL;
     scon_item_block_t* block;
     if (scon->block == SCON_NULL)
     {
@@ -51,7 +44,7 @@ SCON_API scon_item_t* scon_item_new(scon_t* scon)
     }
     else
     {
-        block = SCON_CALLOC(1, sizeof(scon_item_block_t));
+        block = SCON_MALLOC(sizeof(scon_item_block_t));
         if (block == SCON_NULL)
         {
             SCON_ERROR_INTERNAL(scon, "out of memory");
@@ -74,6 +67,8 @@ SCON_API scon_item_t* scon_item_new(scon_t* scon)
     item->length = 0;
     item->retainCount = 0;
     item->flags = 0;
+    item->input = SCON_NULL;
+    item->position = 0;
     return item;
 }
 
@@ -85,10 +80,6 @@ SCON_API void scon_item_free(scon_t* scon, scon_item_t* item)
     if (item->type == SCON_ITEM_TYPE_ATOM)
     {
         scon_atom_deinit(scon, &item->atom);
-    }
-    else if (item->type == SCON_ITEM_TYPE_LIST)
-    {
-        scon_list_deinit(scon, &item->list);
     }
     else if (item->type == SCON_ITEM_TYPE_FUNCTION)
     {
@@ -103,6 +94,11 @@ SCON_API void scon_item_free(scon_t* scon, scon_item_t* item)
     item->length = 0;
     item->flags = 0;
     item->retainCount = 0;
+
+#ifndef NDEBUG
+    SCON_MEMSET(&item->atom, 0xFE, 48);
+#endif
+
     item->free = scon->freeList;
     scon->freeList = item;
 }

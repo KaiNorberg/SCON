@@ -12,10 +12,10 @@ SCON_API scon_handle_t scon_first(struct scon* scon, scon_handle_t* handle);
 SCON_API scon_handle_t scon_last(struct scon* scon, scon_handle_t* handle);
 SCON_API scon_handle_t scon_rest(struct scon* scon, scon_handle_t* handle);
 SCON_API scon_handle_t scon_init(struct scon* scon, scon_handle_t* handle);
-SCON_API scon_handle_t scon_nth(scon_t* scon, scon_handle_t* handle, scon_handle_t* index, scon_handle_t* defaultVal);
-SCON_API scon_handle_t scon_assoc(struct scon* scon, scon_handle_t* handle, scon_handle_t* index, scon_handle_t* value);
+SCON_API scon_handle_t scon_nth(struct scon* scon, scon_handle_t* handle, scon_handle_t* index, scon_handle_t* defaultVal);
+SCON_API scon_handle_t scon_assoc(struct scon* scon, scon_handle_t* handle, scon_handle_t* index, scon_handle_t* value, scon_handle_t* fillVal);
 SCON_API scon_handle_t scon_dissoc(struct scon* scon, scon_handle_t* handle, scon_handle_t* index);
-SCON_API scon_handle_t scon_update(struct scon* scon, scon_handle_t* handle, scon_handle_t* index, scon_handle_t* callable);
+SCON_API scon_handle_t scon_update(struct scon* scon, scon_handle_t* handle, scon_handle_t* index, scon_handle_t* callable, scon_handle_t* fillVal);
 SCON_API scon_handle_t scon_index_of(struct scon* scon, scon_handle_t* handle, scon_handle_t* target);
 SCON_API scon_handle_t scon_reverse(struct scon* scon, scon_handle_t* handle);
 SCON_API scon_handle_t scon_slice(struct scon* scon, scon_handle_t* handle, scon_handle_t* start, scon_handle_t* end);
@@ -33,5 +33,8 @@ SCON_API scon_handle_t scon_update_in(struct scon* scon, scon_handle_t* list, sc
 SCON_API scon_handle_t scon_keys(struct scon* scon, scon_handle_t* list);
 SCON_API scon_handle_t scon_values(struct scon* scon, scon_handle_t* list);
 SCON_API scon_handle_t scon_merge(struct scon* scon, scon_size_t argc, scon_handle_t* argv);
+SCON_API scon_handle_t scon_explode(struct scon* scon, scon_size_t argc, scon_handle_t* argv);
+SCON_API scon_handle_t scon_implode(struct scon* scon, scon_size_t argc, scon_handle_t* argv);
+SCON_API scon_handle_t scon_repeat(struct scon* scon, scon_handle_t* handle, scon_handle_t* count);
 
 #endif

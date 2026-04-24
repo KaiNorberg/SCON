@@ -10,19 +10,44 @@
 
 static void scon_gc_mark(scon_t* scon, scon_item_t* item);
 
-static void scon_gc_mark_list(scon_t* scon, scon_list_t* list)
+static void scon_gc_mark_node(scon_t* scon, scon_uint32_t shift, scon_list_node_t* node)
 {
-    SCON_ASSERT(scon != SCON_NULL);
-    SCON_ASSERT(list != SCON_NULL);
-
-    for (scon_uint32_t i = 0; i < list->length; i++)
+    if (node == SCON_NULL)
     {
-        scon_handle_t child = list->handles[i];
-        if (SCON_HANDLE_IS_ITEM(&child))
+        return;
+    }
+
+    scon_item_t* item = SCON_CONTAINER_OF(node, scon_item_t, node);
+    if (item->flags & SCON_ITEM_FLAG_GC_MARK)
+    {
+        return;
+    }
+    item->flags |= SCON_ITEM_FLAG_GC_MARK;
+
+    if (shift == 0)
+    {
+        for (int i = 0; i < SCON_LIST_WIDTH; i++)
         {
-            scon_gc_mark(scon, SCON_HANDLE_TO_ITEM(&child));
+            scon_handle_t h = node->handles[i];
+            if (SCON_HANDLE_IS_ITEM(&h))
+            {
+                scon_gc_mark(scon, SCON_HANDLE_TO_ITEM(&h));
+            }
         }
     }
+    else
+    {
+        for (int i = 0; i < SCON_LIST_WIDTH; i++)
+        {
+            scon_gc_mark_node(scon, shift - SCON_LIST_BITS, node->children[i]);
+        }
+    }
+}
+
+static void scon_gc_mark_list(scon_t* scon, scon_list_t* list)
+{
+    scon_gc_mark_node(scon, list->shift, list->root);
+    scon_gc_mark_node(scon, 0, list->tail);
 }
 
 static void scon_gc_mark(scon_t* scon, scon_item_t* item)

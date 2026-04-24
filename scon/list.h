@@ -11,12 +11,32 @@ struct scon_item;
  * @defgroup list List
  * @file list.h
  *
- * A list is a dynamic array of handles with small-array optimization.
+ * A list is a persistent data structure implemented using a bit-mapped vector trie.
+ * 
+ * The list is made up of a "tree" of nodes along with a "tail" node, with each node storing a fixed size array of either children or elements within the list.
+ * 
+ * When an element is added to a list, it will be appended to the array within the tail node, once the tail node is full, it is "pushed" to the front of the tree, which may require increasing the depth of tree.
+ *
+ * @see [Persistent vectors, Part 2 -- Immutability and persistence] (https://dmiller.github.io/clojure-clr-next/general/2023/02/12/PersistentVector-part-2.html)
  *
  */
 
-#define SCON_LIST_SMALL_MAX 4     ///< The maximum number of handles in a small list.
-#define SCON_LIST_GROWTH_FACTOR 2 ///< The factor to grow a list by when it is full.
+#define SCON_LIST_BITS 2 ///< Number of bits per level in the trie.
+#define SCON_LIST_WIDTH (1 << SCON_LIST_BITS) ///< The number of children per node.
+#define SCON_LIST_MASK (SCON_LIST_WIDTH - 1) ///< Mask for the index at each level.
+
+/**
+ * @brief SCON list node structure.
+ * @struct scon_list_node_t
+ */
+typedef struct scon_list_node
+{
+    union
+    {
+        struct scon_list_node* children[SCON_LIST_WIDTH];
+        scon_handle_t handles[SCON_LIST_WIDTH];
+    };
+} scon_list_node_t;
 
 /**
  * @brief SCON list structure.
@@ -24,89 +44,131 @@ struct scon_item;
  */
 typedef struct scon_list
 {
-    scon_uint32_t length;   ///< The number of handles in the list (must be first, check the `scon_item_t` structure).
-    scon_uint32_t capacity; ///< The capacity of the list.
-    scon_handle_t small[SCON_LIST_SMALL_MAX]; ///< The small handle buffer.
-    scon_handle_t* handles;                   ///< The handles in the list.
+    scon_uint32_t length;      ///< Total number of elements.
+    scon_uint32_t shift;       ///< The amount to shift the index to compute access paths.
+    scon_list_node_t* root;       ///< Pointer to the trie root node.
+    scon_list_node_t* tail;       ///< Pointer to the tail node.
 } scon_list_t;
 
 /**
- * @brief Helper to get the handle at an index in a list item.
- */
-#define SCON_LIST_GET_HANDLE(_item, _index) ((_item)->list.handles[_index])
-
-/**
- * @brief Helper to get the item pointer at an index in a list item.
- */
-#define SCON_LIST_GET_ITEM(_item, _index) SCON_HANDLE_TO_ITEM(&(_item)->list.handles[_index])
-
-/**
- * @brief Initialize a list structure.
+ * @brief Create a new editable list.
  *
  * @param scon Pointer to the SCON structure.
- * @param list Pointer to the list to initialize.
+ * @return A pointer to the newly created list.
  */
-static inline void scon_list_init(struct scon* scon, scon_list_t* list)
+SCON_API scon_list_t* scon_list_new(struct scon* scon);
+
+/**
+ * @brief Create a new list with an updated value at the specified index.
+ *
+ * @param scon Pointer to the SCON structure.
+ * @param list Pointer to the source list.
+ * @param index The index to update.
+ * @param val The new value to set.
+ * @return A pointer to the newly created list.
+ */
+SCON_API scon_list_t* scon_list_assoc(struct scon* scon, scon_list_t* list, scon_size_t index, scon_handle_t val);
+
+/**
+ * @brief Create a new list with the element at the specified index removed.
+ *
+ * @param scon Pointer to the SCON structure.
+ * @param list Pointer to the source list.
+ * @param index The index of the element to remove.
+ * @return A pointer to the newly created list.
+ */
+SCON_API scon_list_t* scon_list_dissoc(struct scon* scon, scon_list_t* list, scon_size_t index);
+
+/**
+ * @brief Create a new list by slicing an existing list.
+ *
+ * @param scon Pointer to the SCON structure.
+ * @param list Pointer to the source list.
+ * @param start The starting index (inclusive).
+ * @param end The ending index (exclusive).
+ * @return A pointer to the newly created list slice.
+ */
+SCON_API scon_list_t* scon_list_slice(struct scon* scon, scon_list_t* list, scon_size_t start, scon_size_t end);
+
+/**
+ * @brief Get the nth element of the list.
+ *
+ * @param scon Pointer to the SCON structure.
+ * @param list Pointer to the list.
+ * @param index The index of the element to retrieve.
+ * @return The handle of the nth element.
+ */
+SCON_API scon_handle_t scon_list_nth(struct scon* scon, scon_list_t* list, scon_size_t index);
+
+/**
+ * @brief Get the nth element of the list as an item.
+ *
+ * @param scon Pointer to the SCON structure.
+ * @param list Pointer to the list.
+ * @param index The index of the element to retrieve.
+ * @return A pointer to the item of the nth element.
+ */
+SCON_API struct scon_item* scon_list_nth_item(struct scon* scon, scon_list_t* list, scon_size_t index);
+
+/**
+ * @brief Append an element to the list.
+ * 
+ * @param scon Pointer to the SCON structure.
+ * @param list The target list (must be editable).
+ * @param val Handle to the value to append.
+ */
+SCON_API void scon_list_append(struct scon* scon, scon_list_t* list, scon_handle_t val);
+
+/**
+ * @brief Append all elements from one list to another.
+ * 
+ * @param scon Pointer to the SCON structure.
+ * @param list The target list (must be editable).
+ * @param other The source list to copy from.
+ */
+SCON_API void scon_list_append_list(struct scon* scon, scon_list_t* list, scon_list_t* other);
+
+/**
+ * @brief SCON list iterator structure.
+ */
+typedef struct scon_list_iter
 {
-    SCON_ASSERT(list != SCON_NULL);
-
-    list->length = 0;
-    list->handles = list->small;
-    list->capacity = SCON_LIST_SMALL_MAX;
-}
-
-/**
- * @brief Deinitialize a list structure.
- *
- * @param scon Pointer to the SCON structure.
- * @param list Pointer to the list to deinitialize.
- */
-SCON_API void scon_list_deinit(struct scon* scon, scon_list_t* list);
+    scon_list_t* list;
+    scon_size_t index;
+    scon_list_node_t* leaf;
+    scon_size_t tailOffset;
+} scon_list_iter_t;
 
 /**
- * @brief Create a new list.
- *
- * @param scon Pointer to the SCON structure.
- * @param capacity The initial capacity of the list.
- * @return A pointer to the newly created list.
+ * @brief Create a initializer for a list iterator.
+ * 
+ * @param _list The list to iterate over.
  */
-SCON_API scon_list_t* scon_list_new(struct scon* scon, scon_size_t capacity);
+#define SCON_LIST_ITER(_list) {(_list), 0, SCON_NULL, ((_list)->length > 0) ? (((_list)->length - 1) & ~SCON_LIST_MASK) : 0 }
 
 /**
- * @brief Create a new list and copy data into it.
+ * @brief Create a initializer for a list iterator start at a specific index.
  *
- * @param scon Pointer to the SCON structure.
- * @param data Pointer to the handle array to copy.
- * @param count The number of handles to copy.
- * @return A pointer to the newly created list.
+ * @param _list The list to iterate over.
+ * @param _start The starting index.
  */
-SCON_API scon_list_t* scon_list_new_from_data(struct scon* scon, const scon_handle_t* data, scon_size_t count);
+#define SCON_LIST_ITER_AT(_list, _start) {(_list), ((_start) > (_list)->length) ? (_list)->length : (_start), SCON_NULL, ((_list)->length > 0) ? (((_list)->length - 1) & ~SCON_LIST_MASK) : 0 }
+         
+/**
+ * @brief Get the next element from the iterator.
+ * 
+ * @param iter Pointer to the iterator.
+ * @param out Pointer to store the retrieved handle.
+ * @return SCON_TRUE if an element was retrieved, SCON_FALSE if the end was reached.
+ */
+SCON_API scon_bool_t scon_list_iter_next(scon_list_iter_t* iter, scon_handle_t* out);
 
 /**
- * @brief Append a handle to a list.
- *
- * @param scon Pointer to the SCON structure.
- * @param list Pointer to the list.
- * @param handle The handle to append.
+ * @brief Macro for iterating over all elements in a list.
+ * 
+ * @param _handle The scon_handle_t variable to store each element.
+ * @param _list Pointer to the scon_list_t to iterate.
  */
-SCON_API void scon_list_append(struct scon* scon, scon_list_t* list, scon_handle_t handle);
-
-/**
- * @brief Remove a handle from a list without maintaining order.
- *
- * @param scon Pointer to the SCON structure.
- * @param list Pointer to the list.
- * @param handle The handle to remove.
- */
-SCON_API void scon_list_remove_unstable(struct scon* scon, scon_list_t* list, scon_handle_t handle);
-
-/**
- * @brief Copy the contents of one list to another.
- *
- * @param scon Pointer to the SCON structure.
- * @param dest Pointer to the destination list.
- * @param src Pointer to the source list.
- */
-SCON_API void scon_list_copy(struct scon* scon, scon_list_t* dest, scon_list_t* src);
+#define SCON_LIST_FOR_EACH(_handle, _list) for (scon_list_iter_t _iter = SCON_LIST_ITER(_list); scon_list_iter_next(&_iter, (_handle)); )
 
 #endif

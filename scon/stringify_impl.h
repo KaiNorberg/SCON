@@ -55,9 +55,10 @@ static inline scon_size_t scon_stringify_internal(scon_t* scon, scon_handle_t* h
         scon_size_t res = SCON_SNPRINTF(buffer, size, "(");
         written += res;
 
-        for (scon_size_t i = 0; i < item->length; ++i)
+        scon_handle_t child;
+        scon_size_t i = 0;
+        SCON_LIST_FOR_EACH(&child, &item->list)
         {
-            scon_handle_t child = item->list.handles[i];
             res = scon_stringify(scon, &child, size > written ? buffer + written : SCON_NULL,
                 size > written ? size - written : 0);
             written += res;
@@ -68,6 +69,7 @@ static inline scon_size_t scon_stringify_internal(scon_t* scon, scon_handle_t* h
                     " ");
                 written += res;
             }
+            i++;
         }
 
         res = SCON_SNPRINTF(size > written ? buffer + written : SCON_NULL, size > written ? size - written : 0, ")");

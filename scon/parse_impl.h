@@ -142,7 +142,7 @@ SCON_API scon_handle_t scon_parse(scon_t* scon, const char* str, scon_size_t len
         SCON_ERROR_INTERNAL(scon, "out of memory");
     }
 
-    scon_list_t* root = scon_list_new(scon, 0);
+    scon_list_t* root = scon_list_new(scon);
     if (root == SCON_NULL)
     {
         SCON_ERROR_INTERNAL(scon, "out of memory");
@@ -177,7 +177,7 @@ SCON_API scon_handle_t scon_parse(scon_t* scon, const char* str, scon_size_t len
                 SCON_ERROR_SYNTAX(scon->error, input, ctx.ptr, "maximum nesting depth exceeded");
             }
 
-            scon_list_t* child = scon_list_new(scon, 0);
+            scon_list_t* child = scon_list_new(scon);
             scon_item_t* item = SCON_CONTAINER_OF(child, scon_item_t, list);
             item->input = input;
             item->position = (scon_size_t)(ctx.ptr - str) + 1;
@@ -194,7 +194,7 @@ SCON_API scon_handle_t scon_parse(scon_t* scon, const char* str, scon_size_t len
                 SCON_ERROR_SYNTAX(scon->error, input, ctx.ptr, "unexpected ')'");
             }
 
-            ctx.current--;
+                        ctx.current--;
             ctx.ptr++;
         }
         break;
@@ -218,7 +218,7 @@ SCON_API scon_handle_t scon_parse(scon_t* scon, const char* str, scon_size_t len
         SCON_ERROR_SYNTAX(scon->error, ctx.input, ctx.ptr, "unexpected end of file, missing ')'");
     }
 
-    return result;
+        return result;
 }
 
 SCON_API scon_handle_t scon_parse_file(scon_t* scon, const char* path)
@@ -242,8 +242,8 @@ SCON_API scon_handle_t scon_parse_file(scon_t* scon, const char* path)
         SCON_ERROR_INTERNAL(scon, "could not read file '%s'", path);
     }
 
-    scon_size_t alloc_len = len == 0 ? 1 : len;
-    char* buffer = SCON_MALLOC(alloc_len);
+    scon_size_t allocLen = len == 0 ? 1 : len;
+    char* buffer = SCON_MALLOC(allocLen);
     if (buffer == SCON_NULL)
     {
         SCON_FCLOSE(file);

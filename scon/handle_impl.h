@@ -270,9 +270,9 @@ SCON_API scon_int64_t scon_handle_compare(scon_t* scon, scon_handle_t* a, scon_h
     {
         for (scon_size_t i = 0; i < minLen; i++)
         {
-            scon_handle_t ha = listA->handles[i];
-            scon_handle_t hb = listB->handles[i];
-            scon_int64_t cmp = scon_handle_compare(scon, &ha, &hb);
+            scon_handle_t itemA = scon_list_nth(scon, listA, i);
+            scon_handle_t itemB = scon_list_nth(scon, listB, i);
+            scon_int64_t cmp = scon_handle_compare(scon, &itemA, &itemB);
             if (cmp != 0)
             {
                 return cmp;

@@ -1,7 +1,7 @@
-#include "defs.h"
 #ifndef SCON_STDLIB_SYSTEM_IMPL_H
 #define SCON_STDLIB_SYSTEM_IMPL_H 1
 
+#include "defs.h"
 #include "atom.h"
 #include "compile.h"
 #include "core.h"
@@ -10,14 +10,6 @@
 #include "parse.h"
 #include "stdlib_system.h"
 #include "stringify.h"
-
-/** **`(eval <item>) -> <item>`**
-
-Evaluates the provided item and returns the result.
-
-**`(parse <atom>) -> <expression>`**
-
-Parses the provided string into a SCON expression without evaluating it. */
 
 static void scon_resolve_path(scon_t* scon, const char* path, scon_size_t pathLen, char* outPath, scon_size_t maxLen)
 {
@@ -471,14 +463,6 @@ SCON_API scon_handle_t scon_uptime(scon_t* scon)
     return SCON_HANDLE_FROM_FLOAT((scon_float_t)SCON_CLOCK());
 }
 
-/** **`(env!) -> <list>`**
-
-Returns all environment variables as association sub-lists.
-
-**`(args!) -> <list>`**
-
-Returns a list of all command line arguments. */
-
 SCON_API scon_handle_t scon_env(struct scon* scon)
 {
     SCON_ASSERT(scon != SCON_NULL);
@@ -490,16 +474,17 @@ SCON_API scon_handle_t scon_env(struct scon* scon)
         count++;
     }
 
-    scon_list_t* list = scon_list_new(scon, count);
+    scon_list_t* list = scon_list_new(scon);
     for (scon_size_t i = 0; i < count; i++)
     {
         char* env = environ[i];
         char* eq = strchr(env, '=');
         if (eq != SCON_NULL)
         {
-            scon_list_t* pair = scon_list_new(scon, 2);
+            scon_list_t* pair = scon_list_new(scon);
             scon_list_append(scon, pair, SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, env, (scon_size_t)(eq - env), SCON_ATOM_LOOKUP_NONE)));
             scon_list_append(scon, pair, SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, eq + 1, SCON_STRLEN(eq + 1), SCON_ATOM_LOOKUP_QUOTED)));
+
             scon_list_append(scon, list, SCON_HANDLE_FROM_LIST(pair));
         }
     }
@@ -516,7 +501,7 @@ SCON_API scon_handle_t scon_args(struct scon* scon)
         return scon_handle_nil(scon);
     }
 
-    scon_list_t* list = scon_list_new(scon, scon->argc);
+    scon_list_t* list = scon_list_new(scon);
     for (scon_size_t i = 0; i < scon->argc; i++)
     {
         scon_list_append(scon, list, SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, scon->argv[i], SCON_STRLEN(scon->argv[i]), SCON_ATOM_LOOKUP_QUOTED)));

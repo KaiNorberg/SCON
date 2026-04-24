@@ -15,10 +15,10 @@ struct scon_closure;
 #include "function.h"
 #include "handle.h"
 
-#define SCON_EVAL_REGS_INITIAL 1024    ///< The initial amount of registers.
+#define SCON_EVAL_REGS_INITIAL 128    ///< The initial amount of registers.
 #define SCON_EVAL_REGS_GROWTH_FACTOR 2 ///< The growth factor of the registers array.
 
-#define SCON_EVAL_FRAMES_INITIAL 1024    ///< The initial size of the frames array.
+#define SCON_EVAL_FRAMES_INITIAL 128    ///< The initial size of the frames array.
 #define SCON_EVAL_FRAMES_GROWTH_FACTOR 2 ///< The growth factor of the frames array.
 
 /**

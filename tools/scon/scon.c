@@ -1,5 +1,6 @@
 #define SCON_INLINE
 #include "../../scon/scon.h"
+#include "scon_version.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,6 +39,11 @@ int main(int argc, char **argv)
         {
             shouldDump = 1;
         }
+        else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0)
+        {
+            printf("SCON %s (%s)\n", SCON_VERSION_STRING, SCON_GIT_HASH);
+            return 0;
+        }
         else if (argv[i][0] == '-')
         {
             fprintf(stderr, "error: unknown option '%s'\n", argv[i]);
@@ -56,8 +62,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "Options:\n");
         fprintf(stderr, "  -e <expr>      Evaluate the given expression\n");
         fprintf(stderr, "  -s, --silent   Do not print the evaluation result\n");
-        result = 1;
-        goto cleanup;
+        fprintf(stderr, "  -d             Output the compiled bytecode (disassemble)\n");
+        fprintf(stderr, "  -v, --version  Output version information\n");
+        return 1;
     }
 
     scon_t* scon = NULL;
@@ -74,19 +81,21 @@ int main(int argc, char **argv)
 
     scon_args_set(scon, argc, argv);
 
-    scon_handle_t ast;
+    scon_handle_t ast = SCON_HANDLE_NONE;
     if (evalExpr != NULL)
     {
-        char* exprBuf = malloc(strlen(evalExpr) + 1);
-        if (exprBuf != NULL) 
-        {
-            strcpy(exprBuf, evalExpr);
-            ast = scon_parse(scon, exprBuf, strlen(exprBuf), "<eval>");
-        }
+        ast = scon_parse(scon, evalExpr, strlen(evalExpr), "<eval>");
     }
     else if (filename != NULL)
     {
         ast = scon_parse_file(scon, filename);
+    }
+
+    if (ast == SCON_HANDLE_NONE)
+    {
+        fprintf(stderr, "error: nothing to evaluate\n");
+        result = 1;
+        goto cleanup;
     }
 
     scon_stdlib_register(scon, SCON_STDLIB_ALL);

@@ -7,7 +7,7 @@
                     (cond
                         ((== inst "[") (iter (++ ip) (concat ip stack) jumps))
                         ((== inst "]") (let ((open-ip (first stack)))
-                            (iter (++ ip) (rest stack) (assoc (assoc jumps open-ip ip) ip open-ip))))
+                            (iter (++ ip) (rest stack) (assoc (assoc jumps open-ip ip 0) ip open-ip 0))))
                         (true (iter (++ ip) stack jumps))
                     ))))))
             (iter 0 () ())
@@ -24,8 +24,8 @@
                         (cond
                             ((== inst ">") (iter mem (++ dp) next-ip output))
                             ((== inst "<") (iter mem (-- dp) next-ip output))
-                            ((== inst "+") (iter (assoc mem dp (++ val)) dp next-ip output))
-                            ((== inst "-") (iter (assoc mem dp (-- val)) dp next-ip output))
+                            ((== inst "+") (iter (assoc mem dp (++ val) 0) dp next-ip output))
+                            ((== inst "-") (iter (assoc mem dp (-- val) 0) dp next-ip output))
                             ((== inst ".") (iter mem dp next-ip (concat output (chr val))))
                             ((== inst "[") (iter mem dp (if (== val 0) (nth jumps ip) next-ip) output))
                             ((== inst "]") (iter mem dp (if (!= val 0) (nth jumps ip) next-ip) output))
@@ -36,5 +36,5 @@
         )
     ))          
     
-    (bf "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.")
+    (bf "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.") 
 )

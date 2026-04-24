@@ -16,7 +16,7 @@ void scon_intrinsic_quote(scon_compiler_t* compiler, scon_item_t* list, scon_exp
         SCON_ERROR_COMPILE(compiler, list, "quote expects exactly one argument, got %u", list->length);
     }
 
-    *out = SCON_EXPR_CONST_ITEM(compiler, SCON_LIST_GET_ITEM(list, 1));
+    *out = SCON_EXPR_CONST_ITEM(compiler, scon_list_nth_item(compiler->scon, &list->list, 1));
 }
 
 void scon_intrinsic_list(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
@@ -28,10 +28,12 @@ void scon_intrinsic_list(scon_compiler_t* compiler, scon_item_t* list, scon_expr
     scon_reg_t target = scon_expr_get_reg(compiler, out);
     scon_compile_list(compiler, target);
 
-    for (scon_uint32_t i = 1; i < list->length; i++)
+    scon_handle_t h;
+    scon_list_iter_t iter = SCON_LIST_ITER_AT(&list->list, 1);
+    while (scon_list_iter_next(&iter, &h))
     {
         scon_expr_t argExpr = SCON_EXPR_NONE();
-        scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, i), &argExpr);
+        scon_expr_build(compiler, SCON_HANDLE_TO_ITEM(&h), &argExpr);
 
         scon_compile_append(compiler, target, &argExpr);
 
@@ -67,7 +69,7 @@ void scon_intrinsic_block_generic(scon_compiler_t* compiler, scon_item_t* list, 
             *out = SCON_EXPR_NONE();
         }
 
-        scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, i), out);
+        scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, i), out);
         if (i != list->length - 1)
         {
             scon_expr_done(compiler, out);
@@ -92,7 +94,7 @@ void scon_intrinsic_lambda(scon_compiler_t* compiler, scon_item_t* list, scon_ex
             list->length);
     }
 
-    scon_item_t* args = SCON_LIST_GET_ITEM(list, 1);
+    scon_item_t* args = scon_list_nth_item(compiler->scon, &list->list, 1);
     if (args->type != SCON_ITEM_TYPE_LIST)
     {
         SCON_ERROR_COMPILE(compiler, args, "lambda expects a list of arguments, got %s",
@@ -115,9 +117,10 @@ void scon_intrinsic_lambda(scon_compiler_t* compiler, scon_item_t* list, scon_ex
     scon_compiler_t childCompiler;
     scon_compiler_init(&childCompiler, compiler->scon, func, compiler);
 
-    for (scon_uint32_t i = 0; i < args->length; i++)
+    scon_handle_t h;
+    SCON_LIST_FOR_EACH(&h, &args->list)
     {
-        scon_item_t* argName = SCON_LIST_GET_ITEM(args, i);
+        scon_item_t* argName = SCON_HANDLE_TO_ITEM(&h);
         if (argName->type != SCON_ITEM_TYPE_ATOM)
         {
             SCON_ERROR_COMPILE(compiler, argName, "lambda expects a list of atoms as arguments, got %s",
@@ -174,7 +177,7 @@ void scon_intrinsic_def(scon_compiler_t* compiler, scon_item_t* list, scon_expr_
         SCON_ERROR_COMPILE(compiler, list, "def expects two arguments, got %d", list->length);
     }
 
-    scon_item_t* name = SCON_LIST_GET_ITEM(list, 1);
+    scon_item_t* name = scon_list_nth_item(compiler->scon, &list->list, 1);
     if (name->type != SCON_ITEM_TYPE_ATOM)
     {
         SCON_ERROR_COMPILE(compiler, name, "def expects an atom as the name, got %s", scon_item_type_str(name->type));
@@ -183,7 +186,7 @@ void scon_intrinsic_def(scon_compiler_t* compiler, scon_item_t* list, scon_expr_
     scon_local_t* local = scon_local_def(compiler, &name->atom);
 
     scon_expr_t valExpr = SCON_EXPR_NONE();
-    scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 2), &valExpr);
+    scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 2), &valExpr);
 
     scon_local_def_done(compiler, local, &valExpr);
     scon_expr_done(compiler, &valExpr);
@@ -202,7 +205,7 @@ void scon_intrinsic_let(scon_compiler_t* compiler, scon_item_t* list, scon_expr_
         SCON_ERROR_COMPILE(compiler, list, "let expects at least two arguments, got %d", list->length);
     }
 
-    scon_item_t* bindings = SCON_LIST_GET_ITEM(list, 1);
+    scon_item_t* bindings = scon_list_nth_item(compiler->scon, &list->list, 1);
     if (bindings->type != SCON_ITEM_TYPE_LIST)
     {
         SCON_ERROR_COMPILE(compiler, bindings, "let expects a list of bindings, got %s",
@@ -211,16 +214,17 @@ void scon_intrinsic_let(scon_compiler_t* compiler, scon_item_t* list, scon_expr_
 
     scon_uint16_t initialLocalCount = compiler->localCount;
 
-    for (scon_uint32_t i = 0; i < bindings->length; i++)
+    scon_handle_t bh;
+    SCON_LIST_FOR_EACH(&bh, &bindings->list)
     {
-        scon_item_t* bindItem = SCON_LIST_GET_ITEM(bindings, i);
+        scon_item_t* bindItem = SCON_HANDLE_TO_ITEM(&bh);
         if (bindItem->type != SCON_ITEM_TYPE_LIST || bindItem->length != 2)
         {
             SCON_ERROR_COMPILE(compiler, bindItem, "let binding must be a list of two items, got %s (length %d)",
                 scon_item_type_str(bindItem->type), bindItem->length);
         }
 
-        scon_item_t* name = SCON_LIST_GET_ITEM(bindItem, 0);
+        scon_item_t* name = scon_list_nth_item(compiler->scon, &bindItem->list, 0);
         if (name->type != SCON_ITEM_TYPE_ATOM)
         {
             SCON_ERROR_COMPILE(compiler, name, "let binding name must be an atom, got %s",
@@ -230,7 +234,7 @@ void scon_intrinsic_let(scon_compiler_t* compiler, scon_item_t* list, scon_expr_
         scon_local_t* local = scon_local_def(compiler, &name->atom);
 
         scon_expr_t valExpr = SCON_EXPR_NONE();
-        scon_expr_build(compiler, SCON_LIST_GET_ITEM(bindItem, 1), &valExpr);
+        scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &bindItem->list, 1), &valExpr);
 
         scon_local_def_done(compiler, local, &valExpr);
 
@@ -250,7 +254,7 @@ void scon_intrinsic_let(scon_compiler_t* compiler, scon_item_t* list, scon_expr_
             *out = SCON_EXPR_NONE();
         }
 
-        scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, i), out);
+        scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, i), out);
         if (i != list->length - 1)
         {
             scon_expr_done(compiler, out);
@@ -307,7 +311,7 @@ void scon_intrinsic_if(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t
     }
 
     scon_expr_t condExpr = SCON_EXPR_NONE();
-    scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 1), &condExpr);
+    scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 1), &condExpr);
 
     scon_bool_t isTruthy;
     if (scon_expr_is_known_truthy(compiler, &condExpr, &isTruthy))
@@ -315,11 +319,11 @@ void scon_intrinsic_if(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t
         scon_expr_done(compiler, &condExpr);
         if (isTruthy)
         {
-            scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 2), out);
+            scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 2), out);
         }
         else if (list->length == 4)
         {
-            scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 3), out);
+            scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 3), out);
         }
         else
         {
@@ -335,7 +339,7 @@ void scon_intrinsic_if(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t
     scon_expr_done(compiler, &condExpr);
 
     scon_expr_t thenExpr = SCON_EXPR_TARGET(target);
-    scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 2), &thenExpr);
+    scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 2), &thenExpr);
     if (thenExpr.mode != SCON_MODE_NONE && (thenExpr.mode != SCON_MODE_REG || thenExpr.reg != target))
     {
         scon_compile_move(compiler, target, &thenExpr);
@@ -353,7 +357,7 @@ void scon_intrinsic_if(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t
     if (list->length == 4)
     {
         scon_expr_t elseExpr = SCON_EXPR_TARGET(target);
-        scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 3), &elseExpr);
+        scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 3), &elseExpr);
         if (elseExpr.mode != SCON_MODE_NONE && (elseExpr.mode != SCON_MODE_REG || elseExpr.reg != target))
         {
             scon_compile_move(compiler, target, &elseExpr);
@@ -384,7 +388,7 @@ static void scon_intrinsic_when_unless(scon_compiler_t* compiler, scon_item_t* l
     }
 
     scon_expr_t condExpr = SCON_EXPR_NONE();
-    scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 1), &condExpr);
+    scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 1), &condExpr);
 
     scon_bool_t isTruthy;
     if (scon_expr_is_known_truthy(compiler, &condExpr, &isTruthy))
@@ -453,7 +457,7 @@ void scon_intrinsic_cond(scon_compiler_t* compiler, scon_item_t* list, scon_expr
 
     for (scon_uint32_t i = 1; i < list->length; i++)
     {
-        scon_item_t* pair = SCON_LIST_GET_ITEM(list, i);
+        scon_item_t* pair = scon_list_nth_item(compiler->scon, &list->list, i);
         if (pair->type != SCON_ITEM_TYPE_LIST || pair->length != 2)
         {
             SCON_ERROR_COMPILE(compiler, pair, "cond clauses must be lists of exactly two items, got %s (length %d)",
@@ -461,7 +465,7 @@ void scon_intrinsic_cond(scon_compiler_t* compiler, scon_item_t* list, scon_expr
         }
 
         scon_expr_t condExpr = SCON_EXPR_NONE();
-        scon_expr_build(compiler, SCON_LIST_GET_ITEM(pair, 0), &condExpr);
+        scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &pair->list, 0), &condExpr);
 
         scon_bool_t isTruthy;
         if (scon_expr_is_known_truthy(compiler, &condExpr, &isTruthy))
@@ -482,12 +486,12 @@ void scon_intrinsic_cond(scon_compiler_t* compiler, scon_item_t* list, scon_expr
                 {
                     *out = SCON_EXPR_NONE();
                 }
-                scon_expr_build(compiler, SCON_LIST_GET_ITEM(pair, 1), out);
+                scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &pair->list, 1), out);
                 return;
             }
 
             scon_expr_t valExpr = SCON_EXPR_TARGET(target);
-            scon_expr_build(compiler, SCON_LIST_GET_ITEM(pair, 1), &valExpr);
+            scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &pair->list, 1), &valExpr);
             if (valExpr.mode != SCON_MODE_NONE && (valExpr.mode != SCON_MODE_REG || valExpr.reg != target))
             {
                 scon_compile_move(compiler, target, &valExpr);
@@ -507,7 +511,7 @@ void scon_intrinsic_cond(scon_compiler_t* compiler, scon_item_t* list, scon_expr
         scon_expr_done(compiler, &condExpr);
 
         scon_expr_t valExpr = SCON_EXPR_TARGET(target);
-        scon_expr_build(compiler, SCON_LIST_GET_ITEM(pair, 1), &valExpr);
+        scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &pair->list, 1), &valExpr);
         if (valExpr.mode != SCON_MODE_NONE && (valExpr.mode != SCON_MODE_REG || valExpr.reg != target))
         {
             scon_compile_move(compiler, target, &valExpr);
@@ -568,7 +572,7 @@ static void scon_intrinsic_and_or(scon_compiler_t* compiler, scon_item_t* list, 
             argExpr = SCON_EXPR_TARGET(target);
         }
 
-        scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, i), &argExpr);
+        scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, i), &argExpr);
 
         scon_bool_t isTruthy;
         if (scon_expr_is_known_truthy(compiler, &argExpr, &isTruthy))
@@ -645,7 +649,7 @@ void scon_intrinsic_not(scon_compiler_t* compiler, scon_item_t* list, scon_expr_
     scon_reg_t target = scon_expr_get_reg(compiler, out);
 
     scon_expr_t argExpr = SCON_EXPR_NONE();
-    scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 1), &argExpr);
+    scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 1), &argExpr);
 
     scon_bool_t isTruthy;
     if (scon_expr_is_known_truthy(compiler, &argExpr, &isTruthy))
@@ -883,7 +887,7 @@ void scon_intrinsic_binary_generic(scon_compiler_t* compiler, scon_item_t* list,
 
     scon_reg_t targetHint = (out->mode == SCON_MODE_TARGET) ? out->reg : (scon_reg_t)-1;
     scon_expr_t leftExpr = SCON_EXPR_NONE();
-    scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 1), &leftExpr);
+    scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 1), &leftExpr);
 
     if (list->length == 2)
     {
@@ -921,7 +925,7 @@ void scon_intrinsic_binary_generic(scon_compiler_t* compiler, scon_item_t* list,
     for (scon_uint32_t i = 2; i < list->length; i++)
     {
         scon_expr_t rightExpr = SCON_EXPR_NONE();
-        scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, i), &rightExpr);
+        scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, i), &rightExpr);
 
         scon_expr_t foldedExpr;
         if (scon_fold_binary_expr(compiler, opBase, &leftExpr, &rightExpr, &foldedExpr))
@@ -998,7 +1002,7 @@ void scon_intrinsic_inc(scon_compiler_t* compiler, scon_item_t* list, scon_expr_
     oneItem->atom.integerValue = 1;
 
     scon_expr_t leftExpr = SCON_EXPR_NONE();
-    scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 1), &leftExpr);
+    scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 1), &leftExpr);
     scon_expr_t rightExpr = SCON_EXPR_CONST_ITEM(compiler, oneItem);
 
     scon_expr_t foldedExpr;
@@ -1035,7 +1039,7 @@ void scon_intrinsic_dec(scon_compiler_t* compiler, scon_item_t* list, scon_expr_
     oneItem->atom.integerValue = 1;
 
     scon_expr_t leftExpr = SCON_EXPR_NONE();
-    scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 1), &leftExpr);
+    scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 1), &leftExpr);
     scon_expr_t rightExpr = SCON_EXPR_CONST_ITEM(compiler, oneItem);
 
     scon_expr_t foldedExpr;
@@ -1082,7 +1086,7 @@ void scon_intrinsic_bit_not(scon_compiler_t* compiler, scon_item_t* list, scon_e
     }
 
     scon_expr_t argExpr = SCON_EXPR_NONE();
-    scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 1), &argExpr);
+    scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 1), &argExpr);
 
     if (argExpr.mode == SCON_MODE_CONST && compiler->function->constants[argExpr.constant].type == SCON_CONST_SLOT_ITEM)
     {
@@ -1184,7 +1188,7 @@ static void scon_intrinsic_comparison_generic(scon_compiler_t* compiler, scon_it
 
     scon_reg_t targetHint = (out->mode == SCON_MODE_TARGET) ? out->reg : (scon_reg_t)-1;
     scon_expr_t leftExpr = SCON_EXPR_NONE();
-    scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, 1), &leftExpr);
+    scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, 1), &leftExpr);
 
     scon_reg_t target = (scon_reg_t)-1;
     scon_size_t jumps[256];
@@ -1193,7 +1197,7 @@ static void scon_intrinsic_comparison_generic(scon_compiler_t* compiler, scon_it
     for (scon_uint32_t i = 2; i < list->length; i++)
     {
         scon_expr_t rightExpr = SCON_EXPR_NONE();
-        scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, i), &rightExpr);
+        scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, i), &rightExpr);
 
         scon_handle_t leftItem, rightItem;
         if (scon_expr_get_item(compiler, &leftExpr, &leftItem) && scon_expr_get_item(compiler, &rightExpr, &rightItem))

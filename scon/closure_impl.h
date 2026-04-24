@@ -8,7 +8,10 @@
 SCON_API void scon_closure_deinit(scon_closure_t* closure)
 {
     SCON_ASSERT(closure != SCON_NULL);
-    SCON_FREE(closure->constants);
+    if (closure->constants != closure->smallConstants)
+    {
+        SCON_FREE(closure->constants);
+    }
 }
 
 SCON_API scon_closure_t* scon_closure_new(struct scon* scon, scon_function_t* function)
@@ -20,7 +23,14 @@ SCON_API scon_closure_t* scon_closure_new(struct scon* scon, scon_function_t* fu
     item->type = SCON_ITEM_TYPE_CLOSURE;
     scon_closure_t* closure = &item->closure;
     closure->function = function;
-    closure->constants = (scon_handle_t*)SCON_CALLOC(function->constantCount, sizeof(scon_handle_t));
+    if (function->constantCount <= SCON_CLOSURE_SMALL_MAX)
+    {
+        closure->constants = closure->smallConstants;
+    }
+    else
+    {
+        closure->constants = (scon_handle_t*)SCON_MALLOC(sizeof(scon_handle_t) * function->constantCount);
+    }
 
     for (scon_uint16_t i = 0; i < function->constantCount; i++)
     {

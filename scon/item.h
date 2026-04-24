@@ -28,6 +28,7 @@ typedef scon_uint8_t scon_item_type_t;
 #define SCON_ITEM_TYPE_LIST 2     ///< A list.
 #define SCON_ITEM_TYPE_FUNCTION 3 ///< A function.
 #define SCON_ITEM_TYPE_CLOSURE 4  ///< A closure.
+#define SCON_ITEM_TYPE_LIST_NODE 5 ///< A list node.
 
 /**
  * @brief SCON item flags enumeration.
@@ -61,6 +62,7 @@ typedef struct scon_item
         scon_uint32_t length; ///< Common length for the item. (Stored in the union to save space due to padding rules.)
         scon_atom_t atom;     ///< An atom.
         scon_list_t list;     ///< A list.
+        scon_list_node_t node;    ///< A list node.
         scon_function_t function; ///< A function.
         scon_closure_t closure;   ///< A closure.
         struct scon_item* free;   ///< The next free item in the free list.
@@ -71,7 +73,7 @@ typedef struct scon_item
 _Static_assert(sizeof(scon_item_t) == 64, "scon_item_t must be 64 bytes");
 #endif
 
-#define SCON_ITEM_BLOCK_MAX 1023 ///< The maximum number of items in a block.
+#define SCON_ITEM_BLOCK_MAX 255 ///< The maximum number of items in a block.
 
 /**
  * @brief SCON item block structure.

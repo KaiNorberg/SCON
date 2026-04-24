@@ -1,4 +1,5 @@
 #include "atom.h"
+#include "stdlib_sequences.h"
 #ifndef SCON_STDLIB_IMPL_H
 #define SCON_STDLIB_IMPL_H 1
 
@@ -192,11 +193,11 @@ static scon_handle_t scon_stdlib_nth(scon_t* scon, scon_size_t argc, scon_handle
 
 static scon_handle_t scon_stdlib_assoc(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
 {
-    if (argc != 3)
+    if (argc < 3 || argc > 4)
     {
-        SCON_ERROR_RUNTIME(scon, "assoc expects exactly 3 arguments (list/atom, index, value), got %zu", argc);
+        SCON_ERROR_RUNTIME(scon, "assoc expects 3 or 4 arguments (list/atom, index, value, [fill]), got %zu", argc);
     }
-    return scon_assoc(scon, &argv[0], &argv[1], &argv[2]);
+    return scon_assoc(scon, &argv[0], &argv[1], &argv[2], argc == 4 ? &argv[3] : SCON_NULL);
 }
 
 static scon_handle_t scon_stdlib_dissoc(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
@@ -210,11 +211,11 @@ static scon_handle_t scon_stdlib_dissoc(scon_t* scon, scon_size_t argc, scon_han
 
 static scon_handle_t scon_stdlib_update(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
 {
-    if (argc != 3)
+    if (argc < 3 || argc > 4)
     {
-        SCON_ERROR_RUNTIME(scon, "update expects exactly 3 arguments (list/atom, index, callable), got %zu", argc);
+        SCON_ERROR_RUNTIME(scon, "update expects 3 or 4 arguments (list/atom, index, callable, [fill]), got %zu", argc);
     }
-    return scon_update(scon, &argv[0], &argv[1], &argv[2]);
+    return scon_update(scon, &argv[0], &argv[1], &argv[2], argc == 4 ? &argv[3] : SCON_NULL);
 }
 
 static scon_handle_t scon_stdlib_index_of(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
@@ -355,6 +356,25 @@ static scon_handle_t scon_stdlib_values(scon_t* scon, scon_size_t argc, scon_han
 static scon_handle_t scon_stdlib_merge(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
 {
     return scon_merge(scon, argc, argv);
+}
+
+static scon_handle_t scon_stdlib_explode(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    return scon_explode(scon, argc, argv);
+}
+
+static scon_handle_t scon_stdlib_implode(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    return scon_implode(scon, argc, argv);
+}
+
+static scon_handle_t scon_stdlib_repeat(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    if (argc != 2)
+    {
+        SCON_ERROR_RUNTIME(scon, "repeat expects exactly 2 arguments (count, value), got %zu", argc);
+    }
+    return scon_repeat(scon, &argv[0], &argv[1]);
 }
 
 static scon_handle_t scon_stdlib_starts_with(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
@@ -974,6 +994,9 @@ SCON_API void scon_stdlib_register(scon_t* scon, scon_stdlib_sets_t sets)
             {"keys", scon_stdlib_keys},
             {"values", scon_stdlib_values},
             {"merge", scon_stdlib_merge},
+            {"explode", scon_stdlib_explode},
+            {"implode", scon_stdlib_implode},
+            {"repeat", scon_stdlib_repeat},
         };
         scon_native_register(scon, natives, sizeof(natives) / sizeof(scon_native_t));
     }

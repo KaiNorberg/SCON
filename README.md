@@ -224,11 +224,13 @@ To improve caching and reduce pointer indirection, SCON uses "handles" (`scon_ha
 
 Items (`scon_item_t`) represent all heap allocated objects, such as lists, atoms and closures. All items are exactly 64 bytes in size and allocated using a custom pool allocator and freed using a garbage collector and free list.
 
-> Note that while we use the term "list", internally, lists are stored as dynamic arrays.
-
 Since SCON uses its handles to store most integers and floats, it can avoid heap allocations for many common values, significantly reducing the pressure on the garbage collector and improving caching.
 
 *See [item.h](https://github.com/KaiNorberg/SCON/blob/main/scon/item.h) for more information on items.*
+
+Lists are implemented as a "bit-mapped vector trie", providing $O(log_{w} n)$ access, insertion, and deletion, where $O(log_{w} n)$ is the width of each node in the trie.
+
+*See [list.h](https://github.com/KaiNorberg/SCON/blob/main/scon/list.h) for more information on lists.*
 
 All atoms use [String Interning](https://en.wikipedia.org/wiki/String_interning), meaning that every unique atom is only stored once in memory. This makes any string comparison into a single pointer comparison, and it means that parsing the integer/floating point value of an atom or an items truthiness only needs to be done once.
 
@@ -252,6 +254,14 @@ Finds the 35th Fibonacci number without tail call optimization.
 | `lua bench/fib35.lua` | 826.8 ± 38.6 | 769.7 | 900.2 | 1.50 ± 0.08 |
 | `python bench/fib35.py` | 1109.4 ± 14.7 | 1085.3 | 1136.0 | 2.02 ± 0.05 |
 
+For this benchmark, memory usage was also tracked using `heaptrack`:
+
+| Command | Peak Memory [MB] |
+|:---|---:|
+| `scon bench/fib35.scon` | 0.097 |
+| `lua bench/fib35.lua` | 0.099 |
+| `python bench/fib35.py` | 1.8 |
+
 ### Fib65
 
 Finds the 65th Fibonacci number with tail call optimization.
@@ -262,8 +272,6 @@ Finds the 65th Fibonacci number with tail call optimization.
 | `lua bench/fib65.lua` | 1049.5 ± 165.0 | 920.3 | 2663.3 | 1.71 ± 0.37 |
 | `python bench/fib65.py` | 13155.4 ± 1254.2 | 11688.3 | 23926.9 | 21.43 ± 3.76 |
 
-```
-
 ### Brainfuck
 
 A simple jump-table optimized Brainfuck interpreter.
@@ -272,7 +280,7 @@ A simple jump-table optimized Brainfuck interpreter.
 
 | Command | Mean [µs] | Min [µs] | Max [µs] | Relative |
 |:---|---:|---:|---:|---:|
-| `scon bench/brainfuck.scon` | 884.6 ± 296.3 | 603.6 | 3571.1 | 1.00 |
+| `scon bench/brainfuck.scon` | 781.1 ± 211.6 | 582.5 | 2790.8 | 1.00 |
 
 ## Grammar
 
@@ -731,19 +739,21 @@ Returns the n-th item of a list or the n-th character of an atom as a new atom, 
 
 If the index is out of bounds, returns `[default]` or `nil`.
 
-**`(assoc <item> <n: number> <value: item>) -> <item>`**
+**`(assoc <item> <n: number> <value: item> [fill: item]) -> <item>`**
 
-Returns a new list or tom with the n-th element replaced by `<value>`. If n is negative, it replaces the n-th item or character from the end.
+Returns a new list or atom with the n-th element replaced by `<value>`. If n is negative, it replaces the n-th item or character from the end.
 
-If the index is out of bounds, the list or atom will be extended to accommodate the new value, padding with `0` or ` ` respectively.
+If the index is out of bounds and a `fill` value is provided, the list or atom will be extended to accommodate the new value using `fill` as padding. If no `fill` value is provided, an out of bounds access will throw an error.
 
 **`(dissoc <item> <n: number>) -> <item>`**
 
 Returns a new list or atom with the n-th element removed. If n is negative, it removes the n-th item or character from the end.
 
-**`(update <item> <n: number> <callable>) -> <item>`**
+**`(update <item> <n: number> <callable> [fill: item]) -> <item>`**
 
 Returns a new list or atom with the n-th element updated by applying `<callable>` to it. The `<callable>` must accept a single argument. If n is negative, it updates the n-th item or character from the end.
+
+If the index is out of bounds and a `fill` value is provided, the list or atom will be extended to accommodate the new value using `fill` as padding, and the `callable` will be applied to the `fill` value to produce the new element. If no `fill` value is provided, an out of bounds access will throw an error.
 
 **`(index-of <item> <subitem: item>) -> <number>`**
 
@@ -816,9 +826,17 @@ Returns a new list containing the second item of every sub-list.
 
 Returns a new list containing all unique keys from all provided association lists, with values from later lists overwriting those from earlier ones.
 
-**`(zip <list> {list}) -> <list>`**
+**`(explode <atom> {atom}) -> <list>`**
 
-Returns a new list of sub-lists, where each sub-list contains the i-th element from each of the provided lists. The length of the resulting list is determined by the shortest input list.
+Returns the provided atoms as a list of the integer values for each character.
+
+**`(implode <list> {list}) -> <atom>`**
+
+Returns a new atom created by converting the provided lists of integer values back into their corresponding ASCII characters.
+
+**`(repeat <item> <n: number>) -> <item>`**
+
+Returns a new list or atom containing the original item repeated `<n>` times.
 
 ---
 

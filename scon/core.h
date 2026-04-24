@@ -16,10 +16,10 @@ struct scon_item;
  * @{
  */
 
-#define SCON_BUCKETS_MAX 512  ///< Amount of buckets used for intering atoms.
-#define SCON_CONSTANTS_MAX 64 ///< Maximum amount of predefined constants.
+#define SCON_BUCKETS_MAX 128  ///< Amount of buckets used for intering atoms.
+#define SCON_CONSTANTS_MAX 8 ///< Maximum amount of predefined constants.
 
-#define SCON_GC_THRESHOLD_INITIAL 1024 ///< Initial blocks allocated threshold for garbage collection.
+#define SCON_GC_THRESHOLD_INITIAL 128 ///< Initial blocks allocated threshold for garbage collection.
 
 /**
  * @brief SCON input structure.

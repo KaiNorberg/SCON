@@ -55,15 +55,14 @@ SCON_API scon_handle_t scon_range(struct scon* scon, scon_handle_t* start, scon_
         }
     }
 
-    scon_list_t* list = scon_list_new(scon, count);
+    scon_list_t* list = scon_list_new(scon);
     scon_int64_t current = startVal;
     for (scon_size_t i = 0; i < count; i++)
     {
-        list->handles[i] = SCON_HANDLE_FROM_INT(current);
+        scon_list_append(scon, list, SCON_HANDLE_FROM_INT(current));
         current += stepVal;
     }
-    list->length = (scon_uint32_t)count;
-    return SCON_HANDLE_FROM_LIST(list);
+        return SCON_HANDLE_FROM_LIST(list);
 }
 
 SCON_API scon_handle_t scon_concat(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
@@ -86,21 +85,19 @@ SCON_API scon_handle_t scon_concat(scon_t* scon, scon_size_t argc, scon_handle_t
 
     if (resultIsList)
     {
-        scon_list_t* newList = scon_list_new(scon, totalLen);
+        scon_list_t* newList = scon_list_new(scon);
         for (scon_size_t i = 0; i < argc; i++)
         {
             if (SCON_HANDLE_IS_LIST(&argv[i]))
             {
-                scon_item_t* item = SCON_HANDLE_TO_ITEM(&argv[i]);
-                scon_size_t len = item->list.length;
-                SCON_MEMCPY(newList->handles + newList->length, item->list.handles, len * sizeof(scon_handle_t));
-                newList->length += (scon_uint32_t)len;
+                scon_list_append_list(scon, newList, &SCON_HANDLE_TO_ITEM(&argv[i])->list);
             }
             else
             {
-                newList->handles[newList->length++] = argv[i];
+                scon_list_append(scon, newList, argv[i]);
             }
         }
+        
         return SCON_HANDLE_FROM_LIST(newList);
     }
 
@@ -144,7 +141,7 @@ SCON_API scon_handle_t scon_first(scon_t* scon, scon_handle_t* handle)
     switch (item->type)
     {
     case SCON_ITEM_TYPE_LIST:
-        return item->list.handles[0];
+        return scon_list_nth(scon, &item->list, 0);
     case SCON_ITEM_TYPE_ATOM:
         return SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, item->atom.string, 1, SCON_ATOM_LOOKUP_NONE));
     default:
@@ -167,7 +164,7 @@ SCON_API scon_handle_t scon_last(scon_t* scon, scon_handle_t* handle)
     switch (item->type)
     {
     case SCON_ITEM_TYPE_LIST:
-        return item->list.handles[item->length - 1];
+        return scon_list_nth(scon, &item->list, item->length - 1);
     case SCON_ITEM_TYPE_ATOM:
         return SCON_HANDLE_FROM_ATOM(
             scon_atom_lookup(scon, item->atom.string + item->length - 1, 1, SCON_ATOM_LOOKUP_NONE));
@@ -192,8 +189,7 @@ SCON_API scon_handle_t scon_rest(scon_t* scon, scon_handle_t* handle)
     {
     case SCON_ITEM_TYPE_LIST:
     {
-        scon_size_t newLen = item->length - 1;
-        return SCON_HANDLE_FROM_LIST(scon_list_new_from_data(scon, item->list.handles + 1, newLen));
+        return SCON_HANDLE_FROM_LIST(scon_list_slice(scon, &item->list, 1, item->length));        
     }
     case SCON_ITEM_TYPE_ATOM:
     {
@@ -221,8 +217,7 @@ SCON_API scon_handle_t scon_init(scon_t* scon, scon_handle_t* handle)
     {
     case SCON_ITEM_TYPE_LIST:
     {
-        scon_size_t newLen = item->length - 1;
-        return SCON_HANDLE_FROM_LIST(scon_list_new_from_data(scon, item->list.handles, newLen));
+        return SCON_HANDLE_FROM_LIST(scon_list_slice(scon, &item->list, 0, item->length - 1));
     }
     case SCON_ITEM_TYPE_ATOM:
     {
@@ -257,7 +252,7 @@ SCON_API scon_handle_t scon_nth(scon_t* scon, scon_handle_t* handle, scon_handle
     switch (item->type)
     {
     case SCON_ITEM_TYPE_LIST:
-        return item->list.handles[n];
+        return scon_list_nth(scon, &item->list, (scon_size_t)n);
     case SCON_ITEM_TYPE_ATOM:
         return SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, item->atom.string + n, 1, SCON_ATOM_LOOKUP_NONE));
     default:
@@ -265,7 +260,7 @@ SCON_API scon_handle_t scon_nth(scon_t* scon, scon_handle_t* handle, scon_handle
     }
 }
 
-SCON_API scon_handle_t scon_assoc(scon_t* scon, scon_handle_t* handle, scon_handle_t* index, scon_handle_t* value)
+SCON_API scon_handle_t scon_assoc(scon_t* scon, scon_handle_t* handle, scon_handle_t* index, scon_handle_t* value, scon_handle_t* fillVal)
 {
     SCON_ASSERT(scon != SCON_NULL);
 
@@ -285,38 +280,54 @@ SCON_API scon_handle_t scon_assoc(scon_t* scon, scon_handle_t* handle, scon_hand
     }
 
     scon_size_t targetIndex = (scon_size_t)n;
-    scon_size_t newLen = SCON_MAX(item->length, targetIndex + 1);
+
+    if (targetIndex >= item->length && fillVal == SCON_NULL)
+    {
+        SCON_ERROR_RUNTIME(scon, "assoc index %zu out of bounds", targetIndex);
+    }
 
     switch (item->type)
     {
     case SCON_ITEM_TYPE_LIST:
     {
-        scon_list_t* newList = scon_list_new(scon, newLen);
-
-        scon_size_t prefixLen = SCON_MIN(item->length, targetIndex);
-        if (prefixLen > 0)
+        if (targetIndex < item->length)
         {
-            SCON_MEMCPY(newList->handles, item->list.handles, prefixLen * sizeof(scon_handle_t));
+            scon_list_t* newList = scon_list_assoc(scon, &item->list, targetIndex, *value);
+            return SCON_HANDLE_FROM_LIST(newList);
         }
+
+        scon_list_t* newList = scon_list_new(scon);
+        scon_handle_t newListH = SCON_HANDLE_FROM_LIST(newList);
+        SCON_GC_RETAIN(scon, newListH);
+        scon_list_append_list(scon, newList, &item->list);
         for (scon_size_t i = item->length; i < targetIndex; i++)
         {
-            newList->handles[i] = SCON_HANDLE_FROM_INT(0);
+            scon_list_append(scon, newList, *fillVal);
         }
-        newList->handles[targetIndex] = *value;
-        if (targetIndex + 1 < item->length)
-        {
-            scon_size_t suffixLen = item->length - (targetIndex + 1);
-            SCON_MEMCPY(newList->handles + targetIndex + 1, item->list.handles + targetIndex + 1, suffixLen * sizeof(scon_handle_t));
-        }
-        newList->length = (scon_uint32_t)newLen;
-        return SCON_HANDLE_FROM_LIST(newList);
+        scon_list_append(scon, newList, *value);
+        SCON_GC_RELEASE(scon, newListH);
+        return newListH;
     }
     case SCON_ITEM_TYPE_ATOM:
     {
         char* valStr;
         scon_size_t valLen;
         scon_handle_get_string_params(scon, value, &valStr, &valLen);
-        char charToPut = (valLen > 0) ? valStr[0] : ' ';
+        char charToPut = (valLen > 0) ? valStr[0] : '\0';
+
+        char padChar = ' ';
+        if (fillVal != SCON_NULL)
+        {
+            char* fillStr;
+            scon_size_t fillLen;
+            scon_handle_get_string_params(scon, fillVal, &fillStr, &fillLen);
+            if (fillLen > 0)
+            {
+                padChar = fillStr[0];
+            }
+        }
+
+        scon_size_t newLen = SCON_MAX(item->length, targetIndex + 1);
 
         char stackBuffer[SCON_STACK_BUFFER_SIZE];
         char* buffer = (newLen < SCON_STACK_BUFFER_SIZE) ? stackBuffer : (char*)SCON_MALLOC(newLen);
@@ -329,7 +340,7 @@ SCON_API scon_handle_t scon_assoc(scon_t* scon, scon_handle_t* handle, scon_hand
         SCON_MEMCPY(buffer, item->atom.string, prefixLen);
         for (scon_size_t i = item->length; i < targetIndex; i++)
         {
-            buffer[i] = ' ';
+            buffer[i] = padChar;
         }
         buffer[targetIndex] = charToPut;
         if (targetIndex + 1 < item->length)
@@ -377,11 +388,7 @@ SCON_API scon_handle_t scon_dissoc(struct scon* scon, scon_handle_t* handle, sco
     {
     case SCON_ITEM_TYPE_LIST:
     {
-        scon_list_t* newList = scon_list_new(scon, newLen);
-        SCON_MEMCPY(newList->handles, item->list.handles, targetIndex * sizeof(scon_handle_t));
-        SCON_MEMCPY(newList->handles + targetIndex, item->list.handles + targetIndex + 1, 
-                    (item->length - targetIndex - 1) * sizeof(scon_handle_t));
-        newList->length = (scon_uint32_t)newLen;
+        scon_list_t* newList = scon_list_dissoc(scon, &item->list, targetIndex);
         return SCON_HANDLE_FROM_LIST(newList);
     }
     case SCON_ITEM_TYPE_ATOM:
@@ -409,14 +416,32 @@ SCON_API scon_handle_t scon_dissoc(struct scon* scon, scon_handle_t* handle, sco
     }
 }
 
-SCON_API scon_handle_t scon_update(scon_t* scon, scon_handle_t* handle, scon_handle_t* index, scon_handle_t* callable)
+SCON_API scon_handle_t scon_update(scon_t* scon, scon_handle_t* handle, scon_handle_t* index, scon_handle_t* callable, scon_handle_t* fillVal)
 {
     SCON_ASSERT(scon != SCON_NULL);
 
-    scon_handle_t currentVal = scon_nth(scon, handle, index, SCON_NULL);
+    scon_handle_t nHandle = scon_get_int(scon, index);
+    scon_int64_t n = SCON_HANDLE_TO_INT(&nHandle);
+
+    scon_handle_ensure_item(scon, handle);
+    scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
+
+    scon_int64_t targetIndex = n;
+    if (targetIndex < 0)
+    {
+        targetIndex = (scon_int64_t)item->length + targetIndex;
+        if (targetIndex < 0) targetIndex = 0;
+    }
+
+    if ((scon_size_t)targetIndex >= item->length && fillVal == SCON_NULL)
+    {
+        SCON_ERROR_RUNTIME(scon, "update index %lld out of bounds", (long long)n);
+    }
+
+    scon_handle_t currentVal = scon_nth(scon, handle, index, fillVal);
     scon_handle_t newVal = scon_eval_call(scon, *callable, 1, &currentVal);
 
-    return scon_assoc(scon, handle, index, &newVal);
+    return scon_assoc(scon, handle, index, &newVal, fillVal);
 }
 
 SCON_API scon_handle_t scon_index_of(scon_t* scon, scon_handle_t* handle, scon_handle_t* target)
@@ -430,16 +455,16 @@ SCON_API scon_handle_t scon_index_of(scon_t* scon, scon_handle_t* handle, scon_h
     {
     case SCON_ITEM_TYPE_LIST:
     {
-        for (scon_size_t i = 0; i < item->length; i++)
+        scon_handle_t current;
+        SCON_LIST_FOR_EACH(&current, &item->list)
         {
-            scon_handle_t current = item->list.handles[i];
             if (scon_handle_compare(scon, &current, target) == 0)
             {
-                return SCON_HANDLE_FROM_INT(i);
+                return SCON_HANDLE_FROM_INT(_iter.index - 1);
             }
         }
-        break;
     }
+    break;
     case SCON_ITEM_TYPE_ATOM:
     {
         char* targetStr;
@@ -486,13 +511,13 @@ SCON_API scon_handle_t scon_reverse(scon_t* scon, scon_handle_t* handle)
     {
     case SCON_ITEM_TYPE_LIST:
     {
-        scon_list_t* newList = scon_list_new(scon, item->length);
-        for (scon_size_t i = 0; i < item->length; i++)
+        scon_list_t* newList = scon_list_new(scon);
+        scon_size_t i = item->length;
+        while (i > 0)
         {
-            newList->handles[i] = item->list.handles[item->length - 1 - i];
+            scon_list_append(scon, newList, scon_list_nth(scon, &item->list, --i));
         }
-        newList->length = item->length;
-        return SCON_HANDLE_FROM_LIST(newList);
+                return SCON_HANDLE_FROM_LIST(newList);
     }
     case SCON_ITEM_TYPE_ATOM:
     {
@@ -558,8 +583,7 @@ SCON_API scon_handle_t scon_slice(scon_t* scon, scon_handle_t* handle, scon_hand
 
     if (start >= end)
     {
-        return (item->type == SCON_ITEM_TYPE_LIST) ? SCON_HANDLE_FROM_LIST(scon_list_new(scon, 0))
-                                                   : scon_handle_nil(scon);
+        return scon_handle_nil(scon);
     }
 
     scon_size_t newLen = (scon_size_t)(end - start);
@@ -568,7 +592,7 @@ SCON_API scon_handle_t scon_slice(scon_t* scon, scon_handle_t* handle, scon_hand
     {
     case SCON_ITEM_TYPE_LIST:
     {
-        return SCON_HANDLE_FROM_LIST(scon_list_new_from_data(scon, item->list.handles + start, newLen));
+        return SCON_HANDLE_FROM_LIST(scon_list_slice(scon, &item->list, (scon_size_t)start, (scon_size_t)end));
     }
     case SCON_ITEM_TYPE_ATOM:
     {
@@ -601,23 +625,31 @@ SCON_API scon_handle_t scon_flatten(struct scon* scon, scon_handle_t* handle, sc
     }
 
     scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
-    scon_list_t* newList = scon_list_new(scon, 0);
+    scon_list_t* newList = scon_list_new(scon);
     scon_handle_t newHandle = SCON_HANDLE_FROM_LIST(newList);
     SCON_GC_RETAIN(scon, newHandle);
 
-    for (scon_size_t i = 0; i < item->length; i++)
+    scon_handle_t current;
+    SCON_LIST_FOR_EACH(&current, &item->list)
     {
-        scon_handle_t current = item->list.handles[i];
         if (SCON_HANDLE_IS_LIST(&current))
         {
             scon_handle_t nextDepthH = SCON_HANDLE_FROM_INT(depth - 1);
             scon_handle_t flattened = scon_flatten(scon, &current, &nextDepthH);
             SCON_GC_RETAIN(scon, flattened);
 
-            scon_item_t* flattenedItem = SCON_HANDLE_TO_ITEM(&flattened);
-            for (scon_size_t j = 0; j < flattenedItem->length; j++)
+            if (SCON_HANDLE_IS_LIST(&flattened))
             {
-                scon_list_append(scon, newList, flattenedItem->list.handles[j]);
+                scon_item_t* flattenedItem = SCON_HANDLE_TO_ITEM(&flattened);
+                scon_handle_t subVal;
+                SCON_LIST_FOR_EACH(&subVal, &flattenedItem->list)
+                {
+                    scon_list_append(scon, newList, subVal);
+                }
+            }
+            else if (flattened != scon_handle_nil(scon))
+            {
+                scon_list_append(scon, newList, flattened);
             }
             SCON_GC_RELEASE(scon, flattened);
         }
@@ -626,7 +658,7 @@ SCON_API scon_handle_t scon_flatten(struct scon* scon, scon_handle_t* handle, sc
             scon_list_append(scon, newList, current);
         }
     }
-
+    
     SCON_GC_RELEASE(scon, newHandle);
     return newHandle;
 }
@@ -644,24 +676,25 @@ SCON_API scon_handle_t scon_replace(struct scon* scon, scon_handle_t* handle, sc
     scon_handle_ensure_item(scon, handle);
     scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
 
-    if (item->type == SCON_ITEM_TYPE_LIST)
+    switch (item->type)
     {
-        scon_list_t* newList = scon_list_new(scon, item->length);
-        for (scon_size_t i = 0; i < item->length; i++)
+    case SCON_ITEM_TYPE_LIST:
+    {
+        scon_list_t* current = &item->list;
+        while (1)
         {
-            scon_handle_t current = item->list.handles[i];
-            if (scon_handle_compare(scon, &current, oldVal) == 0)
+            scon_handle_t currentHandle = SCON_HANDLE_FROM_LIST(current);
+            scon_handle_t indexH = scon_index_of(scon, &currentHandle, oldVal);
+            if (indexH == scon_handle_nil(scon))
             {
-                scon_list_append(scon, newList, *newVal);
+                return *handle;
             }
-            else
-            {
-                scon_list_append(scon, newList, current);
-            }
+
+            return scon_assoc(scon, handle, &indexH, newVal, SCON_NULL); 
         }
-        return SCON_HANDLE_FROM_LIST(newList);
+        
     }
-    else if (item->type == SCON_ITEM_TYPE_ATOM)
+    case SCON_ITEM_TYPE_ATOM:
     {
         char* oldStr;
         scon_size_t oldLen;
@@ -717,8 +750,7 @@ SCON_API scon_handle_t scon_replace(struct scon* scon, scon_handle_t* handle, sc
         SCON_FREE(buffer);
         return result;
     }
-    else
-    {
+    default:
         SCON_ERROR_RUNTIME(scon, "replace expected list or atom, got %s", scon_item_type_str(item->type));
     }
 }
@@ -732,30 +764,32 @@ SCON_API scon_handle_t scon_unique(struct scon* scon, scon_handle_t* handle)
     }
 
     scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
-    scon_list_t* newList = scon_list_new(scon, 0);
-    scon_handle_t newHandle = SCON_HANDLE_FROM_LIST(newList);
-    SCON_GC_RETAIN(scon, newHandle);
+    scon_list_t* newList = scon_list_new(scon);
+    scon_handle_t resultHandle = SCON_HANDLE_FROM_LIST(newList);
+    SCON_GC_RETAIN(scon, resultHandle);
 
-    for (scon_size_t i = 0; i < item->length; i++)
+    scon_handle_t current;
+    SCON_LIST_FOR_EACH(&current, &item->list)
     {
-        scon_handle_t current = item->list.handles[i];
         scon_bool_t found = SCON_FALSE;
-        for (scon_size_t j = 0; j < newList->length; j++)
+        scon_handle_t existing;
+        SCON_LIST_FOR_EACH(&existing, newList)
         {
-            if (scon_handle_compare(scon, &current, &newList->handles[j]) == 0)
+            if (scon_handle_compare(scon, &current, &existing) == 0)
             {
                 found = SCON_TRUE;
                 break;
             }
         }
+
         if (!found)
         {
             scon_list_append(scon, newList, current);
         }
     }
 
-    SCON_GC_RELEASE(scon, newHandle);
-    return newHandle;
+        SCON_GC_RELEASE(scon, resultHandle);
+    return resultHandle;
 }
 
 SCON_API scon_handle_t scon_chunk(struct scon* scon, scon_handle_t* handle, scon_handle_t* sizeH)
@@ -775,25 +809,19 @@ SCON_API scon_handle_t scon_chunk(struct scon* scon, scon_handle_t* handle, scon
     }
 
     scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
-    scon_size_t chunkSize = (scon_size_t)n;
-    scon_size_t numChunks = (item->length + chunkSize - 1) / chunkSize;
-
-    scon_list_t* resultList = scon_list_new(scon, numChunks);
+    scon_list_t* resultList = scon_list_new(scon);
     scon_handle_t resultHandle = SCON_HANDLE_FROM_LIST(resultList);
     SCON_GC_RETAIN(scon, resultHandle);
 
+    scon_size_t chunkSize = (scon_size_t)n;
     for (scon_size_t i = 0; i < item->length; i += chunkSize)
     {
-        scon_size_t currentChunkSize = SCON_MIN(chunkSize, item->length - i);
-        scon_list_t* chunk = scon_list_new(scon, currentChunkSize);
-        for (scon_size_t j = 0; j < currentChunkSize; j++)
-        {
-            scon_list_append(scon, chunk, item->list.handles[i + j]);
-        }
-        scon_list_append(scon, resultList, SCON_HANDLE_FROM_LIST(chunk));
+        scon_size_t end = SCON_MIN(i + chunkSize, item->length);
+        scon_list_t* chunk = scon_list_slice(scon, &item->list, i, end);
+                scon_list_append(scon, resultList, SCON_HANDLE_FROM_LIST(chunk));
     }
 
-    SCON_GC_RELEASE(scon, resultHandle);
+        SCON_GC_RELEASE(scon, resultHandle);
     return resultHandle;
 }
 
@@ -806,13 +834,13 @@ SCON_API scon_handle_t scon_find(struct scon* scon, scon_handle_t* handle, scon_
     }
 
     scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
-    for (scon_size_t i = 0; i < item->length; i++)
+    scon_handle_t current;
+    SCON_LIST_FOR_EACH(&current, &item->list)
     {
-        scon_handle_t arg = item->list.handles[i];
-        scon_handle_t res = scon_eval_call(scon, *callable, 1, &arg);
-        if (SCON_HANDLE_IS_TRUTHY(&res))
+        scon_handle_t result = scon_eval_call(scon, *callable, 1, &current);
+        if (SCON_HANDLE_IS_TRUTHY(&result))
         {
-            return arg;
+            return current;
         }
     }
 
@@ -828,17 +856,26 @@ SCON_API scon_handle_t scon_get_in(scon_t* scon, scon_handle_t* list, scon_handl
 
     if (!SCON_HANDLE_IS_LIST(&pathH))
     {
-        scon_handle_ensure_item(scon, list);
-        scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
-        for (scon_size_t i = 0; i < listItem->length; i++)
+        scon_handle_ensure_item(scon, &current);
+        scon_item_t* item = SCON_HANDLE_TO_ITEM(&current);
+        if (item->type != SCON_ITEM_TYPE_LIST)
         {
-            scon_handle_t entryH = listItem->list.handles[i];
+            return (defaultVal != SCON_NULL) ? *defaultVal : scon_handle_nil(scon);
+        }
+
+        scon_handle_t entryH;
+        SCON_LIST_FOR_EACH(&entryH, &item->list)
+        {
             if (SCON_HANDLE_IS_LIST(&entryH))
             {
                 scon_item_t* entry = SCON_HANDLE_TO_ITEM(&entryH);
-                if (entry->length >= 1 && scon_handle_compare(scon, &entry->list.handles[0], path) == 0)
+                if (entry->length >= 1)
                 {
-                    return entry->length >= 2 ? entry->list.handles[1] : scon_handle_nil(scon);
+                    scon_handle_t entryKey = scon_list_nth(scon, &entry->list, 0);
+                    if (scon_handle_compare(scon, &entryKey, &pathH) == 0)
+                    {
+                        return (entry->length >= 2) ? scon_list_nth(scon, &entry->list, 1) : scon_handle_nil(scon);
+                    }
                 }
             }
         }
@@ -846,9 +883,9 @@ SCON_API scon_handle_t scon_get_in(scon_t* scon, scon_handle_t* list, scon_handl
     }
 
     scon_item_t* pathItem = SCON_HANDLE_TO_ITEM(&pathH);
-    for (scon_size_t i = 0; i < pathItem->length; i++)
+    scon_handle_t key;
+    SCON_LIST_FOR_EACH(&key, &pathItem->list)
     {
-        scon_handle_t key = pathItem->list.handles[i];
         current = scon_get_in(scon, &current, &key, SCON_NULL);
         if (current == scon_handle_nil(scon))
         {
@@ -867,23 +904,27 @@ SCON_API scon_handle_t scon_assoc_in(scon_t* scon, scon_handle_t* list, scon_han
     {
         scon_handle_ensure_item(scon, list);
         scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
-        scon_list_t* newList = scon_list_new(scon, listItem->length);
+        scon_list_t* newList = scon_list_new(scon);
         scon_bool_t found = SCON_FALSE;
 
-        for (scon_size_t i = 0; i < listItem->length; i++)
+        scon_handle_t entryH;
+        SCON_LIST_FOR_EACH(&entryH, &listItem->list)
         {
-            scon_handle_t entryH = listItem->list.handles[i];
             if (SCON_HANDLE_IS_LIST(&entryH))
             {
                 scon_item_t* entry = SCON_HANDLE_TO_ITEM(&entryH);
-                if (entry->length >= 1 && scon_handle_compare(scon, &entry->list.handles[0], path) == 0)
+                if (entry->length >= 1)
                 {
-                    scon_list_t* newEntry = scon_list_new(scon, 2);
-                    scon_list_append(scon, newEntry, *path);
-                    scon_list_append(scon, newEntry, *val);
-                    scon_list_append(scon, newList, SCON_HANDLE_FROM_LIST(newEntry));
-                    found = SCON_TRUE;
-                    continue;
+                    scon_handle_t entryKey = scon_list_nth(scon, &entry->list, 0);
+                    if (scon_handle_compare(scon, &entryKey, path) == 0)
+                    {
+                        scon_list_t* newEntry = scon_list_new(scon);
+                        scon_list_append(scon, newEntry, *path);
+                        scon_list_append(scon, newEntry, *val);
+                                                scon_list_append(scon, newList, SCON_HANDLE_FROM_LIST(newEntry));
+                        found = SCON_TRUE;
+                        continue;
+                    }
                 }
             }
             scon_list_append(scon, newList, entryH);
@@ -891,13 +932,13 @@ SCON_API scon_handle_t scon_assoc_in(scon_t* scon, scon_handle_t* list, scon_han
 
         if (!found)
         {
-            scon_list_t* newEntry = scon_list_new(scon, 2);
-            scon_list_append(scon, newEntry, *path);
-            scon_list_append(scon, newEntry, *val);
-            scon_list_append(scon, newList, SCON_HANDLE_FROM_LIST(newEntry));
+            scon_list_t* newEntry = scon_list_new(scon);
+                    scon_list_append(scon, newEntry, *path);
+                    scon_list_append(scon, newEntry, *val);
+                        scon_list_append(scon, newList, SCON_HANDLE_FROM_LIST(newEntry));
         }
 
-        return SCON_HANDLE_FROM_LIST(newList);
+                return SCON_HANDLE_FROM_LIST(newList);
     }
 
     scon_item_t* pathItem = SCON_HANDLE_TO_ITEM(path);
@@ -906,7 +947,7 @@ SCON_API scon_handle_t scon_assoc_in(scon_t* scon, scon_handle_t* list, scon_han
         return *val;
     }
 
-    scon_handle_t firstKey = pathItem->list.handles[0];
+    scon_handle_t firstKey = scon_list_nth(scon, &pathItem->list, 0);
     scon_handle_t restPath;
 
     if (pathItem->length == 1)
@@ -916,18 +957,13 @@ SCON_API scon_handle_t scon_assoc_in(scon_t* scon, scon_handle_t* list, scon_han
     }
     else
     {
-        scon_list_t* restPathList = scon_list_new(scon, pathItem->length - 1);
-        for (scon_size_t i = 1; i < pathItem->length; i++)
-        {
-            scon_list_append(scon, restPathList, pathItem->list.handles[i]);
-        }
-        restPath = SCON_HANDLE_FROM_LIST(restPathList);
+        restPath = SCON_HANDLE_FROM_LIST(scon_list_slice(scon, &pathItem->list, 1, pathItem->length));
         SCON_GC_RETAIN(scon, restPath);
 
         scon_handle_t subList = scon_get_in(scon, list, &firstKey, SCON_NULL);
         if (!SCON_HANDLE_IS_LIST(&subList))
         {
-            subList = SCON_HANDLE_FROM_LIST(scon_list_new(scon, 0));
+            subList = SCON_HANDLE_FROM_LIST(scon_list_new(scon));
         }
 
         scon_handle_t updatedSubList = scon_assoc_in(scon, &subList, &restPath, val);
@@ -946,23 +982,27 @@ SCON_API scon_handle_t scon_dissoc_in(scon_t* scon, scon_handle_t* list, scon_ha
     {
         scon_handle_ensure_item(scon, list);
         scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
-        scon_list_t* newList = scon_list_new(scon, listItem->length);
+        scon_list_t* newList = scon_list_new(scon);
 
-        for (scon_size_t i = 0; i < listItem->length; i++)
+        scon_handle_t entryH;
+        SCON_LIST_FOR_EACH(&entryH, &listItem->list)
         {
-            scon_handle_t entryH = listItem->list.handles[i];
             if (SCON_HANDLE_IS_LIST(&entryH))
             {
                 scon_item_t* entry = SCON_HANDLE_TO_ITEM(&entryH);
-                if (entry->length >= 1 && scon_handle_compare(scon, &entry->list.handles[0], path) == 0)
+                if (entry->length >= 1)
                 {
-                    continue;
+                    scon_handle_t entryKey = scon_list_nth(scon, &entry->list, 0);
+                    if (scon_handle_compare(scon, &entryKey, path) == 0)
+                    {
+                        continue;
+                    }
                 }
             }
             scon_list_append(scon, newList, entryH);
         }
 
-        return SCON_HANDLE_FROM_LIST(newList);
+                return SCON_HANDLE_FROM_LIST(newList);
     }
 
     scon_item_t* pathItem = SCON_HANDLE_TO_ITEM(path);
@@ -971,19 +1011,14 @@ SCON_API scon_handle_t scon_dissoc_in(scon_t* scon, scon_handle_t* list, scon_ha
         return *list;
     }
 
-    scon_handle_t firstKey = pathItem->list.handles[0];
+    scon_handle_t firstKey = scon_list_nth(scon, &pathItem->list, 0);
     if (pathItem->length == 1)
     {
         return scon_dissoc_in(scon, list, &firstKey);
     }
     else
     {
-        scon_list_t* restPathList = scon_list_new(scon, pathItem->length - 1);
-        for (scon_size_t i = 1; i < pathItem->length; i++)
-        {
-            scon_list_append(scon, restPathList, pathItem->list.handles[i]);
-        }
-        scon_handle_t restPath = SCON_HANDLE_FROM_LIST(restPathList);
+        scon_handle_t restPath = SCON_HANDLE_FROM_LIST(scon_list_slice(scon, &pathItem->list, 1, pathItem->length));
         SCON_GC_RETAIN(scon, restPath);
 
         scon_handle_t subList = scon_get_in(scon, list, &firstKey, SCON_NULL);
@@ -1021,25 +1056,24 @@ SCON_API scon_handle_t scon_keys(scon_t* scon, scon_handle_t* listHandle)
     }
 
     scon_item_t* item = SCON_HANDLE_TO_ITEM(listHandle);
-    scon_list_t* list = &item->list;
-    scon_list_t* keysList = scon_list_new(scon, list->length);
+    scon_list_t* keysList = scon_list_new(scon);
     scon_handle_t keysHandle = SCON_HANDLE_FROM_LIST(keysList);
     SCON_GC_RETAIN(scon, keysHandle);
 
-    for (scon_size_t i = 0; i < list->length; i++)
+    scon_handle_t childHandle;
+    SCON_LIST_FOR_EACH(&childHandle, &item->list)
     {
-        scon_handle_t childHandle = list->handles[i];
         if (SCON_HANDLE_IS_LIST(&childHandle))
         {
             scon_item_t* childItem = SCON_HANDLE_TO_ITEM(&childHandle);
-            if (childItem->list.length >= 1)
+            if (childItem->length >= 1)
             {
-                scon_list_append(scon, keysList, childItem->list.handles[0]);
+                scon_list_append(scon, keysList, scon_list_nth(scon, &childItem->list, 0));
             }
         }
     }
 
-    SCON_GC_RELEASE(scon, keysHandle);
+        SCON_GC_RELEASE(scon, keysHandle);
     return keysHandle;
 }
 
@@ -1054,42 +1088,34 @@ SCON_API scon_handle_t scon_values(scon_t* scon, scon_handle_t* listHandle)
     }
 
     scon_item_t* item = SCON_HANDLE_TO_ITEM(listHandle);
-    scon_list_t* list = &item->list;
-    scon_list_t* valuesList = scon_list_new(scon, list->length);
+    scon_list_t* valuesList = scon_list_new(scon);
     scon_handle_t valuesHandle = SCON_HANDLE_FROM_LIST(valuesList);
     SCON_GC_RETAIN(scon, valuesHandle);
 
-    for (scon_size_t i = 0; i < list->length; i++)
+    scon_handle_t childHandle;
+    SCON_LIST_FOR_EACH(&childHandle, &item->list)
     {
-        scon_handle_t childHandle = list->handles[i];
         if (SCON_HANDLE_IS_LIST(&childHandle))
         {
             scon_item_t* childItem = SCON_HANDLE_TO_ITEM(&childHandle);
-            if (childItem->list.length >= 2)
+            if (childItem->length >= 2)
             {
-                scon_list_append(scon, valuesList, childItem->list.handles[1]);
+                scon_list_append(scon, valuesList, scon_list_nth(scon, &childItem->list, 1));
             }
         }
     }
 
-    SCON_GC_RELEASE(scon, valuesHandle);
+        SCON_GC_RELEASE(scon, valuesHandle);
     return valuesHandle;
 }
-
-/** **`(merge <list> {list}) -> <list>`**
-
-Returns a new list containing all unique keys from all provided association lists, with values from later lists overwriting those from earlier ones.
-
-**`(zip <list> {list}) -> <list>`**
-
-Returns a new list of sub-lists, where each sub-list contains the i-th element from each of the provided lists. The length of the resulting list is determined by the shortest input list. */
 
 SCON_API scon_handle_t scon_merge(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
 {
     SCON_ASSERT(scon != SCON_NULL);
     SCON_ASSERT(argv != SCON_NULL || argc == 0);
 
-    scon_handle_t result = SCON_HANDLE_FROM_LIST(scon_list_new(scon, 0));
+    scon_list_t* resultList = scon_list_new(scon);
+    scon_handle_t result = SCON_HANDLE_FROM_LIST(resultList);
     SCON_GC_RETAIN(scon, result);
 
     for (scon_size_t i = 0; i < argc; i++)
@@ -1099,17 +1125,20 @@ SCON_API scon_handle_t scon_merge(scon_t* scon, scon_size_t argc, scon_handle_t*
             continue;
         }
 
-        scon_item_t* currentList = SCON_HANDLE_TO_ITEM(&argv[i]);
-        for (scon_size_t j = 0; j < currentList->length; j++)
+        scon_item_t* currentItem = SCON_HANDLE_TO_ITEM(&argv[i]);
+        scon_handle_t entryH;
+        SCON_LIST_FOR_EACH(&entryH, &currentItem->list)
         {
-            scon_handle_t entryH = currentList->list.handles[j];
             if (SCON_HANDLE_IS_LIST(&entryH))
             {
                 scon_item_t* entry = SCON_HANDLE_TO_ITEM(&entryH);
                 if (entry->length >= 1)
                 {
-                    scon_handle_t key = entry->list.handles[0];
-                    scon_handle_t val = entry->length >= 2 ? entry->list.handles[1] : scon_handle_nil(scon);
+                    scon_handle_t key = scon_list_nth(scon, &entry->list, 0);
+                    scon_handle_t val = entry->length >= 2 
+                        ? scon_list_nth(scon, &entry->list, 1) 
+                        : scon_handle_nil(scon);
+
                     scon_handle_t next = scon_assoc_in(scon, &result, &key, &val);
                     SCON_GC_RETAIN(scon, next);
                     SCON_GC_RELEASE(scon, result);
@@ -1119,9 +1148,137 @@ SCON_API scon_handle_t scon_merge(scon_t* scon, scon_size_t argc, scon_handle_t*
         }
     }
 
-    SCON_GC_RELEASE(scon, result);
+        SCON_GC_RELEASE(scon, result);
     return result;
 }
 
+SCON_API scon_handle_t scon_explode(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(argv != SCON_NULL || argc == 0);
+
+    scon_size_t totalLen = 0;
+    for (scon_size_t i = 0; i < argc; i++)
+    {
+        char* str;
+        scon_size_t len;
+        scon_handle_get_string_params(scon, &argv[i], &str, &len);
+        totalLen += len;
+    }
+
+    scon_list_t* list = scon_list_new(scon);
+    for (scon_size_t i = 0; i < argc; i++)
+    {
+        char* str;
+        scon_size_t len;
+        scon_handle_get_string_params(scon, &argv[i], &str, &len);
+        for (scon_size_t j = 0; j < len; j++)
+        {
+            scon_list_append(scon, list, SCON_HANDLE_FROM_INT((scon_int64_t)(unsigned char)str[j]));
+        }
+    }
+
+        return SCON_HANDLE_FROM_LIST(list);
+}
+
+SCON_API scon_handle_t scon_implode(scon_t* scon, scon_size_t argc, scon_handle_t* argv)
+{
+    SCON_ASSERT(scon != SCON_NULL);
+    SCON_ASSERT(argv != SCON_NULL || argc == 0);
+
+    scon_size_t totalLen = 0;
+    for (scon_size_t i = 0; i < argc; i++)
+    {
+        if (!SCON_HANDLE_IS_LIST(&argv[i]))
+        {
+            continue;
+        }
+        totalLen += SCON_HANDLE_TO_ITEM(&argv[i])->length;
+    }
+
+    char stackBuffer[SCON_STACK_BUFFER_SIZE];
+    char* buffer = (totalLen < SCON_STACK_BUFFER_SIZE) ? stackBuffer : (char*)SCON_MALLOC(totalLen);
+    if (buffer == SCON_NULL)
+    {
+        SCON_ERROR_INTERNAL(scon, "out of memory");
+    }
+
+    scon_size_t currentPos = 0;
+    for (scon_size_t i = 0; i < argc; i++)
+    {
+        if (!SCON_HANDLE_IS_LIST(&argv[i]))
+        {
+            continue;
+        }
+        scon_item_t* list = SCON_HANDLE_TO_ITEM(&argv[i]);
+        scon_handle_t valH;
+        SCON_LIST_FOR_EACH(&valH, &list->list)
+        {
+            scon_handle_t charH = scon_get_int(scon, &valH);
+            buffer[currentPos++] = (char)SCON_HANDLE_TO_INT(&charH);
+        }
+    }
+
+    scon_handle_t result = SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, buffer, totalLen, SCON_ATOM_LOOKUP_NONE));
+    if (buffer != stackBuffer)
+    {
+        SCON_FREE(buffer);
+    }
+    return result;
+}
+
+
+SCON_API scon_handle_t scon_repeat(scon_t* scon, scon_handle_t* handle, scon_handle_t* count)
+{
+    SCON_ASSERT(scon != SCON_NULL);
+
+    scon_handle_t nHandle = scon_get_int(scon, count);
+    scon_int64_t n = SCON_HANDLE_TO_INT(&nHandle);
+
+    if (n < 0)
+    {
+        SCON_ERROR_RUNTIME(scon, "repeat count cannot be negative, got %lld", n);
+    }
+
+    scon_size_t repeatCount = (scon_size_t)n;
+
+    if (SCON_HANDLE_IS_LIST(handle))
+    {
+        scon_item_t* item = SCON_HANDLE_TO_ITEM(handle);
+
+        scon_list_t* newList = scon_list_new(scon);
+        for (scon_size_t i = 0; i < repeatCount; i++)
+        {
+            scon_list_append_list(scon, newList, &item->list);
+        }
+        
+                
+        return SCON_HANDLE_FROM_LIST(newList);
+    }
+
+    char* str;
+    scon_size_t len;
+    scon_handle_get_string_params(scon, handle, &str, &len);
+
+    scon_size_t totalLen = len * repeatCount;
+    char stackBuffer[SCON_STACK_BUFFER_SIZE];
+    char* buffer = (totalLen < SCON_STACK_BUFFER_SIZE) ? stackBuffer : (char*)SCON_MALLOC(totalLen);
+    if (buffer == SCON_NULL)
+    {
+        SCON_ERROR_INTERNAL(scon, "out of memory");
+    }
+
+    for (scon_size_t i = 0; i < repeatCount; i++)
+    {
+        SCON_MEMCPY(buffer + (i * len), str, len);
+    }
+    
+    scon_handle_t result = SCON_HANDLE_FROM_ATOM(scon_atom_lookup(scon, buffer, totalLen, SCON_ATOM_LOOKUP_NONE));
+    if (buffer != stackBuffer)
+    {
+        SCON_FREE(buffer);
+    }
+    return result;
+}
 
 #endif

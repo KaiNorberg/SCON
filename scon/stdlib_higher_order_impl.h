@@ -25,18 +25,18 @@ SCON_API scon_handle_t scon_map(scon_t* scon, scon_handle_t* list, scon_handle_t
 
     scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
 
-    scon_list_t* mappedList = scon_list_new(scon, listItem->length);
+    scon_list_t* mappedList = scon_list_new(scon);
     scon_handle_t mappedHandle = SCON_HANDLE_FROM_LIST(mappedList);
     SCON_GC_RETAIN(scon, mappedHandle);
 
-    for (scon_size_t i = 0; i < listItem->length; i++)
+    scon_handle_t entry;
+    SCON_LIST_FOR_EACH(&entry, &listItem->list)
     {
-        scon_handle_t arg = SCON_LIST_GET_HANDLE(listItem, i);
-        scon_handle_t result = scon_eval_call(scon, *callable, 1, &arg);
+        scon_handle_t result = scon_eval_call(scon, *callable, 1, &entry);
         scon_list_append(scon, mappedList, result);
     }
 
-    SCON_GC_RELEASE(scon, mappedHandle);
+        SCON_GC_RELEASE(scon, mappedHandle);
     return mappedHandle;
 }
 
@@ -58,21 +58,21 @@ SCON_API scon_handle_t scon_filter(scon_t* scon, scon_handle_t* list, scon_handl
 
     scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
 
-    scon_list_t* filteredList = scon_list_new(scon, 0);
+    scon_list_t* filteredList = scon_list_new(scon);
     scon_handle_t filteredHandle = SCON_HANDLE_FROM_LIST(filteredList);
     SCON_GC_RETAIN(scon, filteredHandle);
 
-    for (scon_size_t i = 0; i < listItem->length; i++)
+    scon_handle_t entry;
+    SCON_LIST_FOR_EACH(&entry, &listItem->list)
     {
-        scon_handle_t arg = SCON_LIST_GET_HANDLE(listItem, i);
-        scon_handle_t result = scon_eval_call(scon, *callable, 1, &arg);
+        scon_handle_t result = scon_eval_call(scon, *callable, 1, &entry);
         if (SCON_HANDLE_IS_TRUTHY(&result))
         {
-            scon_list_append(scon, filteredList, arg);
+            scon_list_append(scon, filteredList, entry);
         }
     }
 
-    SCON_GC_RELEASE(scon, filteredHandle);
+        SCON_GC_RELEASE(scon, filteredHandle);
     return filteredHandle;
 }
 
@@ -96,24 +96,26 @@ SCON_API scon_handle_t scon_reduce(scon_t* scon, scon_handle_t* list, scon_handl
     scon_handle_t accumulator = (initial != SCON_NULL) ? *initial : SCON_HANDLE_NONE;
     scon_size_t startIdx = 0;
 
+    scon_list_iter_t iter = SCON_LIST_ITER(&listItem->list);
+    scon_handle_t entry;
+
     if (accumulator == SCON_HANDLE_NONE)
     {
-        if (listItem->length == 0)
+        if (!scon_list_iter_next(&iter, &accumulator))
         {
             return SCON_HANDLE_NONE;
         }
-        accumulator = SCON_LIST_GET_HANDLE(listItem, 0);
-        startIdx = 1;
     }
 
     SCON_GC_RETAIN(scon, accumulator);
 
-    for (scon_size_t i = startIdx; i < listItem->length; i++)
+    while (scon_list_iter_next(&iter, &entry))
     {
-        scon_handle_t args[2] = {accumulator, SCON_LIST_GET_HANDLE(listItem, i)};
+        scon_handle_t args[2] = {accumulator, entry};
         scon_handle_t result = scon_eval_call(scon, *callable, 2, args);
+        SCON_GC_RETAIN(scon, result);
         
-        if (accumulator != result)
+        if (result != accumulator)
         {
             SCON_GC_RELEASE(scon, accumulator);
             accumulator = result;
@@ -142,7 +144,35 @@ SCON_API scon_handle_t scon_apply(scon_t* scon, scon_handle_t* list, scon_handle
     }
 
     scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
-    return scon_eval_call(scon, *callable, listItem->length, listItem->list.handles);
+    scon_size_t len = listItem->length;
+    if (len == 0)
+    {
+        return scon_eval_call(scon, *callable, 0, SCON_NULL);
+    }
+
+    scon_handle_t stackBuffer[SCON_STACK_BUFFER_SIZE];
+    scon_handle_t* argv = (len <= SCON_STACK_BUFFER_SIZE) ? stackBuffer : (scon_handle_t*)SCON_MALLOC(len * sizeof(scon_handle_t));
+    
+    if (argv == SCON_NULL)
+    {
+        SCON_ERROR_INTERNAL(scon, "out of memory");
+    }
+    
+    scon_size_t i = 0;
+    scon_handle_t entry;
+    SCON_LIST_FOR_EACH(&entry, &listItem->list)
+    {
+        argv[i++] = entry;
+    }
+
+    scon_handle_t result = scon_eval_call(scon, *callable, len, argv);
+
+    if (argv != stackBuffer)
+    {
+        SCON_FREE(argv);
+    }
+
+    return result;
 }
 
 SCON_API scon_handle_t scon_any(scon_t* scon, scon_handle_t* list, scon_handle_t* callable)
@@ -158,17 +188,17 @@ SCON_API scon_handle_t scon_any(scon_t* scon, scon_handle_t* list, scon_handle_t
     scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
     scon_handle_t fn = (callable != SCON_NULL) ? *callable : SCON_HANDLE_NONE;
 
-    for (scon_size_t i = 0; i < listItem->length; i++)
+    scon_handle_t entry;
+    SCON_LIST_FOR_EACH(&entry, &listItem->list)
     {
-        scon_handle_t arg = SCON_LIST_GET_HANDLE(listItem, i);
         scon_handle_t result;
         if (fn != SCON_HANDLE_NONE)
         {
-            result = scon_eval_call(scon, fn, 1, &arg);
+            result = scon_eval_call(scon, fn, 1, &entry);
         }
         else
         {
-            result = arg;
+            result = entry;
         }
 
         if (SCON_HANDLE_IS_TRUTHY(&result))
@@ -193,17 +223,17 @@ SCON_API scon_handle_t scon_all(scon_t* scon, scon_handle_t* list, scon_handle_t
     scon_item_t* listItem = SCON_HANDLE_TO_ITEM(list);
     scon_handle_t fn = (callable != SCON_NULL) ? *callable : SCON_HANDLE_NONE;
 
-    for (scon_size_t i = 0; i < listItem->length; i++)
+    scon_handle_t entry;
+    SCON_LIST_FOR_EACH(&entry, &listItem->list)
     {
-        scon_handle_t arg = SCON_LIST_GET_HANDLE(listItem, i);
         scon_handle_t result;
         if (fn != SCON_HANDLE_NONE)
         {
-            result = scon_eval_call(scon, fn, 1, &arg);
+            result = scon_eval_call(scon, fn, 1, &entry);
         }
         else
         {
-            result = arg;
+            result = entry;
         }
         SCON_GC_RETAIN(scon, result);
 
@@ -218,7 +248,7 @@ SCON_API scon_handle_t scon_all(scon_t* scon, scon_handle_t* list, scon_handle_t
     return SCON_HANDLE_TRUE();
 }
 
-static void scon_sort_merge(scon_t* scon, scon_handle_t callable, scon_list_t* a, size_t left, size_t right, size_t end, scon_list_t* b)
+static void scon_sort_merge(scon_t* scon, scon_handle_t callable, scon_handle_t* a, size_t left, size_t right, size_t end, scon_handle_t* b)
 {
     scon_size_t i = left;
     scon_size_t j = right;
@@ -236,7 +266,7 @@ static void scon_sort_merge(scon_t* scon, scon_handle_t callable, scon_list_t* a
             {
                 if (callable != SCON_HANDLE_NONE)
                 {
-                    scon_handle_t args[2] = {a->handles[i], a->handles[j]};
+                    scon_handle_t args[2] = {a[i], a[j]};
                     scon_handle_t res = scon_eval_call(scon, callable, 2, args);
                     if (SCON_HANDLE_IS_TRUTHY(&res))
                     {
@@ -245,7 +275,7 @@ static void scon_sort_merge(scon_t* scon, scon_handle_t callable, scon_list_t* a
                 }
                 else
                 {
-                    if (scon_handle_compare(scon, &a->handles[i], &a->handles[j]) <= 0)
+                    if (scon_handle_compare(scon, &a[i], &a[j]) <= 0)
                     {
                         useLeft = SCON_TRUE;
                     }
@@ -255,12 +285,12 @@ static void scon_sort_merge(scon_t* scon, scon_handle_t callable, scon_list_t* a
 
         if (useLeft)
         {
-            b->handles[k] = a->handles[i];
+            b[k] = a[i];
             i++;
         }
         else
         {
-            b->handles[k] = a->handles[j];
+            b[k] = a[j];
             j++;
         }
     }
@@ -287,33 +317,51 @@ SCON_API scon_handle_t scon_sort(scon_t* scon, scon_handle_t* listHandle, scon_h
             scon_item_type_str(scon_handle_get_type(scon, &callable)));
     }
 
-    scon_list_t* aList = scon_list_new(scon, list->length);
-    scon_list_t* bList = scon_list_new(scon, list->length);
-    scon_handle_t aHandle = SCON_HANDLE_FROM_LIST(aList);
-    scon_handle_t bHandle = SCON_HANDLE_FROM_LIST(bList);
-    SCON_GC_RETAIN(scon, aHandle);
-    SCON_GC_RETAIN(scon, bHandle);
+    scon_size_t len = list->length;
+    if (len <= 1)
+    {
+        return *listHandle;
+    }
 
-    SCON_MEMCPY(aList->handles, list->list.handles, list->length * sizeof(scon_handle_t));
-    aList->length = list->length;
-    bList->length = list->length;
+    scon_handle_t* a = (scon_handle_t*)SCON_MALLOC(len * sizeof(scon_handle_t));
+    scon_handle_t* b = (scon_handle_t*)SCON_MALLOC(len * sizeof(scon_handle_t));
+    if (a == SCON_NULL || b == SCON_NULL)
+    {
+        SCON_ERROR_INTERNAL(scon, "out of memory");
+    }
 
+    scon_size_t idx = 0;
+    scon_handle_t entry;
+    SCON_LIST_FOR_EACH(&entry, &list->list)
+    {
+        a[idx++] = entry;
+    }
+
+    scon_handle_t* src = a;
+    scon_handle_t* dst = b;
     for (scon_size_t width = 1; width < list->length; width *= 2)
     {
         for (scon_size_t i = 0; i < list->length; i += 2 * width)
         {
             scon_size_t left = i;
-            scon_size_t right = SCON_MIN(i + width, list->length);
-            scon_size_t end = SCON_MIN(i + 2 * width, list->length);
-            scon_sort_merge(scon, callable, aList, left, right, end, bList);
+            scon_size_t right = SCON_MIN(i + width, len);
+            scon_size_t end = SCON_MIN(i + 2 * width, len);
+            scon_sort_merge(scon, callable, src, left, right, end, dst);
         }
-        scon_list_t* temp = aList;
-        aList = bList;
-        bList = temp;
+        scon_handle_t* temp = src;
+        src = dst;
+        dst = temp;
     }
 
-    SCON_GC_RELEASE(scon, aHandle);
-    return bHandle;
+    scon_list_t* resultList = scon_list_new(scon);
+    for (scon_size_t i = 0; i < len; i++)
+    {
+        scon_list_append(scon, resultList, src[i]);
+    }
+    
+    SCON_FREE(a);
+    SCON_FREE(b);
+    return SCON_HANDLE_FROM_LIST(resultList);
 }
 
 #endif

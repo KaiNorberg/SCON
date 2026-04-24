@@ -21,7 +21,7 @@ SCON_API scon_t* scon_new(scon_error_t* error)
 
     scon->trueItem = SCON_CONTAINER_OF(scon_atom_lookup_int(scon, 1), scon_item_t, atom);
     scon->falseItem = SCON_CONTAINER_OF(scon_atom_lookup_int(scon, 0), scon_item_t, atom);
-    scon->nilItem = SCON_CONTAINER_OF(scon_list_new(scon, 0), scon_item_t, list);
+    scon->nilItem = SCON_CONTAINER_OF(scon_list_new(scon), scon_item_t, list);
     scon->piItem = SCON_CONTAINER_OF(scon_atom_lookup_float(scon, SCON_PI), scon_item_t, atom);
     scon->eItem = SCON_CONTAINER_OF(scon_atom_lookup_float(scon, SCON_E), scon_item_t, atom);
 

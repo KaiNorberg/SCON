@@ -36,9 +36,10 @@ SCON_API scon_function_t* scon_compile(scon_t* scon, scon_handle_t* ast)
         scon_reg_t target = scon_reg_alloc(&compiler);
         scon_compile_list(&compiler, target);
 
-        for (scon_size_t i = 0; i < astItem->length; ++i)
+        scon_handle_t h;
+        SCON_LIST_FOR_EACH(&h, &astItem->list)
         {
-            scon_item_t* item = SCON_LIST_GET_ITEM(astItem, i);
+            scon_item_t* item = SCON_HANDLE_TO_ITEM(&h);
             scon_expr_t argExpr = SCON_EXPR_NONE();
             scon_expr_build(&compiler, item, &argExpr);
             scon_compile_append(&compiler, target, &argExpr);
@@ -49,7 +50,7 @@ SCON_API scon_function_t* scon_compile(scon_t* scon, scon_handle_t* ast)
     }
     else
     {
-        scon_expr_build(&compiler, SCON_LIST_GET_ITEM(astItem, 0), &lastExpr);
+        scon_expr_build(&compiler, scon_list_nth_item(scon, &astItem->list, 0), &lastExpr);
     }
 
     scon_compile_return(&compiler, &lastExpr);
@@ -214,17 +215,19 @@ static inline void scon_expr_build_list(scon_compiler_t* compiler, scon_item_t* 
         return;
     }
 
-    scon_item_t* head = SCON_LIST_GET_ITEM(list, 0);
+    scon_item_t* head = scon_list_nth_item(compiler->scon, &list->list, 0);
     if (head->type != SCON_ITEM_TYPE_ATOM ||
         (head->flags & (SCON_ITEM_FLAG_QUOTED | SCON_ITEM_FLAG_INT_SHAPED | SCON_ITEM_FLAG_FLOAT_SHAPED)))
     {
         scon_reg_t target = scon_expr_get_reg(compiler, out);
         scon_compile_list(compiler, target);
 
-        for (scon_uint32_t i = 0; i < list->length; i++)
+        scon_handle_t h;
+        SCON_LIST_FOR_EACH(&h, &list->list)
         {
+            scon_item_t* item = SCON_HANDLE_TO_ITEM(&h);
             scon_expr_t argExpr = SCON_EXPR_NONE();
-            scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, i), &argExpr);
+            scon_expr_build(compiler, item, &argExpr);
 
             scon_compile_append(compiler, target, &argExpr);
 
@@ -245,7 +248,7 @@ static inline void scon_expr_build_list(scon_compiler_t* compiler, scon_item_t* 
         }
     }
 
-    scon_uint32_t arity = list->length - 1;
+    scon_uint32_t arity = (scon_uint32_t)list->length - 1;
     scon_uint32_t regCount = arity == 0 ? 1 : arity;
 
     scon_reg_t base = 0;
@@ -271,11 +274,11 @@ static inline void scon_expr_build_list(scon_compiler_t* compiler, scon_item_t* 
     scon_expr_t callable = SCON_EXPR_NONE();
     scon_expr_build(compiler, head, &callable);
 
-    for (scon_uint32_t i = 1; i < list->length; i++)
+    for (scon_uint32_t i = 1; i < (scon_uint32_t)list->length; i++)
     {
         scon_reg_t target = base + i - 1;
         scon_expr_t argExpr = SCON_EXPR_TARGET(target);
-        scon_expr_build(compiler, SCON_LIST_GET_ITEM(list, i), &argExpr);
+        scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &list->list, i), &argExpr);
 
         if (argExpr.mode != SCON_MODE_REG || argExpr.reg != target)
         {

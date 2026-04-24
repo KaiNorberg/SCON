@@ -16,6 +16,8 @@ struct scon_item;
  * @{
  */
 
+#define SCON_CLOSURE_SMALL_MAX 4 ///< The maximum number of small constants.
+
 /**
  * @brief SCON closure structure.
  * @struct scon_closure_t
@@ -24,6 +26,7 @@ typedef struct scon_closure
 {
     scon_function_t* function; ///< Pointer to the prototype function item.            ///< Pointer to upvalues array.
     scon_handle_t* constants;  ///< The array of constant slots forming the constant template.
+    scon_handle_t smallConstants[SCON_CLOSURE_SMALL_MAX];
 } scon_closure_t;
 
 /**

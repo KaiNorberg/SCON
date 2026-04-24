@@ -59,8 +59,8 @@ typedef struct scon_atom
     struct scon_atom* next; ///< Pointer to the next atom in the hash map.
 } scon_atom_t;
 
-#define SCON_FNV_OFFSET 16777619U  ///< FNV offset.
-#define SCON_FNV_PRIME 2166136261U ///< FNV prime.
+#define SCON_FNV_PRIME 16777619U    ///< FNV-1a 32-bit prime.
+#define SCON_FNV_OFFSET 2166136261U ///< FNV-1a 32-bit offset basis.
 
 /**
  * @brief Hash a string.
@@ -69,7 +69,7 @@ typedef struct scon_atom
  * @param len The length of the string.
  * @return The hash of the string.
  */
-static inline scon_uint32_t scon_hash(const char* str, scon_size_t len)
+static inline SCON_ALWAYS_INLINE scon_uint32_t scon_hash(const char* str, scon_size_t len)
 {
     scon_uint32_t hash = SCON_FNV_OFFSET;
     for (scon_size_t i = 0; i < len; i++)
@@ -110,7 +110,18 @@ SCON_API void scon_atom_deinit(struct scon* scon, scon_atom_t* atom);
  * @param len The length of the string.
  * @return `SCON_TRUE` if the atom is equal to the string, `SCON_FALSE` otherwise.
  */
-SCON_API scon_bool_t scon_atom_is_equal(scon_atom_t* atom, const char* str, scon_size_t len);
+static inline SCON_ALWAYS_INLINE scon_bool_t scon_atom_is_equal(scon_atom_t* atom, const char* str, scon_size_t len)
+{
+    SCON_ASSERT(atom != SCON_NULL);
+    SCON_ASSERT(str != SCON_NULL);
+
+    if (atom->length != len)
+    {
+        return SCON_FALSE;
+    }
+
+    return SCON_MEMCMP(str, atom->string, len) == 0;
+}
 
 /**
  * @brief Lookup an atom by integer value.

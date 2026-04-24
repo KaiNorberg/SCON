@@ -1,9 +1,8 @@
-#include "char.h"
-#include "core.h"
 #ifndef SCON_ATOM_IMPL_H
 #define SCON_ATOM_IMPL_H 1
 
 #include "atom.h"
+#include "char.h"
 #include "core.h"
 
 SCON_API void scon_atom_deinit(scon_t* scon, scon_atom_t* atom)
@@ -27,19 +26,6 @@ SCON_API void scon_atom_deinit(scon_t* scon, scon_atom_t* atom)
     {
         SCON_FREE(atom->string);
     }
-}
-
-SCON_API scon_bool_t scon_atom_is_equal(scon_atom_t* atom, const char* str, scon_size_t len)
-{
-    SCON_ASSERT(atom != SCON_NULL);
-    SCON_ASSERT(str != SCON_NULL);
-
-    if (atom->length != len)
-    {
-        return SCON_FALSE;
-    }
-
-    return memcmp(str, atom->string, len) == 0;
 }
 
 SCON_API scon_atom_t* scon_atom_lookup_int(scon_t* scon, scon_int64_t value)
@@ -165,18 +151,24 @@ SCON_API scon_atom_t* scon_atom_lookup(scon_t* scon, const char* str, scon_size_
     }
     scon_size_t bucket = hash % SCON_BUCKETS_MAX;
 
-    scon_atom_t* current = scon->atomBuckets[bucket];
-    while (current)
+    scon_atom_t** current = &scon->atomBuckets[bucket];
+    while (*current)
     {
-        scon_atom_t* atom = current;
+        scon_atom_t* atom = *current;
         scon_item_t* item = SCON_CONTAINER_OF(atom, scon_item_t, atom);
         scon_bool_t isQuoted = (item->flags & SCON_ITEM_FLAG_QUOTED) != 0;
         scon_bool_t wantQuoted = (flags & SCON_ATOM_LOOKUP_QUOTED) != 0;
         if (atom->hash == hash && isQuoted == wantQuoted && scon_atom_is_equal(atom, str, len))
         {
+            if (current != &scon->atomBuckets[bucket])
+            {
+                *current = atom->next;
+                atom->next = scon->atomBuckets[bucket];
+                scon->atomBuckets[bucket] = atom;
+            }
             return atom;
         }
-        current = current->next;
+        current = &(*current)->next;
     }
 
     scon_item_t* item = scon_item_new(scon);

@@ -5,6 +5,7 @@
 #include "core.h"
 #include "handle.h"
 #include "stdlib_string.h"
+#include "gc.h"
 
 SCON_API scon_handle_t scon_starts_with(scon_t* scon, scon_handle_t* handle, scon_handle_t* prefix)
 {
@@ -21,7 +22,7 @@ SCON_API scon_handle_t scon_starts_with(scon_t* scon, scon_handle_t* handle, sco
         {
             return SCON_HANDLE_FALSE();
         }
-        scon_handle_t first = item->list.handles[0];
+        scon_handle_t first = scon_list_nth(scon, &item->list, 0);
         return (scon_handle_compare(scon, &first, prefix) == 0) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
     }
     case SCON_ITEM_TYPE_ATOM:
@@ -57,7 +58,7 @@ SCON_API scon_handle_t scon_ends_with(scon_t* scon, scon_handle_t* handle, scon_
         {
             return SCON_HANDLE_FALSE();
         }
-        scon_handle_t last = item->list.handles[item->length - 1];
+        scon_handle_t last = scon_list_nth(scon, &item->list, item->length - 1);
         return (scon_handle_compare(scon, &last, suffix) == 0) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
     }
     case SCON_ITEM_TYPE_ATOM:
@@ -102,7 +103,7 @@ SCON_API scon_handle_t scon_join(scon_t* scon, scon_handle_t* listHandle, scon_h
     scon_size_t totalLen = 0;
     for (scon_size_t i = 0; i < list->length; i++)
     {
-        scon_handle_t ch = list->list.handles[i];
+        scon_handle_t ch = scon_list_nth(scon, &list->list, i);
         scon_handle_ensure_item(scon, &ch);
         totalLen += SCON_HANDLE_TO_ITEM(&ch)->length;
     }
@@ -118,9 +119,11 @@ SCON_API scon_handle_t scon_join(scon_t* scon, scon_handle_t* listHandle, scon_h
     scon_size_t currentPos = 0;
     for (scon_size_t i = 0; i < list->length; i++)
     {
+        scon_handle_t ch = scon_list_nth(scon, &list->list, i);
+
         char* str;
         scon_size_t len;
-        scon_handle_get_string_params(scon, &list->list.handles[i], &str, &len);
+        scon_handle_get_string_params(scon, &ch, &str, &len);
         SCON_MEMCPY(buffer + currentPos, str, len);
         currentPos += len;
 
@@ -149,7 +152,7 @@ SCON_API scon_handle_t scon_split(scon_t* scon, scon_handle_t* srcHandle, scon_h
     scon_handle_get_string_params(scon, srcHandle, &srcStr, &srcLen);
     scon_handle_get_string_params(scon, sepHandle, &sepStr, &sepLen);
 
-    scon_list_t* resultList = scon_list_new(scon, 0);
+    scon_list_t* resultList = scon_list_new(scon);
     scon_handle_t resultHandle = SCON_HANDLE_FROM_LIST(resultList);
     SCON_GC_RETAIN(scon, resultHandle);
 
