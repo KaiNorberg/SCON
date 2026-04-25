@@ -252,6 +252,28 @@ SCON_API void scon_reg_free_range(scon_compiler_t* compiler, scon_reg_t start, s
         &(scon_const_slot_t){.type = SCON_CONST_SLOT_ITEM, .item = (_compiler)->scon->nilItem}))
 
 /**
+ * @brief Create a `SCON_MODE_CONST` mode expression for an integer.
+ *
+ * @param _compiler The compiler context.
+ * @param _val The integer value.
+ */
+#define SCON_EXPR_INT(_compiler, _val) SCON_EXPR_CONST_ATOM(_compiler, scon_atom_lookup_int((_compiler)->scon, (_val)))
+
+/**
+ * @brief Get the target register index from an expression, or -1 if no target is specified.
+ * @param _expr The expression to check.
+ */
+#define SCON_EXPR_GET_TARGET(_expr) (((_expr)->mode == SCON_MODE_TARGET) ? (_expr)->reg : (scon_reg_t)-1)
+
+/**
+ * @brief Create a `SCON_MODE_CONST` mode expression for a float.
+ *
+ * @param _compiler The compiler context.
+ * @param _val The float value.
+ */
+#define SCON_EXPR_FLOAT(_compiler, _val) SCON_EXPR_CONST_ATOM(_compiler, scon_atom_lookup_float((_compiler)->scon, (_val)))
+
+/**
  * @brief Compiles a single SCON item into an expression descriptor.
  *
  * @param compiler The compiler context.
@@ -291,6 +313,24 @@ static inline scon_reg_t scon_expr_get_reg(scon_compiler_t* compiler, scon_expr_
         return out->reg;
     }
     return scon_reg_alloc(compiler);
+}
+
+/**
+ * @brief Get the first unallocated register index.
+ *
+ * @param compiler The compiler context.
+ * @return The first register index that is not currently allocated.
+ */
+static inline scon_reg_t scon_reg_get_base(scon_compiler_t* compiler)
+{
+    for (scon_int32_t i = SCON_REGISTER_MAX - 1; i >= 0; i--)
+    {
+        if (SCON_REG_IS_ALLOCATED(compiler, i))
+        {
+            return (scon_reg_t)(i + 1);
+        }
+    }
+    return 0;
 }
 
 /**
@@ -426,6 +466,21 @@ static inline void scon_compile_jump_patch(scon_compiler_t* compiler, scon_size_
     SCON_ASSERT(compiler != SCON_NULL);
     scon_int32_t offset = (scon_int32_t)(compiler->function->instCount - pos - 1);
     compiler->function->insts[pos] = SCON_INST_SET_SBX(compiler->function->insts[pos], offset);
+}
+
+/**
+ * @brief Patch a list of jump instructions to point to the current instruction.
+ *
+ * @param compiler The compiler context.
+ * @param jumps Array of jump instruction indices.
+ * @param count Number of jumps in the array.
+ */
+static inline void scon_compile_jump_patch_list(scon_compiler_t* compiler, scon_size_t* jumps, scon_size_t count)
+{
+    for (scon_size_t i = 0; i < count; i++)
+    {
+        scon_compile_jump_patch(compiler, jumps[i]);
+    }
 }
 
 /**

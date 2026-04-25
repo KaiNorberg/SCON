@@ -5,7 +5,7 @@
 #include "defs.h"
 #include "eval.h"
 #include "item.h"
-#include "stdlib_type_casting.h"
+#include "stdlib.h"
 
 static void scon_eval_state_init(scon_t* scon, scon_eval_state_t* state)
 {
@@ -95,7 +95,7 @@ static inline SCON_ALWAYS_INLINE void scon_eval_push_frame(scon_t* scon, scon_ev
     state->regCount = neededRegs;
 }
 
-static inline SCON_ALWAYS_INLINE void scon_eval_pop_frame(scon_eval_state_t* state)
+static inline SCON_ALWAYS_INLINE void scon_eval_pOP_frame(scon_eval_state_t* state)
 {
     SCON_ASSERT(state != SCON_NULL);
     SCON_ASSERT(state->frameCount > 0);
@@ -144,6 +144,22 @@ static scon_handle_t scon_eval_run(scon_t* scon, scon_eval_state_t* state, scon_
         goto* dispatchTable[op]; \
     } while (0)
 
+#define OP_COMPARE(_label, _op) \
+LABEL_C_OP(_label, { \
+    DECODE_A(); \
+    DECODE_B(); \
+    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, _op) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE(); \
+    DISPATCH(); \
+})
+
+#define OP_ARITH(_label, _op) \
+LABEL_C_OP(_label, { \
+    DECODE_A(); \
+    DECODE_B(); \
+    SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, _op); \
+    DISPATCH(); \
+})
+
 #define DECODE_A() scon_uint32_t a = SCON_INST_GET_A(inst)
 #define DECODE_B() scon_uint32_t b = SCON_INST_GET_B(inst)
 #define DECODE_C_REG() \
@@ -167,6 +183,22 @@ static scon_handle_t scon_eval_run(scon_t* scon, scon_eval_state_t* state, scon_
 #define OP_ENTRY(_op, _label) [_op] = &&_label, [_op | SCON_MODE_CONST] = &&_label
 
 #define OP_ENTRY_C(_op, _label) [_op] = &&_label, [_op | SCON_MODE_CONST] = &&_label##_k
+
+#define OP_BITWISE(_label, _op) \
+LABEL_C_OP(_label, { \
+    DECODE_A(); \
+    DECODE_B(); \
+    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) _op scon_get_int(scon, &valC)); \
+    DISPATCH(); \
+})
+
+#define OP_EQUALITY(_label, _func, _truth) \
+LABEL_C_OP(_label, { \
+    DECODE_A(); \
+    DECODE_B(); \
+    base[a] = (_func(scon, &base[b], &valC) == _truth) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE(); \
+    DISPATCH(); \
+})
 
     void* dispatchTable[] = {
         OP_ENTRY(SCON_OPCODE_NONE, label_none),
@@ -258,7 +290,7 @@ LABEL_C_OP(label_call, {
     DECODE_A();
     DECODE_B();
     ERROR_CHECK(SCON_HANDLE_IS_ITEM(&valC), scon, SCON_NULL, "attempt to call non-callable %s",
-        scon_item_type_str(scon_handle_get_type(scon, &valC)));
+        scon_item_type_str(SCON_HANDLE_GET_TYPE(&valC)));
     scon_item_t* item = SCON_HANDLE_TO_ITEM(&valC);
     if (SCON_LIKELY(item->type == SCON_ITEM_TYPE_CLOSURE))
     {
@@ -297,7 +329,7 @@ LABEL_C_OP(label_tailcall, {
     DECODE_A();
     DECODE_B();
     ERROR_CHECK(SCON_HANDLE_IS_ITEM(&valC), scon, SCON_NULL, "attempt to call non-callable %s",
-        scon_item_type_str(scon_handle_get_type(scon, &valC)));
+        scon_item_type_str(SCON_HANDLE_GET_TYPE(&valC)));
     scon_item_t* item = SCON_HANDLE_TO_ITEM(&valC);
     if (SCON_LIKELY(item->type == SCON_ITEM_TYPE_CLOSURE))
     {
@@ -330,7 +362,7 @@ LABEL_C_OP(label_tailcall, {
 
         frame = &state->frames[state->frameCount - 1];
         state->regs[frame->base] = res;
-        scon_eval_pop_frame(state);
+        scon_eval_pOP_frame(state);
 
         if (SCON_UNLIKELY(state->frameCount == initialFrameCount))
         {
@@ -356,105 +388,39 @@ LABEL_C_OP(label_mov, {
 })
 LABEL_C_OP(label_ret, {
     state->regs[frame->base] = valC;
-    scon_eval_pop_frame(state);
-
+    scon_eval_pOP_frame(state);
     if (SCON_UNLIKELY(state->frameCount == initialFrameCount))
     {
         result = valC;
         goto eval_end;
     }
-
     frame = &state->frames[state->frameCount - 1];
     ip = frame->ip;
     base = state->regs + frame->base;
     constants = frame->closure->constants;
-
     DISPATCH();
 })
 LABEL_C_OP(label_append, {
     DECODE_A();
     ERROR_CHECK(SCON_HANDLE_IS_ITEM(&base[a]), scon, SCON_NULL, "APPEND expected a list");
-
     scon_item_t* item = SCON_HANDLE_TO_ITEM(&base[a]);
     ERROR_CHECK(item->type == SCON_ITEM_TYPE_LIST, scon, SCON_NULL, "APPEND expected a list");
-
     scon_list_t* listPtr = &item->list;
     scon_list_append(scon, listPtr, valC);
-
     DISPATCH();
 })
-LABEL_C_OP(label_eq, {
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, ==) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_neq, {
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, !=) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_seq, {
-    DECODE_A();
-    DECODE_B();
-    base[a] = scon_handle_is_equal(scon, &base[b], &valC) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_sneq, {
-    DECODE_A();
-    DECODE_B();
-    base[a] = scon_handle_is_equal(scon, &base[b], &valC) ? SCON_HANDLE_FALSE() : SCON_HANDLE_TRUE();
-    DISPATCH();
-})
-LABEL_C_OP(label_lt, {
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, <) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_le, {
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, <=) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_gt, {
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, >) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_ge, {
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_COMPARE_FAST(scon, &base[b], &valC, >=) ? SCON_HANDLE_TRUE() : SCON_HANDLE_FALSE();
-    DISPATCH();
-})
-LABEL_C_OP(label_add, {
-    DECODE_A();
-    DECODE_B();
-    SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, +);
-    DISPATCH();
-})
-LABEL_C_OP(label_sub, {
-    DECODE_A();
-    DECODE_B();
-    SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, -);
-    DISPATCH();
-})
-LABEL_C_OP(label_mul, {
-    DECODE_A();
-    DECODE_B();
-    SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, *);
-    DISPATCH();
-})
-LABEL_C_OP(label_div, {
-    DECODE_A();
-    DECODE_B();
-    SCON_HANDLE_ARITHMETIC_FAST(scon, &base[a], &base[b], &valC, /);
-    DISPATCH();
-})
+OP_COMPARE(label_eq, ==)
+OP_COMPARE(label_neq, !=)
+OP_EQUALITY(label_seq, scon_handle_is_equal, SCON_TRUE)
+OP_EQUALITY(label_sneq, scon_handle_is_equal, SCON_FALSE)
+OP_COMPARE(label_lt, <)
+OP_COMPARE(label_le, <=)
+OP_COMPARE(label_gt, >)
+OP_COMPARE(label_ge, >=)
+OP_ARITH(label_add, +)
+OP_ARITH(label_sub, -)
+OP_ARITH(label_mul, *)
+OP_ARITH(label_div, /)
 LABEL_C_OP(label_mod, {
     DECODE_A();
     DECODE_B();
@@ -465,24 +431,9 @@ LABEL_C_OP(label_mod, {
     base[a] = SCON_HANDLE_FROM_INT(prom.a.intVal % prom.b.intVal);
     DISPATCH();
 })
-LABEL_C_OP(label_band, {
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) & scon_get_int(scon, &valC));
-    DISPATCH();
-})
-LABEL_C_OP(label_bor, {
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) | scon_get_int(scon, &valC));
-    DISPATCH();
-})
-LABEL_C_OP(label_bxor, {
-    DECODE_A();
-    DECODE_B();
-    base[a] = SCON_HANDLE_FROM_INT(scon_get_int(scon, &base[b]) ^ scon_get_int(scon, &valC));
-    DISPATCH();
-})
+OP_BITWISE(label_band, &)
+OP_BITWISE(label_bor, |)
+OP_BITWISE(label_bxor, ^)
 LABEL_C_OP(label_bnot, {
     DECODE_A();
     base[a] = SCON_HANDLE_FROM_INT(~scon_get_int(scon, &valC));

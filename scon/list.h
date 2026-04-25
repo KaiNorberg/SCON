@@ -12,12 +12,15 @@ struct scon_item;
  * @file list.h
  *
  * A list is a persistent data structure implemented using a bit-mapped vector trie.
- * 
- * The list is made up of a "tree" of nodes along with a "tail" node, with each node storing a fixed size array of either children or elements within the list.
- * 
- * When an element is added to a list, it will be appended to the array within the tail node, once the tail node is full, it is "pushed" to the front of the tree, which may require increasing the depth of tree.
  *
- * @see [Persistent vectors, Part 2 -- Immutability and persistence] (https://dmiller.github.io/clojure-clr-next/general/2023/02/12/PersistentVector-part-2.html)
+ * The list is made up of a "tree" of nodes along with a "tail" node, with each node storing a fixed size array of
+ * either children or elements within the list.
+ *
+ * When an element is added to a list, it will be appended to the array within the tail node, once the tail node is
+ * full, it is "pushed" to the front of the tree, which may require increasing the depth of tree.
+ *
+ * @see [Persistent vectors, Part 2 -- Immutability and persistence]
+ * (https://dmiller.github.io/clojure-clr-next/general/2023/02/12/PersistentVector-part-2.html)
  *
  */
 
@@ -140,11 +143,16 @@ typedef struct scon_list_iter
 } scon_list_iter_t;
 
 /**
+ * @brief Calculate the offset of the tail node.
+ */
+#define SCON_LIST_TAIL_OFFSET(_list) (((_list)->length > 0) ? (((_list)->length - 1) & ~SCON_LIST_MASK) : 0)
+
+/**
  * @brief Create a initializer for a list iterator.
  * 
  * @param _list The list to iterate over.
  */
-#define SCON_LIST_ITER(_list) {(_list), 0, SCON_NULL, ((_list)->length > 0) ? (((_list)->length - 1) & ~SCON_LIST_MASK) : 0 }
+#define SCON_LIST_ITER(_list) {(_list), 0, SCON_NULL, SCON_LIST_TAIL_OFFSET(_list) }
 
 /**
  * @brief Create a initializer for a list iterator start at a specific index.
@@ -152,7 +160,7 @@ typedef struct scon_list_iter
  * @param _list The list to iterate over.
  * @param _start The starting index.
  */
-#define SCON_LIST_ITER_AT(_list, _start) {(_list), ((_start) > (_list)->length) ? (_list)->length : (_start), SCON_NULL, ((_list)->length > 0) ? (((_list)->length - 1) & ~SCON_LIST_MASK) : 0 }
+#define SCON_LIST_ITER_AT(_list, _start) {(_list), ((_start) > (_list)->length) ? (_list)->length : (_start), SCON_NULL, SCON_LIST_TAIL_OFFSET(_list) }
          
 /**
  * @brief Get the next element from the iterator.

@@ -249,4 +249,29 @@ SCON_API void scon_error_throw_runtime(struct scon* scon, const char* message, .
     SCON_LONGJMP(scon->error->jmp, SCON_TRUE);
 }
 
+SCON_API void scon_error_check_arity(scon_t* scon, scon_size_t argc, scon_size_t expected, const char* name)
+{
+    if (SCON_UNLIKELY(argc != expected))
+    {
+        SCON_ERROR_RUNTIME(scon, "%s expects exactly %zu argument(s), got %zu", name, expected, (scon_size_t)argc);
+    }
+}
+
+SCON_API void scon_error_check_min_arity(scon_t* scon, scon_size_t argc, scon_size_t min, const char* name)
+{
+    if (SCON_UNLIKELY(argc < min))
+    {
+        SCON_ERROR_RUNTIME(scon, "%s expects at least %zu argument(s), got %zu", name, (scon_size_t)min, (scon_size_t)argc);
+    }
+}
+
+SCON_API void scon_error_check_arity_range(scon_t* scon, scon_size_t argc, scon_size_t min, scon_size_t max,
+    const char* name)
+{
+    if (SCON_UNLIKELY(argc < min || argc > max))
+    {
+        SCON_ERROR_RUNTIME(scon, "%s expects between %zu and %zu argument(s), got %zu", name, (scon_size_t)min, (scon_size_t)max, (scon_size_t)argc);
+    }
+}
+
 #endif

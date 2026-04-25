@@ -29,7 +29,7 @@ struct scon;
  * @{
  */
 
-#define SCON_ATOM_SMALL_MAX 16 ///< The maximum length of a small atom.
+#define SCON_ATOM_SMALL_MAX 15 ///< The maximum length of a small atom.
 
 /**
  * @brief SCON atom lookup flags.
@@ -49,12 +49,12 @@ typedef struct scon_atom
     scon_uint32_t length;            ///< The length of the string (must be first, check the `scon_item_t` structure).
     scon_uint32_t hash;              ///< The hash of the string.
     char small[SCON_ATOM_SMALL_MAX]; ///< The small string buffer.
+    scon_intrinsic_t intrinsic;      ///< Cached intrinsic, item must have `SCON_ITEM_FLAG_INTRINSIC`.
     char* string;                    ///< Pointer to the string.
     union {
-        scon_int64_t integerValue;  ///< Pre-computed integer value, item must have `SCON_ITEM_FLAG_INT_SHAPED`.
-        scon_float_t floatValue;    ///< Pre-computed float value, item must have `SCON_ITEM_FLAG_FLOAT_SHAPED`.
-        scon_intrinsic_t intrinsic; ///< Cached intrinsic, item must have `SCON_ITEM_FLAG_INTRINSIC`.
-        scon_native_fn native;      ///< Native function, item must have `SCON_ITEM_FLAG_NATIVE`.
+        scon_int64_t integerValue; ///< Pre-computed integer value, item must have `SCON_ITEM_FLAG_INT_SHAPED`.
+        scon_float_t floatValue;   ///< Pre-computed float value, item must have `SCON_ITEM_FLAG_FLOAT_SHAPED`.
+        scon_native_fn native;     ///< Native function, item must have `SCON_ITEM_FLAG_NATIVE`.
     };
     struct scon_atom* next; ///< Pointer to the next atom in the hash map.
 } scon_atom_t;

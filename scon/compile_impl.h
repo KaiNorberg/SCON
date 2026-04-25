@@ -173,7 +173,8 @@ static inline void scon_expr_build_atom(scon_compiler_t* compiler, scon_item_t* 
     SCON_ASSERT(out != SCON_NULL);
 
     if (atom->flags &
-        (SCON_ITEM_FLAG_QUOTED | SCON_ITEM_FLAG_NATIVE | SCON_ITEM_FLAG_FLOAT_SHAPED | SCON_ITEM_FLAG_INT_SHAPED))
+        (SCON_ITEM_FLAG_QUOTED | SCON_ITEM_FLAG_NATIVE | SCON_ITEM_FLAG_INTRINSIC | SCON_ITEM_FLAG_FLOAT_SHAPED |
+            SCON_ITEM_FLAG_INT_SHAPED))
     {
         *out = SCON_EXPR_CONST_ITEM(compiler, atom);
         return;
@@ -251,15 +252,7 @@ static inline void scon_expr_build_list(scon_compiler_t* compiler, scon_item_t* 
     scon_uint32_t arity = (scon_uint32_t)list->length - 1;
     scon_uint32_t regCount = arity == 0 ? 1 : arity;
 
-    scon_reg_t base = 0;
-    for (scon_int32_t i = SCON_REGISTER_MAX - 1; i >= 0; i--)
-    {
-        if (SCON_REG_IS_ALLOCATED(compiler, i))
-        {
-            base = i + 1;
-            break;
-        }
-    }
+    scon_reg_t base = scon_reg_get_base(compiler);
 
     if (base + regCount > SCON_REGISTER_MAX)
     {

@@ -180,7 +180,7 @@ SCON_API scon_handle_t scon_parse_input(scon_t* scon, scon_input_t* input)
                 SCON_ERROR_SYNTAX(scon->error, input, ctx.ptr, "unexpected ')'");
             }
 
-                        ctx.current--;
+            ctx.current--;
             ctx.ptr++;
         }
         break;

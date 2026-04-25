@@ -274,13 +274,21 @@ Finds the 65th Fibonacci number with tail call optimization.
 
 ### Brainfuck
 
-A simple jump-table optimized Brainfuck interpreter.
+A simple jump-table optimized Brainfuck interpreter that runs a "Hello World!" program.
 
 > This benchmark also acts as a fun Turing completeness proof.
 
 | Command | Mean [µs] | Min [µs] | Max [µs] | Relative |
 |:---|---:|---:|---:|---:|
-| `scon bench/brainfuck.scon` | 781.1 ± 211.6 | 582.5 | 2790.8 | 1.00 |
+| `scon bench/brainfuck.scon` | 794.3 ± 101.8 | 720.6 | 1779.7 | 1.00 |
+| `lua bench/brainfuck.lua` | 1112.1 ± 146.5 | 1022.6 | 2359.5 | 1.40 ± 0.26 |
+
+For this benchmark, memory usage was also tracked using `heaptrack`:
+
+| Command | Peak Memory [MB] |
+|:---|---:|
+| `scon bench/brainfuck.scon` | 0.185 |
+| `lua bench/brainfuck.lua` | 0.102 |
 
 ## Grammar
 
@@ -487,6 +495,10 @@ Evaluates each expression in sequence and returns the result of the last one.
 
 Returns a user-defined anonymous function. When called, the body expressions are evaluated in sequence, and the result of the last expression is returned.
 
+**`(-> <initial: expression> {step: expression}) -> <item>**`
+
+Returns a threaded expression, where the result of each expression is passed as the first argument to the next.
+
 ---
 
 #### Variables & Scope
@@ -520,6 +532,10 @@ Evaluates each `<body>` expression in sequence if `<cond>` is falsy, returning t
 **`(cond ( <cond: item> <val: item> ) { ( <cond: item> <val: item> ) }) -> <item>`**
 
 Evaluates each condition in order, returning the value associated with the first truthy condition, or `nil` if none are truthy.
+
+**`(match <target: item> ( <val: item> <res: item> ) { ( <val: item> <res: item> ) }  <default: item>) -> <item>`**
+
+Evaluates the target, then compares it against each case value. Returns the result of the first matching case.
 
 **`(and <item> {item}) -> <item>`**
 

@@ -2,18 +2,18 @@
 #define SCON_LIST_IMPL_H 1
 
 #include "core.h"
+#include "handle.h"
 #include "item.h"
 #include "list.h"
-#include "handle.h"
 
-static inline scon_list_node_t* scon_list_node_new(struct scon* scon) 
+static inline scon_list_node_t* scon_list_node_new(struct scon* scon)
 {
     scon_item_t* item = scon_item_new(scon);
-    item->type = SCON_ITEM_TYPE_LIST_NODE; 
+    item->type = SCON_ITEM_TYPE_LIST_NODE;
     return &item->node;
 }
 
-static scon_list_node_t* scon_list_node_copy(scon_t* scon, scon_list_node_t* node) 
+static scon_list_node_t* scon_list_node_copy(scon_t* scon, scon_list_node_t* node)
 {
     scon_list_node_t* newNode = scon_list_node_new(scon);
     SCON_MEMCPY(newNode, node, sizeof(scon_list_node_t));
@@ -34,7 +34,23 @@ SCON_API scon_list_t* scon_list_new(scon_t* scon)
     return list;
 }
 
-static scon_list_node_t* scon_list_assoc_internal(scon_t* scon, scon_uint32_t shift, scon_list_node_t* node, scon_size_t index, scon_handle_t val)
+static scon_list_node_t* scon_list_find_leaf(scon_list_t* list, scon_size_t index, scon_size_t tailOffset)
+{
+    if (index >= tailOffset || list->root == SCON_NULL)
+    {
+        return list->tail;
+    }
+
+    scon_list_node_t* node = list->root;
+    for (scon_uint32_t level = list->shift; level > 0; level -= SCON_LIST_BITS)
+    {
+        node = node->children[(index >> level) & SCON_LIST_MASK];
+    }
+    return node;
+}
+
+static scon_list_node_t* scon_list_assoc_internal(scon_t* scon, scon_uint32_t shift, scon_list_node_t* node,
+    scon_size_t index, scon_handle_t val)
 {
     scon_list_node_t* newNode = scon_list_node_copy(scon, node);
     if (shift == 0)
@@ -44,7 +60,8 @@ static scon_list_node_t* scon_list_assoc_internal(scon_t* scon, scon_uint32_t sh
     else
     {
         scon_uint32_t subIdx = (index >> shift) & SCON_LIST_MASK;
-        newNode->children[subIdx] = scon_list_assoc_internal(scon, shift - SCON_LIST_BITS, newNode->children[subIdx], index, val);
+        newNode->children[subIdx] =
+            scon_list_assoc_internal(scon, shift - SCON_LIST_BITS, newNode->children[subIdx], index, val);
     }
     return newNode;
 }
@@ -63,7 +80,7 @@ SCON_API scon_list_t* scon_list_assoc(struct scon* scon, scon_list_t* list, scon
     newList->length = list->length;
     newList->shift = list->shift;
 
-    scon_size_t tailOffset = (list->length > 0) ? ((list->length - 1) & ~SCON_LIST_MASK) : 0;
+    scon_size_t tailOffset = SCON_LIST_TAIL_OFFSET(list);
 
     if (index >= tailOffset)
     {
@@ -127,7 +144,7 @@ SCON_API scon_list_t* scon_list_slice(struct scon* scon, scon_list_t* list, scon
     }
 
     scon_list_iter_t iter = SCON_LIST_ITER_AT(list, start);
-    
+
     scon_handle_t val;
     for (scon_size_t i = 0; i < count; i++)
     {
@@ -150,20 +167,8 @@ SCON_API scon_handle_t scon_list_nth(struct scon* scon, scon_list_t* list, scon_
         SCON_ERROR_RUNTIME(scon, "index %zu out of bounds", index);
     }
 
-    scon_size_t tailOffset = (list->length > 0) ? ((list->length - 1) & ~SCON_LIST_MASK) : 0;
-    if (index >= tailOffset || list->root == SCON_NULL)
-    {
-        SCON_ASSERT(list->tail != SCON_NULL);
-        return list->tail->handles[index & SCON_LIST_MASK];
-    }
-
-    scon_list_node_t* node = list->root;
-    for (scon_uint32_t level = list->shift; level > 0; level -= SCON_LIST_BITS)
-    {
-        SCON_ASSERT(node != SCON_NULL);
-        node = node->children[(index >> level) & SCON_LIST_MASK];
-    }
-
+    scon_size_t tailOffset = SCON_LIST_TAIL_OFFSET(list);
+    scon_list_node_t* node = scon_list_find_leaf(list, index, tailOffset);
     return node->handles[index & SCON_LIST_MASK];
 }
 
@@ -174,7 +179,8 @@ SCON_API struct scon_item* scon_list_nth_item(struct scon* scon, scon_list_t* li
     return SCON_HANDLE_TO_ITEM(&handle);
 }
 
-static scon_list_node_t* scon_push_tail(scon_t* scon, scon_uint32_t shift, scon_size_t index, scon_list_node_t* parent, scon_list_node_t* tailNode)
+static scon_list_node_t* scon_push_tail(scon_t* scon, scon_uint32_t shift, scon_size_t index, scon_list_node_t* parent,
+    scon_list_node_t* tailNode)
 {
     if (shift == 0)
     {
@@ -183,7 +189,8 @@ static scon_list_node_t* scon_push_tail(scon_t* scon, scon_uint32_t shift, scon_
 
     scon_list_node_t* newNode = parent ? scon_list_node_copy(scon, parent) : scon_list_node_new(scon);
     scon_uint32_t subIdx = (index >> shift) & SCON_LIST_MASK;
-    newNode->children[subIdx] = scon_push_tail(scon, shift - SCON_LIST_BITS, index, newNode->children[subIdx], tailNode);
+    newNode->children[subIdx] =
+        scon_push_tail(scon, shift - SCON_LIST_BITS, index, newNode->children[subIdx], tailNode);
     return newNode;
 }
 
@@ -197,14 +204,14 @@ SCON_API void scon_list_append(scon_t* scon, scon_list_t* list, scon_handle_t va
         list->tail = scon_list_node_new(scon);
         list->tail->handles[0] = val;
 
-        if (list->root == SCON_NULL) 
+        if (list->root == SCON_NULL)
         {
             list->root = fullTail;
             list->shift = 0;
-        } 
-        else 
+        }
+        else
         {
-            if ((list->length - 1) >> (list->shift + SCON_LIST_BITS) > 0) 
+            if ((list->length - 1) >> (list->shift + SCON_LIST_BITS) > 0)
             {
                 scon_list_node_t* newRoot = scon_list_node_new(scon);
                 newRoot->children[0] = list->root;
@@ -212,7 +219,7 @@ SCON_API void scon_list_append(scon_t* scon, scon_list_t* list, scon_handle_t va
                 list->root = newRoot;
                 list->shift += SCON_LIST_BITS;
             }
-            else 
+            else
             {
                 list->root = scon_push_tail(scon, list->shift, list->length - 1, list->root, fullTail);
             }
@@ -220,7 +227,11 @@ SCON_API void scon_list_append(scon_t* scon, scon_list_t* list, scon_handle_t va
     }
     else
     {
-        if (list->tail == SCON_NULL) list->tail = scon_list_node_new(scon);
+        if (list->tail == SCON_NULL)
+        {
+            list->tail = scon_list_node_new(scon);
+        }
+
         list->tail->handles[list->length & SCON_LIST_MASK] = val;
     }
 
@@ -233,29 +244,12 @@ SCON_API void scon_list_append_list(scon_t* scon, scon_list_t* list, scon_list_t
     SCON_ASSERT(list != SCON_NULL);
     SCON_ASSERT(other != SCON_NULL);
 
-    /// @todo There is definetly a better way to do this
-
     scon_list_iter_t iter = SCON_LIST_ITER(other);
     scon_handle_t val;
     while (scon_list_iter_next(&iter, &val))
     {
         scon_list_append(scon, list, val);
     }
-}
-
-static scon_list_node_t* scon_list_find_leaf(scon_list_t* list, scon_size_t index, scon_size_t tailOffset)
-{
-    if (index >= tailOffset || list->root == SCON_NULL)
-    {
-        return list->tail;
-    }
-
-    scon_list_node_t* node = list->root;
-    for (scon_uint32_t level = list->shift; level > 0; level -= SCON_LIST_BITS)
-    {
-        node = node->children[(index >> level) & SCON_LIST_MASK];
-    }
-    return node;
 }
 
 SCON_API scon_bool_t scon_list_iter_next(scon_list_iter_t* iter, scon_handle_t* out)

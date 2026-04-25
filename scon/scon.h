@@ -15,14 +15,6 @@
 #include "native.h"
 #include "parse.h"
 #include "stdlib.h"
-#include "stdlib_error.h"
-#include "stdlib_higher_order.h"
-#include "stdlib_introspection.h"
-#include "stdlib_math.h"
-#include "stdlib_sequences.h"
-#include "stdlib_string.h"
-#include "stdlib_system.h"
-#include "stdlib_type_casting.h"
 #include "stringify.h"
 
 #if defined(SCON_INLINE) || defined(SCON_IMPL)
@@ -42,15 +34,7 @@
 #include "list_impl.h"
 #include "native_impl.h"
 #include "parse_impl.h"
-#include "stdlib_error_impl.h"
-#include "stdlib_higher_order_impl.h"
 #include "stdlib_impl.h"
-#include "stdlib_introspection_impl.h"
-#include "stdlib_math_impl.h"
-#include "stdlib_sequences_impl.h"
-#include "stdlib_string_impl.h"
-#include "stdlib_system_impl.h"
-#include "stdlib_type_casting_impl.h"
 #include "stringify_impl.h"
 #endif
 

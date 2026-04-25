@@ -23,11 +23,11 @@
  * @brief SCON item type enumeration.
  */
 typedef scon_uint8_t scon_item_type_t;
-#define SCON_ITEM_TYPE_NONE 0     ///< No type.
-#define SCON_ITEM_TYPE_ATOM 1     ///< An atom.
-#define SCON_ITEM_TYPE_LIST 2     ///< A list.
-#define SCON_ITEM_TYPE_FUNCTION 3 ///< A function.
-#define SCON_ITEM_TYPE_CLOSURE 4  ///< A closure.
+#define SCON_ITEM_TYPE_NONE 0      ///< No type.
+#define SCON_ITEM_TYPE_ATOM 1      ///< An atom.
+#define SCON_ITEM_TYPE_LIST 2      ///< A list.
+#define SCON_ITEM_TYPE_FUNCTION 3  ///< A function.
+#define SCON_ITEM_TYPE_CLOSURE 4   ///< A closure.
 #define SCON_ITEM_TYPE_LIST_NODE 5 ///< A list node.
 
 /**
@@ -108,6 +108,22 @@ SCON_API scon_item_t* scon_item_new(struct scon* scon);
  * @param item Pointer to the item to free.
  */
 SCON_API void scon_item_free(struct scon* scon, scon_item_t* item);
+
+/**
+ * @brief Get the integer value of an item if it is number shaped.
+ *
+ * @param item Pointer to the item.
+ * @return The integer value, or 0 if not number shaped.
+ */
+SCON_API scon_int64_t scon_item_get_int(scon_item_t* item);
+
+/**
+ * @brief Get the float value of an item if it is number shaped.
+ *
+ * @param item Pointer to the item.
+ * @return The float value, or 0.0 if not number shaped.
+ */
+SCON_API scon_float_t scon_item_get_float(scon_item_t* item);
 
 /**
  * @brief Get the string representation of an SCON item type.

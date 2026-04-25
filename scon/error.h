@@ -181,6 +181,60 @@ SCON_API SCON_NORETURN void scon_error_throw_runtime(struct scon* scon, const ch
  */
 #define SCON_ERROR_INTERNAL(_scon, ...) SCON_ERROR_THROW((_scon)->error, SCON_NULL, INTERNAL, __VA_ARGS__)
 
+/**
+ * @brief Report a type error for a handle.
+ */
+#define SCON_ERROR_CHECK_TYPE(_scon, _name, _handle, _expected) \
+    do \
+    { \
+        SCON_ERROR_RUNTIME(_scon, "%s expects %s, got %s", _name, _expected, \
+            scon_item_type_str(SCON_HANDLE_GET_TYPE(_handle))); \
+    } while (0)
+
+/**
+ * @brief Assert that a handle is a list.
+ */
+#define SCON_ERROR_CHECK_LIST(_scon, _handle, _name) \
+    do \
+    { \
+        if (!SCON_HANDLE_IS_LIST(_handle)) \
+        { \
+            SCON_ERROR_CHECK_TYPE(_scon, _name, _handle, "a list"); \
+        } \
+    } while (0)
+
+/**
+ * @brief Assert that a handle is a callable.
+ */
+#define SCON_ERROR_CHECK_CALLABLE(_scon, _handle, _name) \
+    do \
+    { \
+        if (!SCON_HANDLE_IS_CALLABLE(_handle)) \
+        { \
+            SCON_ERROR_CHECK_TYPE(_scon, _name, _handle, "a callable"); \
+        } \
+    } while (0)
+
+/**
+ * @brief Assert that a handle is a sequence (list or atom).
+ */
+#define SCON_ERROR_CHECK_SEQUENCE(_scon, _handle, _name) \
+    do \
+    { \
+        if (!SCON_HANDLE_IS_LIST(_handle) && !SCON_HANDLE_IS_ATOM(_handle)) \
+        { \
+            SCON_ERROR_CHECK_TYPE(_scon, _name, _handle, "a list or atom"); \
+        } \
+    } while (0)
+
+/**
+ * @brief Check the arity of a native function call.
+ */
+SCON_API void scon_error_check_arity(struct scon* scon, scon_size_t argc, scon_size_t expected, const char* name);
+SCON_API void scon_error_check_min_arity(struct scon* scon, scon_size_t argc, scon_size_t min, const char* name);
+SCON_API void scon_error_check_arity_range(struct scon* scon, scon_size_t argc, scon_size_t min, scon_size_t max,
+    const char* name);
+
 /** @} */
 
 #endif

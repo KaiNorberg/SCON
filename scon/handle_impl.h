@@ -43,18 +43,11 @@ SCON_API void scon_handle_ensure_item(scon_t* scon, scon_handle_t* handle)
     *handle = SCON_HANDLE_FROM_ITEM(SCON_CONTAINER_OF(atom, scon_item_t, atom));
 }
 
-SCON_API scon_item_type_t scon_handle_get_type(scon_t* scon, scon_handle_t* handle)
+SCON_API scon_item_t* scon_handle_item(scon_t* scon, scon_handle_t* handle)
 {
-    SCON_ASSERT(scon != SCON_NULL);
     SCON_ASSERT(handle != SCON_NULL);
-
-    if (!SCON_HANDLE_IS_ITEM(handle))
-    {
-        return SCON_ITEM_TYPE_ATOM;
-    }
-
     scon_handle_ensure_item(scon, handle);
-    return SCON_HANDLE_TO_ITEM(handle)->type;
+    return SCON_HANDLE_TO_ITEM(handle);
 }
 
 SCON_API void scon_handle_promote(struct scon* scon, scon_handle_t* a, scon_handle_t* b, scon_promotion_t* out)
@@ -128,6 +121,11 @@ SCON_API scon_bool_t scon_handle_is_equal(scon_t* scon, scon_handle_t* a, scon_h
     SCON_ASSERT(a != SCON_NULL);
     SCON_ASSERT(b != SCON_NULL);
 
+    if (*a == *b)
+    {
+        return SCON_TRUE;
+    }
+
     scon_handle_ensure_item(scon, a);
     scon_handle_ensure_item(scon, b);
 
@@ -157,8 +155,8 @@ static inline void scon_handle_unpack(scon_handle_t* handle, scon_cmp_val_t* out
         out->num.i = SCON_HANDLE_TO_INT(handle);
         out->item = SCON_NULL;
         return;
-    }
-
+    } 
+    
     if (SCON_HANDLE_IS_FLOAT(handle))
     {
         out->group = 0;
@@ -169,32 +167,29 @@ static inline void scon_handle_unpack(scon_handle_t* handle, scon_cmp_val_t* out
     }
 
     out->item = SCON_HANDLE_TO_ITEM(handle);
-    if (out->item == SCON_NULL)
-    {
-        out->group = 1;
-        return;
-    }
-
-    if (out->item->type == SCON_ITEM_TYPE_LIST)
+    if (out->item != SCON_NULL && out->item->type == SCON_ITEM_TYPE_LIST)
     {
         out->group = 2;
+        return;
     }
-    else if (SCON_HANDLE_GET_FLAGS(handle) & SCON_ITEM_FLAG_FLOAT_SHAPED)
+    
+    if (out->item != SCON_NULL && (SCON_HANDLE_GET_FLAGS(handle) & SCON_ITEM_FLAG_FLOAT_SHAPED))
     {
         out->group = 0;
         out->isFloat = SCON_TRUE;
         out->num.f = out->item->atom.floatValue;
+        return;
     }
-    else if (SCON_HANDLE_GET_FLAGS(handle) & SCON_ITEM_FLAG_INT_SHAPED)
+
+    if (out->item != SCON_NULL && (SCON_HANDLE_GET_FLAGS(handle) & SCON_ITEM_FLAG_INT_SHAPED))
     {
         out->group = 0;
         out->isFloat = SCON_FALSE;
         out->num.i = out->item->atom.integerValue;
+        return;
     }
-    else
-    {
-        out->group = 1;
-    }
+
+    out->group = 1;
 }
 
 SCON_API scon_int64_t scon_handle_compare(scon_t* scon, scon_handle_t* a, scon_handle_t* b)
@@ -268,10 +263,14 @@ SCON_API scon_int64_t scon_handle_compare(scon_t* scon, scon_handle_t* a, scon_h
 
     if (minLen > 0)
     {
+        scon_list_iter_t iterA = SCON_LIST_ITER(listA);
+        scon_list_iter_t iterB = SCON_LIST_ITER(listB);
+        scon_handle_t itemA, itemB;
+
         for (scon_size_t i = 0; i < minLen; i++)
         {
-            scon_handle_t itemA = scon_list_nth(scon, listA, i);
-            scon_handle_t itemB = scon_list_nth(scon, listB, i);
+            scon_list_iter_next(&iterA, &itemA);
+            scon_list_iter_next(&iterB, &itemB);
             scon_int64_t cmp = scon_handle_compare(scon, &itemA, &itemB);
             if (cmp != 0)
             {

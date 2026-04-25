@@ -7,17 +7,23 @@
 #include "gc.h"
 #include "item.h"
 
+static inline void scon_item_init(scon_item_t* item)
+{
+    item->type = SCON_ITEM_TYPE_NONE;
+    item->flags = 0;
+    item->retainCount = 0;
+    item->length = 0;
+    item->input = SCON_NULL;
+    item->position = 0;
+}
+
 static inline scon_item_t* scon_item_pop_free_list(scon_t* scon)
 {
     SCON_ASSERT(scon != SCON_NULL);
 
     scon_item_t* item = scon->freeList;
     scon->freeList = item->free;
-    item->flags = 0;
-    item->retainCount = 0;
-    item->length = 0;
-    item->input = SCON_NULL;
-    item->position = 0;
+    scon_item_init(item);
     return item;
 }
 
@@ -25,12 +31,11 @@ SCON_API scon_item_t* scon_item_new(scon_t* scon)
 {
     SCON_ASSERT(scon != SCON_NULL);
 
-    if (SCON_LIKELY(scon->freeList != SCON_NULL))
+    if (SCON_UNLIKELY(scon->freeList == SCON_NULL))
     {
-        return scon_item_pop_free_list(scon);
+        scon_gc_if_needed(scon);
     }
 
-    scon_gc_if_needed(scon);
     if (scon->freeList != SCON_NULL)
     {
         return scon_item_pop_free_list(scon);
@@ -63,12 +68,7 @@ SCON_API scon_item_t* scon_item_new(scon_t* scon)
     scon->block = block;
 
     item = &block->items[0];
-    item->type = SCON_ITEM_TYPE_NONE;
-    item->length = 0;
-    item->retainCount = 0;
-    item->flags = 0;
-    item->input = SCON_NULL;
-    item->position = 0;
+    scon_item_init(item);
     return item;
 }
 
@@ -77,30 +77,61 @@ SCON_API void scon_item_free(scon_t* scon, scon_item_t* item)
     SCON_ASSERT(scon != SCON_NULL);
     SCON_ASSERT(item != SCON_NULL);
 
-    if (item->type == SCON_ITEM_TYPE_ATOM)
+    switch (item->type)
+    {
+    case SCON_ITEM_TYPE_ATOM:
     {
         scon_atom_deinit(scon, &item->atom);
+        break;
     }
-    else if (item->type == SCON_ITEM_TYPE_FUNCTION)
+    case SCON_ITEM_TYPE_FUNCTION:
     {
         scon_function_deinit(&item->function);
+        break;
     }
-    else if (item->type == SCON_ITEM_TYPE_CLOSURE)
+    case SCON_ITEM_TYPE_CLOSURE:
     {
         scon_closure_deinit(&item->closure);
+        break;
+    }
+    default:
+        break;
     }
 
-    item->type = SCON_ITEM_TYPE_NONE;
-    item->length = 0;
-    item->flags = 0;
-    item->retainCount = 0;
+    scon_item_init(item);
 
 #ifndef NDEBUG
-    SCON_MEMSET(&item->atom, 0xFE, 48);
+    SCON_MEMSET(&item->atom, 0xFE, sizeof(scon_item_t) - offsetof(scon_item_t, atom));
 #endif
 
     item->free = scon->freeList;
     scon->freeList = item;
+}
+
+SCON_API scon_int64_t scon_item_get_int(scon_item_t* item)
+{
+    if (item->flags & SCON_ITEM_FLAG_INT_SHAPED)
+    {
+        return item->atom.integerValue;
+    }
+    if (item->flags & SCON_ITEM_FLAG_FLOAT_SHAPED)
+    {
+        return (scon_int64_t)item->atom.floatValue;
+    }
+    return 0;
+}
+
+SCON_API scon_float_t scon_item_get_float(scon_item_t* item)
+{
+    if (item->flags & SCON_ITEM_FLAG_FLOAT_SHAPED)
+    {
+        return item->atom.floatValue;
+    }
+    if (item->flags & SCON_ITEM_FLAG_INT_SHAPED)
+    {
+        return (scon_float_t)item->atom.integerValue;
+    }
+    return 0.0;
 }
 
 SCON_API const char* scon_item_type_str(scon_item_type_t type)
@@ -117,6 +148,8 @@ SCON_API const char* scon_item_type_str(scon_item_type_t type)
         return "function";
     case SCON_ITEM_TYPE_CLOSURE:
         return "closure";
+    case SCON_ITEM_TYPE_LIST_NODE:
+        return "list node";
     default:
         return "unknown";
     }

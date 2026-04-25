@@ -16,7 +16,7 @@ struct scon_item;
  * @{
  */
 
-#define SCON_BUCKETS_MAX 128  ///< Amount of buckets used for intering atoms.
+#define SCON_BUCKETS_MAX 128 ///< Amount of buckets used for intering atoms.
 #define SCON_CONSTANTS_MAX 8 ///< Maximum amount of predefined constants.
 
 #define SCON_GC_THRESHOLD_INITIAL 128 ///< Initial blocks allocated threshold for garbage collection.
@@ -98,9 +98,9 @@ SCON_API void scon_free(scon_t* scon);
 
 /**
  * @brief Set the command line arguments for the SCON structure.
- * 
+ *
  * Will be utilized by the `(args!)` native.
- * 
+ *
  * @param scon Pointer to the SCON structure.
  * @param argc The number of arguments.
  * @param argv The argument strings.
@@ -126,7 +126,8 @@ SCON_API void scon_constant_register(scon_t* scon, const char* name, struct scon
  * @param flags Input flags.
  * @return A pointer to the newly created input structure.
  */
-SCON_API scon_input_t* scon_input_new(scon_t* scon, const char* buffer, scon_size_t length, const char* path, scon_input_flags_t flags);
+SCON_API scon_input_t* scon_input_new(scon_t* scon, const char* buffer, scon_size_t length, const char* path,
+    scon_input_flags_t flags);
 
 /** @} */
 

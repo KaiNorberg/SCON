@@ -120,7 +120,8 @@ SCON_API void scon_constant_register(scon_t* scon, const char* name, scon_item_t
     SCON_GC_RETAIN_ITEM(scon, item);
 }
 
-SCON_API scon_input_t* scon_input_new(scon_t* scon, const char* buffer, scon_size_t length, const char* path, scon_input_flags_t flags)
+SCON_API scon_input_t* scon_input_new(scon_t* scon, const char* buffer, scon_size_t length, const char* path,
+    scon_input_flags_t flags)
 {
     SCON_ASSERT(scon != SCON_NULL);
     SCON_ASSERT(buffer != SCON_NULL);

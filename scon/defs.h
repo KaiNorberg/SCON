@@ -97,6 +97,7 @@ typedef uint16_t scon_uint16_t;
 typedef int8_t scon_int8_t;
 typedef uint8_t scon_uint8_t;
 typedef size_t scon_size_t;
+typedef int scon_int_t;
 typedef double scon_float_t;
 #endif
 
@@ -185,5 +186,20 @@ typedef enum
 typedef scon_uint64_t scon_handle_t;
 
 #define SCON_STACK_BUFFER_SIZE 256 ///< The size of temporary stack allocated buffers.
+
+#define SCON_SCRATCH_BUFFER(_name, _size) \
+    char _name##Stack[SCON_STACK_BUFFER_SIZE]; \
+    char* _name = ((scon_size_t)(_size) + 1 <= SCON_STACK_BUFFER_SIZE) ? _name##Stack \
+                                                                       : (char*)SCON_MALLOC((scon_size_t)(_size) + 1); \
+    if (_name == SCON_NULL) \
+    { \
+        SCON_ERROR_INTERNAL(scon, "out of memory"); \
+    }
+
+#define SCON_SCRATCH_BUFFER_FREE(_name) \
+    if (_name != _name##Stack) \
+    { \
+        SCON_FREE(_name); \
+    }
 
 #endif
