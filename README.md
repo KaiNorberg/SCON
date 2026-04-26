@@ -342,8 +342,10 @@ The grammar of SCON is designed to be as straight forward as possible, the full 
 
 ```ebnf
 file = { expression | comment } ;
-expression = item | white_space ; 
+expression = item | infix | white_space ;
 item = list | atom ;
+
+infix =  "{", { expression }, "}" ;
 
 list = "(", { expression }, ")" ;
 
@@ -392,6 +394,39 @@ Included is a list of the final value for each escape sequence:
 | `\"` | Double Quote | `"` |
 | `\?` | Question Mark | `?` |
 | `\xHH` | Hexadecimal value | `0xHH` |
+
+## Infix Expressions
+
+Infix expressions provide a more convenient way to write certain expressions, particularly mathematical or logical expressions.
+
+To write an infix expression, use curly braces:
+
+```lisp
+{1 + 2 * 3} // (1 + (2 * 3))
+{2 * (my-func1 1 2)} // (2 * (my-func 1 2))
+{not (my-func2 data) or {count > 10}} // (or (not (my-func2 data)) (> count 10))
+```
+
+When the parser encounters an infix expression it will expand it into a normal expression, using the following rules:
+
+1. Operators are grouped based on their precedence. For example, `*` and `/` have higher precedence than `+` and `-`.
+2. Operators with the same precedence are evaluated from left to right.
+3. If an expression is wrapped in another infix expression, it is treated as a single unit and its precedence is ignored (e.g., `{{1 + 2} * 3}`).
+4. Lists within an infix expression are treated as usual.
+5. If an infix expression contains only a single item, it is treated as that item (e.g., `{1}` becomes `1`).
+
+The following table lists the supported operators:
+
+| Precedence | Operators |
+| --- | --- |
+| 7 | `not`, unary `-` |
+| 6 | `*`, `/`, `%` |
+| 5 | `+`, `-` |
+| 4 | `<<`, `>>` |
+| 3 | `&`, `\|`, `^` |
+| 2 | `==`, `!=`, `<`, `<=`, `>`, `>=` |
+| 1 | `and` |
+| 0 | `or` |
 
 ## Evaluation
 

@@ -3,7 +3,7 @@
         (def build-jumps (lambda (code)
             (def iter (lambda (ip stack jumps)
                 (def open-ip (first stack))
-                (if (>= ip (len code))
+                (if {ip >= (len code)}
                     jumps
                     (match (nth code ip)
                         ("[" (iter (++ ip) (concat ip stack) jumps))
@@ -16,7 +16,7 @@
         ))
         (def jumps (build-jumps code))
         (def iter (lambda (mem dp ip output)
-            (if (>= ip (len code))
+            (if {ip >= (len code)}
                 output
                 (match (nth code ip)
                     (">" (iter mem (++ dp) (++ ip) output))
@@ -24,8 +24,8 @@
                     ("+" (iter (update mem dp ++ 0) dp (++ ip) output))
                     ("-" (iter (update mem dp -- 0) dp (++ ip) output))
                     ("." (iter mem dp (++ ip) (concat output (chr (nth mem dp 0)))))
-                    ("[" (iter mem dp (if (== (nth mem dp 0) 0) (nth jumps ip) (++ ip)) output))
-                    ("]" (iter mem dp (if (!= (nth mem dp 0) 0) (nth jumps ip) (++ ip)) output))
+                    ("[" (iter mem dp (if {(nth mem dp 0) == 0} (nth jumps ip) (++ ip)) output))
+                    ("]" (iter mem dp (if {(nth mem dp 0) != 0} (nth jumps ip) (++ ip)) output))
                     (iter mem dp (++ ip) output)
                 )
             )

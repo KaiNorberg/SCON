@@ -1,5 +1,5 @@
 function fib(n, a, b)
-    if n <= 0 then
+    if n <= 1 then
         return a
     else
         return fib(n - 1, b, a + b)
