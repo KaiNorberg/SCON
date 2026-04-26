@@ -115,10 +115,10 @@ Use `kebab-case` for variable and function names.
 A simple CLI tool is provided to evaluate Reduct files or expressions directly from the terminal.
 
 ```bash
-reduct my_file.reduct
+reduct my_file.rdt
 reduct -e "(+ 1 2 3)"
-reduct -d my_file.reduct # output the compiled bytecode
-reduct -s my_file.reduct # silent mode, wont output the result of the evaluation
+reduct -d my_file.rdt # output the compiled bytecode
+reduct -s my_file.rdt # silent mode, wont output the result of the evaluation
 ```
 
 #### Setup
@@ -178,7 +178,7 @@ int main(int argc, char **argv)
 
     reduct = reduct_new(&error);
 
-    reduct_handle_t ast = reduct_parse_file(reduct, "my_file.reduct");
+    reduct_handle_t ast = reduct_parse_file(reduct, "my_file.rdt");
 
     reduct_stdlib_register(reduct, REDUCT_STDLIB_ALL);
 
@@ -287,7 +287,7 @@ Finds the 35th Fibonacci number without tail call optimization.
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `reduct bench/fib35.reduct` | 550.2 ± 11.0 | 535.5 | 572.8 | 1.00 |
+| `reduct bench/fib35.rdt` | 550.2 ± 11.0 | 535.5 | 572.8 | 1.00 |
 | `lua bench/fib35.lua` | 826.8 ± 38.6 | 769.7 | 900.2 | 1.50 ± 0.08 |
 | `python bench/fib35.py` | 1109.4 ± 14.7 | 1085.3 | 1136.0 | 2.02 ± 0.05 |
 
@@ -295,7 +295,7 @@ For this benchmark, memory usage was also tracked using `heaptrack`:
 
 | Command | Peak Memory [MB] |
 |:---|---:|
-| `reduct bench/fib35.reduct` | 0.097 |
+| `reduct bench/fib35.rdt` | 0.097 |
 | `lua bench/fib35.lua` | 0.099 |
 | `python bench/fib35.py` | 1.8 |
 
@@ -305,7 +305,7 @@ Finds the 65th Fibonacci number with tail call optimization.
 
 | Command | Mean [µs] | Min [µs] | Max [µs] | Relative |
 |:---|---:|---:|---:|---:|
-| `reduct bench/fib65.reduct` | 613.9 ± 90.6 | 535.1 | 3310.0 | 1.00 |
+| `reduct bench/fib65.rdt` | 613.9 ± 90.6 | 535.1 | 3310.0 | 1.00 |
 | `lua bench/fib65.lua` | 1049.5 ± 165.0 | 920.3 | 2663.3 | 1.71 ± 0.37 |
 | `python bench/fib65.py` | 13155.4 ± 1254.2 | 11688.3 | 23926.9 | 21.43 ± 3.76 |
 
@@ -317,14 +317,14 @@ A simple jump-table optimized Brainfuck interpreter that runs a "Hello World!" p
 
 | Command | Mean [µs] | Min [µs] | Max [µs] | Relative |
 |:---|---:|---:|---:|---:|
-| `reduct bench/brainfuck.reduct` | 794.3 ± 101.8 | 720.6 | 1779.7 | 1.00 |
+| `reduct bench/brainfuck.rdt` | 794.3 ± 101.8 | 720.6 | 1779.7 | 1.00 |
 | `lua bench/brainfuck.lua` | 1112.1 ± 146.5 | 1022.6 | 2359.5 | 1.40 ± 0.26 |
 
 For this benchmark, memory usage was also tracked using `heaptrack`:
 
 | Command | Peak Memory [MB] |
 |:---|---:|
-| `reduct bench/brainfuck.reduct` | 0.185 |
+| `reduct bench/brainfuck.rdt` | 0.185 |
 | `lua bench/brainfuck.lua` | 0.102 |
 
 ### Mandelbrot
@@ -333,7 +333,7 @@ Outputs an 80 by 40 visualization of the Mandelbrot set with 10000 iterations.
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `reduct bench/mandelbrot.reduct` | 330.7 ± 8.3 | 318.0 | 347.3 | 1.00 |
+| `reduct bench/mandelbrot.rdt` | 330.7 ± 8.3 | 318.0 | 347.3 | 1.00 |
 | `lua bench/mandelbrot.lua` | 369.2 ± 14.3 | 356.5 | 403.3 | 1.12 ± 0.05 |
 
 ## Grammar

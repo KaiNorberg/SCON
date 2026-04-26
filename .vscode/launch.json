@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/tools/reduct/build/reduct",
             "args": [
-                "${workspaceFolder}/bench/brainfuck.reduct"
+                "${workspaceFolder}/bench/brainfuck.rdt"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
