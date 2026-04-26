@@ -2,9 +2,9 @@
     (def fib (lambda (n) 
         (if (<= n 1)
             n
-            (+ (fib (- n 1)) (fib (- n 2))))
+            (+ (fib (- n 1)) (fib (- n 2)))
         )
-    )
+    ))
 
     (concat "Fibonacci of 35 is: " (fib 35))
 )

@@ -34,37 +34,36 @@ typedef scon_uint8_t scon_intrinsic_t;
 #define SCON_INTRINSIC_LAMBDA 4 ///< Lambda
 #define SCON_INTRINSIC_THREAD 5 ///< Thread
 #define SCON_INTRINSIC_DEF 6    ///< Def
-#define SCON_INTRINSIC_LET 7    ///< Let
-#define SCON_INTRINSIC_IF 8     ///< If
-#define SCON_INTRINSIC_WHEN 9   ///< When
-#define SCON_INTRINSIC_UNLESS 10 ///< Unless
-#define SCON_INTRINSIC_COND 11  ///< Cond
-#define SCON_INTRINSIC_MATCH 12 ///< Match
-#define SCON_INTRINSIC_AND 13   ///< And
-#define SCON_INTRINSIC_OR 14    ///< Or
-#define SCON_INTRINSIC_NOT 15   ///< Not
-#define SCON_INTRINSIC_ADD 16   ///< Add
-#define SCON_INTRINSIC_SUB 17   ///< Sub
-#define SCON_INTRINSIC_MUL 18   ///< Mul
-#define SCON_INTRINSIC_DIV 19   ///< Div
-#define SCON_INTRINSIC_MOD 20   ///< Mod
-#define SCON_INTRINSIC_INC 21   ///< Inc
-#define SCON_INTRINSIC_DEC 22   ///< Dec
-#define SCON_INTRINSIC_BAND 23  ///< Bitwise And
-#define SCON_INTRINSIC_BOR 24   ///< Bitwise Or
-#define SCON_INTRINSIC_BXOR 25  ///< Bitwise Xor
-#define SCON_INTRINSIC_BNOT 26  ///< Bitwise Not
-#define SCON_INTRINSIC_SHL 27   ///< Bitwise Shift Left
-#define SCON_INTRINSIC_SHR 28   ///< Bitwise Shift Right
-#define SCON_INTRINSIC_EQ 29    ///< Equal
-#define SCON_INTRINSIC_NEQ 30   ///< Not Equal
-#define SCON_INTRINSIC_SEQ 31   ///< Strict Equal
-#define SCON_INTRINSIC_SNEQ 32  ///< Strict Not Equal
-#define SCON_INTRINSIC_LT 33    ///< Less
-#define SCON_INTRINSIC_LE 34    ///< Less Equal
-#define SCON_INTRINSIC_GT 35    ///< Greater
-#define SCON_INTRINSIC_GE 36    ///< Greater Equal
-#define SCON_INTRINSIC_MAX 37   ///< The amount of intrinsics
+#define SCON_INTRINSIC_IF 7     ///< If
+#define SCON_INTRINSIC_WHEN 8   ///< When
+#define SCON_INTRINSIC_UNLESS 9 ///< Unless
+#define SCON_INTRINSIC_COND 10  ///< Cond
+#define SCON_INTRINSIC_MATCH 11 ///< Match
+#define SCON_INTRINSIC_AND 12   ///< And
+#define SCON_INTRINSIC_OR 13    ///< Or
+#define SCON_INTRINSIC_NOT 14   ///< Not
+#define SCON_INTRINSIC_ADD 15   ///< Add
+#define SCON_INTRINSIC_SUB 16   ///< Sub
+#define SCON_INTRINSIC_MUL 17   ///< Mul
+#define SCON_INTRINSIC_DIV 18   ///< Div
+#define SCON_INTRINSIC_MOD 19   ///< Mod
+#define SCON_INTRINSIC_INC 20   ///< Inc
+#define SCON_INTRINSIC_DEC 21   ///< Dec
+#define SCON_INTRINSIC_BAND 22  ///< Bitwise And
+#define SCON_INTRINSIC_BOR 23   ///< Bitwise Or
+#define SCON_INTRINSIC_BXOR 24  ///< Bitwise Xor
+#define SCON_INTRINSIC_BNOT 25  ///< Bitwise Not
+#define SCON_INTRINSIC_SHL 26   ///< Bitwise Shift Left
+#define SCON_INTRINSIC_SHR 27   ///< Bitwise Shift Right
+#define SCON_INTRINSIC_EQ 28    ///< Equal
+#define SCON_INTRINSIC_NEQ 29   ///< Not Equal
+#define SCON_INTRINSIC_SEQ 30   ///< Strict Equal
+#define SCON_INTRINSIC_SNEQ 31  ///< Strict Not Equal
+#define SCON_INTRINSIC_LT 32    ///< Less
+#define SCON_INTRINSIC_LE 33    ///< Less Equal
+#define SCON_INTRINSIC_GT 34    ///< Greater
+#define SCON_INTRINSIC_GE 35    ///< Greater Equal
+#define SCON_INTRINSIC_MAX 36   ///< The amount of intrinsics
 
 /**
  * @brief SCON intrinsic handler function type.

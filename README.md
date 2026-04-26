@@ -27,14 +27,14 @@ SCON should be familiar to anyone used to Lisp or functional languages, but it i
 
 All expressions in SCON are either atoms or lists of atoms, and the process of evaluating expressions ought to be thought of as reducing these expressions into a simpler form. Much like how mathematical expressions are reduced to their final values.
 
-For example, the following SCON expression
+For example, the following SCON expression:
 
 ```lisp
 (+ 1 2)
 (* 3 4)
 ```
 
-will evaluate to `(3 12)`. Note how the result of the evaluation is a list containing the results of each top-level expression.
+Will evaluate to `(3 12)`. Note how the result of the evaluation is a list containing the results of each top-level expression.
 
 ### Hello World
 
@@ -61,15 +61,52 @@ Finally, included is a slightly more complex example:
     (def fib (lambda (n) 
         (if (<= n 1)
             n
-            (+ (fib (- n 1)) (fib (- n 2))))
+            (+ (fib (- n 1)) (fib (- n 2)))
         )
-    )
+    ))
 
     (format "Fibonacci of 35 is {}" (fib 35))
 )
 ```
 
 For more examples, see the `bench/` and `tests/` directories.
+
+## Style Guide
+
+There is no strictly enforced style guide, however, here are some recommendations.
+
+### Indentation
+
+Use 4-space indentation.
+
+### Parentheses
+
+If a list spans multiple lines, the closing parentheses should be on its own line, aligned with the opening parentheses. If a list is not spanned across multiple lines, the closing parentheses should be on the same line as the last item.
+
+> The argument for placing parentheses on their own lines, braking with Lisp tradition, is to allow for multiline lists to be easily copy, pasted and cut,
+
+For example:
+
+```lisp
+(def fib (lambda (n) 
+    (if (<= n 1)
+        n
+        (+ (fib (- n 1)) (fib (- n 2)))
+    )
+))
+```
+
+### Naming
+
+Use `kebab-case` for variable and function names.
+
+```lisp
+(def my-variable 10)
+
+(def my-function (lambda (x y)
+    (+ x y)
+)) 
+```
 
 ## Tools
 
@@ -290,13 +327,22 @@ For this benchmark, memory usage was also tracked using `heaptrack`:
 | `scon bench/brainfuck.scon` | 0.185 |
 | `lua bench/brainfuck.lua` | 0.102 |
 
+### Mandelbrot
+
+Outputs an 80 by 40 visualization of the Mandelbrot set with 10000 iterations.
+
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
+|:---|---:|---:|---:|---:|
+| `scon bench/mandelbrot.scon` | 330.7 ± 8.3 | 318.0 | 347.3 | 1.00 |
+| `lua bench/mandelbrot.lua` | 369.2 ± 14.3 | 356.5 | 403.3 | 1.12 ± 0.05 |
+
 ## Grammar
 
 The grammar of SCON is designed to be as straight forward as possible, the full grammar using [EBNF](https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_form) can be found below.
 
 ```ebnf
 file = { expression | comment } ;
-expression = list | atom | white_space ;
+expression = item | white_space ; 
 item = list | atom ;
 
 list = "(", { expression }, ")" ;
@@ -499,19 +545,25 @@ Returns a user-defined anonymous function. When called, the body expressions are
 
 Returns a threaded expression, where the result of each expression is passed as the first argument to the next.
 
----
-
-#### Variables & Scope
-
 **`(def <name: atom> <value: item>) -> <value: item>`**
   
 Defines a variable with the given name and value within the current scope.
 
-**`(let ( { ( <name: atom> <value: expression>) } ) <body: expression> {body: expression} ) -> <item>`**
+Note that there is no `let` intrinsic in SCON, this is becouse using `def` within a `do` block acomplishes the same result as a `let` expression in other Lisps, while also avoiding additional indentation and visual seperation which hurts readability.
 
-Evaluates all expressions within a new local scope with the specified variables defined, returning the result of the last body.
+For example:
 
-Each variable is evaluated sequentially from left-to-right, meaning a variable to the right can reference a variable to the left.
+```lisp
+(do
+    (def x 10)
+    (def y 20)
+    (+ x y)
+) // Evaluates to "30"
+
+(let ((x 10) (y 20))
+    (+ x y)
+) // Evaluates to "30"
+```
 
 ---
 

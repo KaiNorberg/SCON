@@ -315,64 +315,6 @@ void scon_intrinsic_def(scon_compiler_t* compiler, scon_item_t* list, scon_expr_
     *out = valExpr;
 }
 
-void scon_intrinsic_let(scon_compiler_t* compiler, scon_item_t* list, scon_expr_t* out)
-{
-    SCON_ASSERT(compiler != SCON_NULL);
-    SCON_ASSERT(list != SCON_NULL);
-    SCON_ASSERT(out != SCON_NULL);
-
-    scon_intrinsic_check_min_arity(compiler, list, 1, "let");
-
-    scon_item_t* bindings = scon_list_nth_item(compiler->scon, &list->list, 1);
-    if (bindings->type != SCON_ITEM_TYPE_LIST)
-    {
-        SCON_ERROR_COMPILE(compiler, bindings, "let expects a list of bindings, got %s",
-            scon_item_type_str(bindings->type));
-    }
-
-    scon_uint16_t initialLocalCount = compiler->localCount;
-
-    scon_handle_t bh;
-    SCON_LIST_FOR_EACH(&bh, &bindings->list)
-    {
-        scon_item_t* bindItem = SCON_HANDLE_TO_ITEM(&bh);
-        if (bindItem->type != SCON_ITEM_TYPE_LIST || bindItem->length != 2)
-        {
-            SCON_ERROR_COMPILE(compiler, bindItem, "let binding must be a list of two items, got %s (length %u)",
-                scon_item_type_str(bindItem->type), bindItem->length);
-        }
-
-        scon_item_t* name = scon_list_nth_item(compiler->scon, &bindItem->list, 0);
-        if (name->type != SCON_ITEM_TYPE_ATOM)
-        {
-            SCON_ERROR_COMPILE(compiler, name, "let binding name must be an atom, got %s",
-                scon_item_type_str(name->type));
-        }
-
-        scon_local_t* local = scon_local_def(compiler, &name->atom);
-
-        scon_expr_t valExpr = SCON_EXPR_NONE();
-        scon_expr_build(compiler, scon_list_nth_item(compiler->scon, &bindItem->list, 1), &valExpr);
-
-        scon_local_def_done(compiler, local, &valExpr);
-
-        scon_expr_done(compiler, &valExpr);
-    }
-
-    scon_intrinsic_block_generic(compiler, list, 2, out);
-
-    for (scon_uint16_t i = initialLocalCount; i < compiler->localCount; i++)
-    {
-        if (compiler->locals[i].expr.mode == SCON_MODE_REG)
-        {
-            SCON_REG_CLEAR_LOCAL(compiler, compiler->locals[i].expr.reg);
-            scon_reg_free(compiler, compiler->locals[i].expr.reg);
-        }
-    }
-
-    compiler->localCount = initialLocalCount;
-}
-
 static inline scon_bool_t scon_expr_get_item(scon_compiler_t* compiler, scon_expr_t* expr, scon_handle_t* outItem)
 {
     SCON_ASSERT(compiler != SCON_NULL);
@@ -1326,7 +1268,6 @@ scon_intrinsic_handler_t sconIntrinsicHandlers[SCON_INTRINSIC_MAX] = {
     [SCON_INTRINSIC_THREAD] = scon_intrinsic_thread,
 
     [SCON_INTRINSIC_DEF] = scon_intrinsic_def,
-    [SCON_INTRINSIC_LET] = scon_intrinsic_let,
 
     [SCON_INTRINSIC_IF] = scon_intrinsic_if,
     [SCON_INTRINSIC_WHEN] = scon_intrinsic_when,
@@ -1369,7 +1310,6 @@ const char* sconIntrinsics[SCON_INTRINSIC_MAX] = {
     [SCON_INTRINSIC_DEF] = "def",
     [SCON_INTRINSIC_LAMBDA] = "lambda",
     [SCON_INTRINSIC_THREAD] = "->",
-    [SCON_INTRINSIC_LET] = "let",
     [SCON_INTRINSIC_IF] = "if",
     [SCON_INTRINSIC_WHEN] = "when",
     [SCON_INTRINSIC_UNLESS] = "unless",
