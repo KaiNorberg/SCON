@@ -1,4 +1,3 @@
-
 # Reduct
 
 <br>

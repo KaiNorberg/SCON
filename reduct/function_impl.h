@@ -78,7 +78,7 @@ REDUCT_API reduct_const_t reduct_function_lookup_constant(reduct_t* reduct, redu
 
     for (reduct_const_t i = 0; i < func->constantCount; i++)
     {
-        if (func->constants[i].type == REDUCT_CONST_SLOT_CAPTURE && func->constants[i].raw == slot->raw)
+        if (func->constants[i].type == slot->type && func->constants[i].raw == slot->raw)
         {
             return i;
         }
