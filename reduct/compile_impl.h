@@ -210,6 +210,12 @@ static inline void reduct_expr_build_list(reduct_compiler_t* compiler, reduct_it
     REDUCT_ASSERT(list != REDUCT_NULL);
     REDUCT_ASSERT(out != REDUCT_NULL);
 
+    if (list->flags & REDUCT_ITEM_FLAG_QUOTED)
+    {
+        *out = REDUCT_EXPR_CONST_ITEM(compiler, list);
+        return;
+    }
+
     if (list->length == 0)
     {
         *out = REDUCT_EXPR_NIL(compiler);
@@ -217,8 +223,9 @@ static inline void reduct_expr_build_list(reduct_compiler_t* compiler, reduct_it
     }
 
     reduct_item_t* head = reduct_list_nth_item(compiler->reduct, &list->list, 0);
-    if (head->type != REDUCT_ITEM_TYPE_ATOM ||
-        (head->flags & (REDUCT_ITEM_FLAG_QUOTED | REDUCT_ITEM_FLAG_INT_SHAPED | REDUCT_ITEM_FLAG_FLOAT_SHAPED)))
+    if ((head->flags & REDUCT_ITEM_FLAG_QUOTED) ||
+        (head->type == REDUCT_ITEM_TYPE_ATOM &&
+            (head->flags & (REDUCT_ITEM_FLAG_INT_SHAPED | REDUCT_ITEM_FLAG_FLOAT_SHAPED))))
     {
         reduct_reg_t target = reduct_expr_get_reg(compiler, out);
         reduct_compile_list(compiler, target);

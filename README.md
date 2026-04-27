@@ -18,94 +18,7 @@
 </div>
 <br>
 
-Reduct is a functional, immutable, and S-expression based configuration and scripting language. It aims to provide a flexible, simple, efficient and Turing complete way to store and manipulate hierarchical data, all as a freestanding C99 header-only library.
-
-## First Steps
-
-Reduct should be familiar to anyone used to Lisp or functional languages, but it is intended to be easy to learn even for those who aren't.
-
-All expressions in Reduct are either atoms or lists of atoms, and the process of evaluating expressions ought to be thought of as reducing these expressions into a simpler form. Much like how mathematical expressions are reduced to their final values.
-
-For example, the following Reduct expression:
-
-```lisp
-(+ 1 2)
-(* 3 4)
-```
-
-Will evaluate to `(3 12)`. Note how the result of the evaluation is a list containing the results of each top-level expression.
-
-### Hello World
-
-An obvious way to write "Hello World" in Reduct might look like:
-
-```lisp
-(println! "Hello, World!")
-```
-
-However, it could be even simpler. We could simply write:
-
-```lisp
-"Hello, World!"
-```
-
-Which will, of course, evaluate to `Hello, World!`.
-
-### Complex Example
-
-Finally, included is a slightly more complex example:
-
-```lisp
-(do
-    (def fib (lambda (n) 
-        (if (<= n 1)
-            n
-            (+ (fib (- n 1)) (fib (- n 2)))
-        )
-    ))
-
-    (format "Fibonacci of 35 is {}" (fib 35))
-)
-```
-
-For more examples, see the `bench/` and `tests/` directories.
-
-## Style Guide
-
-There is no strictly enforced style guide, however, here are some recommendations.
-
-### Indentation
-
-Use 4-space indentation.
-
-### Parentheses
-
-If a list spans multiple lines, the closing parentheses should be on its own line, aligned with the opening parentheses. If a list is not spanned across multiple lines, the closing parentheses should be on the same line as the last item.
-
-> The argument for placing parentheses on their own lines, braking with Lisp tradition, is to allow for multiline lists to be easily copy, pasted and cut,
-
-For example:
-
-```lisp
-(def fib (lambda (n) 
-    (if (<= n 1)
-        n
-        (+ (fib (- n 1)) (fib (- n 2)))
-    )
-))
-```
-
-### Naming
-
-Use `kebab-case` for variable and function names.
-
-```lisp
-(def my-variable 10)
-
-(def my-function (lambda (x y)
-    (+ x y)
-)) 
-```
+Reduct is a functional, immutable, S-expression based configuration and scripting language. It aims to combine the flexibility of a Lisp, the simplicity of a language like Lua, and the performance of a register-based VM. All within a C99 header-only library.
 
 ## Tools
 
@@ -147,6 +60,231 @@ The extension is not yet available in the marketplace.
 As such, to install it, copy the `tools/reduct-vscode/` directory to `%USERPROFILE%\.vscode\extensions\` if you're on Windows or `~/.vscode/extensions/` if you're on macOS/Linux.
 
 Finally, restart Visual Studio Code.
+
+## Introduction
+
+Within Reduct, all expressions are either atoms or lists, where an atom is a sequence of characters and a list is a sequence of expressions enclosed in parentheses.
+
+For example:
+
+```lisp
+("atom1" atom2 3.14 (4atom 5678)) // A list containing three atoms and a list.
+```
+
+The tree structure that this creates is called an Abstract Syntax Tree (AST), and for some usecases, that will be enough.
+
+The evaluation of an AST is an optional part of the language.
+
+### Evaluation
+
+Evaluation is the process of recursively reducing an AST into another, simpler, AST, much like how mathematical expressions are reduced to their final values.
+
+For example:
+
+```lisp
+(+ 1 2)
+(* 3 4)
+```
+
+Will evaluate to:
+
+```lisp
+(3 12)
+```
+
+> Note how the top level expression is implicitly a list.
+
+### Atoms
+
+Atoms are the most basic building blocks of Reduct. They are sequences of characters (strings) that can represent text, numbers, or symbols.
+
+```lisp
+"This is a string atom"
+12345 // An integer-shaped atom
+3.14159 // A float-shaped atom
+my-variable // A symbol-shaped atom
+```
+
+There are no explicit integers or floats within Reduct, only atoms with different "shapes".
+
+An atom can be either string-shaped, integer-shaped or float-shaped, for convenience an atom that is integer-shaped or float-shaped is also considered number-shaped.
+
+### Callables
+
+There are three callable types: intrinsics, natives, and lambdas. Lambdas are defined in Reduct, natives are defined in C, and intrinsics are handled by the bytecode compiler.
+
+```lisp
+(lambda (n) (* n n)) // A lambda that squares its argument.
+```
+
+To call a callable, use it as the first item in a list:
+
+```lisp
+((lambda (n) (* n n)) 5) // Evaluates to "25"
+```
+
+### Hello World
+
+We should now know enough to write a basic "Hello World" script.
+
+An obvious way to write "Hello World" in Reduct might look like:
+
+```lisp
+(println! "Hello, World!")
+```
+
+However, since reduct is all about reduction, it could be even simpler. We could simply write:
+
+```lisp
+"Hello, World!"
+```
+
+Which will, of course, evaluate to `Hello, World!`.
+
+For more examples, see the `bench/` and `tests/` directories.
+
+## Additional Concepts
+
+### Type Coercion
+
+For any math intrinsic that takes in multiple arguments, C-like type promotion rules are used.
+
+This means that if any of the atoms provided to the operation are float-shaped, the others will also be converted to floats. Otherwise, they will be converted to integers.
+
+If one or more of the atoms are neither integer-shaped nor float-shaped, the evaluation will fail.
+
+For example:
+
+```lisp
+(+ 1 2.5) // Evaluates to "3.5"
+(* 2 3) // Evaluates to "6"
+(/ 10 3) // Evaluates to "3"
+(/ 10 3.0) // Evaluates to "3.333333"
+```
+
+### Truthiness
+
+A truthy item is any item that is not falsy. Falsy items include `nil` (an empty list), an empty atom, the constant `false` (which evaluates to `0`), or any number-shaped atom that evaluates to zero.
+
+For example:
+
+```lisp
+(if () "truthy" "falsy") // Evaluates to "falsy"
+(if 0 "truthy" "falsy") // Evaluates to "falsy"
+(if "" "truthy" "falsy") // Evaluates to "falsy"
+(if 1 "truthy" "falsy") // Evaluates to "truthy"
+(if false "truthy" "falsy") // Evaluates to "falsy"
+(if true "truthy" "falsy") // Evaluates to "truthy"
+```
+
+### Ordering
+
+Reduct defines a total ordering for all possible items. This is used by comparison primitives like `<` or `sort`.
+
+The ordering of types is defined as:
+
+```plaintext
+number < string < list
+```
+
+The following rules apply:
+
+- **number:** Compared by value, a greater value is considered larger. If both values are equal, but one is float-shaped and the other is integer-shaped, the float-shaped atom is considered larger.
+- **string:** Compared lexicographically by their ASCII characters, or by their length if one is a prefix of the other.
+- **list:** Compared item by item. A list is considered "less than" another if its first non-equal item is lesser than the other list's first non-equal item, or by their length if one is a prefix of the other.
+
+For example, all following expressions are true:
+
+```lisp
+(< 1 2)
+(< 1 2.5)
+(< "apple" "banana")
+(< "apple" "apples")
+(< (1 2) (1 3))
+(< (1 2) (1 2 3))
+```
+
+### Variables
+
+Variables are defined using the `def` intrinsic and can be accessed using their names. Just like everything else, variables are immutable and as such there is no `set` or similar intrinsic.
+
+As an example, variables can be used to create a more traditional "function definition" by defining a variable as a lambda:
+
+```lisp
+(def add (lambda (a b) (+ a b)))
+
+(add 1 2) // Evaluates to "3"
+```
+
+### Infix Expressions
+
+Infix expressions provide a more convenient way to write certain expressions, particularly mathematical or logical expressions.
+
+To write an infix expression, use curly braces:
+
+```lisp
+{1 + 2 * 3} // (1 + (2 * 3))
+{2 * (my-func1 1 2)} // (2 * (my-func 1 2))
+{not (my-func2 data) or {count > 10}} // (or (not (my-func2 data)) (> count 10))
+```
+
+When the parser encounters an infix expression it will expand it into a normal expression, using the following rules:
+
+1. Operators are grouped based on their precedence. For example, `*` and `/` have higher precedence than `+` and `-`.
+2. Operators with the same precedence are evaluated from left to right.
+3. If an expression is wrapped in another infix expression, it is treated as a single unit and its precedence is ignored (e.g., `{{1 + 2} * 3}`).
+4. Lists within an infix expression are treated as usual.
+5. If an infix expression contains only a single item, it is treated as that item (e.g., `{1}` becomes `1`).
+
+The following table lists the supported operators:
+
+| Precedence | Operators |
+| --- | --- |
+| 7 | `not`, unary `-` |
+| 6 | `*`, `/`, `%` |
+| 5 | `+`, `-` |
+| 4 | `<<`, `>>` |
+| 3 | `&`, `\|`, `^` |
+| 2 | `==`, `!=`, `<`, `<=`, `>`, `>=` |
+| 1 | `and` |
+| 0 | `or` |
+
+## Style Guide
+
+There is no strictly enforced style guide, however, here are some recommendations.
+
+### Indentation
+
+Use 4-space indentation.
+
+### Parentheses
+
+If a list spans multiple lines, the closing parentheses should be on its own line, aligned with the opening parentheses. If a list is not spanned across multiple lines, the closing parentheses should be on the same line as the last item.
+
+> The argument for placing parentheses on their own lines, braking with Lisp tradition, is to allow for multiline lists to be easily copy, pasted and cut,
+
+For example:
+
+```lisp
+(def fib (lambda (n) 
+    (if (<= n 1)
+        n
+        (+ (fib (- n 1)) (fib (- n 2)))
+    )
+))
+```
+
+### Naming
+
+Use `kebab-case` for variable and function names.
+
+```lisp
+(def my-variable 10)
+
+(def my-function (lambda (x y)
+    (+ x y)
+)) 
+```
 
 ## C API
 
@@ -340,17 +478,51 @@ Outputs an 80 by 40 visualization of the Mandelbrot set with 10000 iterations.
 The grammar of Reduct is designed to be as straight forward as possible, the full grammar using [EBNF](https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_form) can be found below.
 
 ```ebnf
-file = { expression | comment } ;
-expression = item | infix | white_space ;
+file = { expression | white_space | comment } ;
+expression = item | infix ;
 item = list | atom ;
 
-infix =  "{", { expression }, "}" ;
+infix =  "{", { expression | white_space | comment }, "}" ;
 
-list = "(", { expression }, ")" ;
+list = "(", { expression | white_space | comment }, ")" ;
 
-atom = unquoted_atom | quoted_atom ;
-unquoted_atom = ( character, { character } ) ;
-quoted_atom = '"', { character | white_space | escape_sequence }, '"' ;
+callable = symbol | lambda ;
+lambda = "(", "lambda", "(", { symbol }, ")", { expression }, ")" ;
+
+atom = string | symbol | number ;
+
+string = '"', { character | white_space | escape_sequence }, '"' ;
+symbol = character, { character } ;
+
+number = integer | float ;
+integer = decimal_integer | hex_integer | octal_integer | binary_integer ;
+
+truthy = true | expression - falsy_item ;
+falsy  = nil | '""' | false | zero ;
+
+true = "1" ;
+false = "0" ;
+
+nil = "(", { white_space }, ")" ;
+
+zero = decimal_zero | hex_zero | octal_zero | binary_zero ;
+decimal_zero = [ sign ], "0", { [ "_" ], "0" }, [ ".", { [ "_" ], "0" } ], [ ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ] ;
+hex_zero     = [ sign ], "0", ( "x" | "X" ), "0", { [ "_" ], "0" } ;
+octal_zero   = [ sign ], "0", ( "o" | "O" ), "0", { [ "_" ], "0" } ;
+binary_zero  = [ sign ], "0", ( "b" | "B" ), "0", { [ "_" ], "0" } ;
+
+decimal_integer = [ sign ], digit, { [ "_" ], digit } ;
+hex_integer = [ sign ], "0", ( "x" | "X" ), hex, { [ "_" ], hex } ;
+octal_integer = [ sign ], "0", ( "o" | "O" ), octal, { [ "_" ], octal } ;
+binary_integer = [ sign ], "0", ( "b" | "B" ), binary, { [ "_" ], binary } ;
+
+float = float_number | float_naked_decimal | float_trailing_decimal | scientific_number | special_float ;
+
+float_number = [ sign ], digit, { [ "_" ], digit }, ".", digit, { [ "_" ], digit }, [ ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ] ;
+float_naked_decimal = [ sign ], ".", digit, { [ "_" ], digit }, [ ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ] ;
+float_trailing_decimal = [ sign ], digit, { [ "_" ], digit }, ".", [ ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ] ;
+scientific_number = [ sign ], digit, { [ "_" ], digit }, ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ;
+special_float = ( [ sign ], ( "i" | "I" ), ( "n" | "N" ), ( "f" | "F" ) ) | ( ( "n" | "N" ), ( "a" | "A" ), ( "n" | "N" ) ) ;
 
 comment = line_comment | block_comment ;
 line_comment = "//", { character | " " | "\t" }, [ "\n" | "\r" ] ;
@@ -359,9 +531,9 @@ block_comment = "/*", { character | white_space }, "*/" ;
 white_space = " " | "\t" | "\n" | "\r" ;
 escape_sequence = "\\", ( "a" | "b" | "e" | "f" | "n" | "r" | "t" | "v" | "\\" | "'" | '"' | "?" | ( "x", hex, hex ) ) ;
 
-character = letter | digit | symbol ;
+character = letter | digit | punctuation ;
 
-symbol = sign | "!" | "$" | "%" | "&" | "*" | "." | "/" | ":" | "<" | "=" | ">" | "?" | "@" | "^" | "_" | "|" | "~" | "{" | "}" | "[" | "]" | "#" | "," | ";" | "`" ;
+punctuation = sign | "!" | "$" | "%" | "&" | "*" | "." | "/" | ":" | "<" | "=" | ">" | "?" | "@" | "^" | "_" | "|" | "~" | "{" | "}" | "[" | "]" | "#" | "," | ";" | "`" ;
 sign = "+" | "-" ;
 
 hex = digit | "A" | "B" | "C" | "D" | "E" | "F" | "a" | "b" | "c" | "d" | "e" | "f" ;
@@ -393,155 +565,6 @@ Included is a list of the final value for each escape sequence:
 | `\"` | Double Quote | `"` |
 | `\?` | Question Mark | `?` |
 | `\xHH` | Hexadecimal value | `0xHH` |
-
-## Infix Expressions
-
-Infix expressions provide a more convenient way to write certain expressions, particularly mathematical or logical expressions.
-
-To write an infix expression, use curly braces:
-
-```lisp
-{1 + 2 * 3} // (1 + (2 * 3))
-{2 * (my-func1 1 2)} // (2 * (my-func 1 2))
-{not (my-func2 data) or {count > 10}} // (or (not (my-func2 data)) (> count 10))
-```
-
-When the parser encounters an infix expression it will expand it into a normal expression, using the following rules:
-
-1. Operators are grouped based on their precedence. For example, `*` and `/` have higher precedence than `+` and `-`.
-2. Operators with the same precedence are evaluated from left to right.
-3. If an expression is wrapped in another infix expression, it is treated as a single unit and its precedence is ignored (e.g., `{{1 + 2} * 3}`).
-4. Lists within an infix expression are treated as usual.
-5. If an infix expression contains only a single item, it is treated as that item (e.g., `{1}` becomes `1`).
-
-The following table lists the supported operators:
-
-| Precedence | Operators |
-| --- | --- |
-| 7 | `not`, unary `-` |
-| 6 | `*`, `/`, `%` |
-| 5 | `+`, `-` |
-| 4 | `<<`, `>>` |
-| 3 | `&`, `\|`, `^` |
-| 2 | `==`, `!=`, `<`, `<=`, `>`, `>=` |
-| 1 | `and` |
-| 0 | `or` |
-
-## Evaluation
-
-A parsed Reduct expression can optionally be evaluated. This means that everything described below is an optional extension
-of the language, not a core part of it, and should be considered as such. This can be quite convenient as it allows Reduct to be utilized as a simple and efficient markup language similar to JSON or XML.
-
-Evaluation is the process of recursively reducing an expression to its simplest form in a depth-first, left-to-right
-manner.
-
-### Callables
-
-There are three callable types, intrinsics, natives and lambdas. Lambdas are defined in Reduct, natives are defined in C and intrinsics are handled by the bytecode compiler.
-
-```ebnf
-callable = unquoted_atom | lambda ;
-```
-
-### Atoms
-
-There are no integers, floats or similar within Reduct, only atoms with different "shapes".
-
-An atom can be either string-shaped, integer-shaped or float-shaped, for convenience an atom that is integer-shaped or float-shaped is also considered number-shaped.
-
-```ebnf
-string = quoted_atom ;
-
-number = integer | float ;
-integer = decimal_integer | hex_integer | octal_integer | binary_integer ;
-
-decimal_integer = [ sign ], digit, { [ "_" ], digit } ;
-hex_integer = [ sign ], "0", ( "x" | "X" ), hex, { [ "_" ], hex } ;
-octal_integer = [ sign ], "0", ( "o" | "O" ), octal, { [ "_" ], octal } ;
-binary_integer = [ sign ], "0", ( "b" | "B" ), binary, { [ "_" ], binary } ;
-
-float = float_number | float_naked_decimal | float_trailing_decimal | scientific_number | special_float ;
-
-float_number = [ sign ], digit, { [ "_" ], digit }, ".", digit, { [ "_" ], digit }, [ ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ] ;
-float_naked_decimal = [ sign ], ".", digit, { [ "_" ], digit }, [ ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ] ;
-float_trailing_decimal = [ sign ], digit, { [ "_" ], digit }, ".", [ ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ] ;
-scientific_number = [ sign ], digit, { [ "_" ], digit }, ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ;
-special_float = ( [ sign ], ( "i" | "I" ), ( "n" | "N" ), ( "f" | "F" ) ) | ( ( "n" | "N" ), ( "a" | "A" ), ( "n" | "N" ) ) ;
-```
-
-All mathematical operations on integer-shaped or float-shaped atoms follow C semantics.
-
-#### Type Coercion
-
-For any math intrinsic that takes in multiple arguments, C-like type promotion rules are used.
-
-This means that if any of the atoms provided to the operation are float-shaped, the others will also be converted to floats. Otherwise, they will be converted to integers.
-
-If one or more of the atoms are neither integer-shaped nor float-shaped, the evaluation will fail.
-
-### Lists
-
-During the evaluation of a list, the first item is immediately evaluated and if it evaluates to a callable item, it will be executed with the remaining items in the list as its arguments and with the list being replaced by the result of the evaluation.
-
-Certain primitives may not evaluate all items within the list, for example, the `or` intrinsic will stop evaluating on the first truthy item. Most primitives, such as `+`, will evaluate all items.
-
-### Truthiness
-
-The following grammar defines truthy and falsy items:
-
-```ebnf
-truthy = true | expression - falsy_item ;
-falsy  = falsy_list | falsy_atom | zero ;
-
-falsy_list = nil ;
-falsy_atom = '""' | false ;
-
-true = "1" ;
-false = "0" ;
-
-nil = "(", { white_space }, ")" ;
-
-zero = decimal_zero | hex_zero | octal_zero | binary_zero ;
-decimal_zero = [ sign ], "0", { [ "_" ], "0" }, [ ".", { [ "_" ], "0" } ], [ ( "e" | "E" ), [ sign ], digit, { [ "_" ], digit } ] ;
-hex_zero     = [ sign ], "0", ( "x" | "X" ), "0", { [ "_" ], "0" } ;
-octal_zero   = [ sign ], "0", ( "o" | "O" ), "0", { [ "_" ], "0" } ;
-binary_zero  = [ sign ], "0", ( "b" | "B" ), "0", { [ "_" ], "0" } ;
-```
-
-### Ordering
-
-Reduct defines a total ordering for all possible items. This is used by comparison primitives like `<` or `sort`.
-
-The ordering of types is defined as
-
-```plaintext
-number < string < list
-```
-
-#### Ordering Rules
-
-- **number:** Compared by value, a greater value is considered larger. If both values are equal, but one is float-shaped and the other is integer-shaped, the float-shaped atom is considered larger.
-- **string:** Compared lexicographically by their ASCII characters (e.g., `"apple" < "banana"`), or by their length if one is a prefix of the other (e.g., `"apple" < "apples"`).
-- **list:** Compared item by item. A list is considered "less than" another if its first non-equal item is lesser than the other list's first non-equal item (e.g., `(1 2) < (1 3)`), or by their length if one is a prefix of the other (e.g., `(1 2) < (1 2 3)`).
-
-### Variables
-
-Variables are used to store and retrieve items within a Reduct environment. Variables are defined using the `def`
-intrinsic and can be accessed using their names.
-
-As an example, variables can be used to create a more traditional "function definition" by defining a variable as a lambda:
-
-```lisp
-(def add (lambda (a b) (+ a b)))
-
-(add 1 2) // Evaluates to "3"
-```
-
-### Lexical Scoping
-
-Reduct uses lexical scoping. This means that a function or expression can access variables from the scope in which it was defined, as well as any parent scopes. When a variable is defined using `def`, it is added to the current local scope. If a variable is accessed, the evaluator searches for the name starting from the innermost scope and moving outwards to the global scope.
-
-When a lambda is executed, it creates a new scope where its arguments are bound to the provided values. This scope is destroyed once the lambda finishes evaluation, ensuring that local variables do not leak into the outer environment.
 
 ### Default Constants
 
@@ -1214,6 +1237,6 @@ Returns the inverse hyperbolic tangent of the argument.
 
 Returns a random number between the given range.
 
-**`(seed! <val: number>) -> nil`**
+**`(seed! <val: number>) -> <nil>`**
 
 Seeds the random number generator.
