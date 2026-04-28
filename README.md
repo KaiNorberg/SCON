@@ -14,6 +14,12 @@
     <a href="https://github.com/KaiNorberg/Reduct/blob/main/license">
       <img src="https://img.shields.io/github/license/KaiNorberg/Reduct">
     </a>
+    <a href="https://github.com/KaiNorberg/Reduct/actions/workflows/test.yml">
+        <img src="https://github.com/KaiNorberg/Reduct/actions/workflows/test.yml/badge.svg" alt="Test"/>
+    </a>
+    <a href="https://github.com/KaiNorberg/Reduct/releases">
+      <img src="https://img.shields.io/github/v/release/KaiNorberg/Reduct">
+    </a>
     <br>
 </div>
 <br>
@@ -35,7 +41,9 @@ reduct -s my_file.rdt # silent mode, wont output the result of the evaluation
 
 #### Setup
 
-The CLI tool can be found at `tools/reduct-cli/` and uses CMake. To build the tool write:
+You can download pre-built binaries for Linux, macOS, and Windows from the [Releases](https://github.com/KaiNorberg/Reduct/releases) page.
+
+Alternatively, you can build it from source:
 
 ```bash
 cd tools/reduct-cli

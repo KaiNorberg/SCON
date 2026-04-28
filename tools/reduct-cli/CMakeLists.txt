@@ -4,6 +4,7 @@ project(reduct VERSION 1.0.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+include(GNUInstallDirs)
 add_executable(reduct reduct.c)
 
 find_package(Git QUIET)
@@ -71,7 +72,14 @@ if(NOT WIN32)
     target_compile_options(reduct PRIVATE -Wall -Wextra -Werror)
 endif()
 
-install(TARGETS reduct RUNTIME DESTINATION bin)
+install(TARGETS reduct 
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(DIRECTORY ../../reduct/ 
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/reduct
+    FILES_MATCHING PATTERN "*.h"
+)
 
 if(NOT WIN32)
     target_link_libraries(reduct m)

@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-binaries:
+    name: Build CLI for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Sync CMake Version with Tag
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          sed -i.bak "s/project(reduct VERSION [0-9.]*/project(reduct VERSION $VERSION/" tools/reduct-cli/CMakeLists.txt
+
+      - name: Build CLI
+        run: |
+          cmake -S tools/reduct-cli -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
+      - name: Prepare Artifacts
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            if [ -f "build/reduct.exe" ]; then cp build/reduct.exe dist/reduct-cli-windows-x64.exe; 
+            else cp build/Release/reduct.exe dist/reduct-cli-windows-x64.exe; fi
+          elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+            cp build/reduct dist/reduct-cli-macos-x64
+          else
+            cp build/reduct dist/reduct-cli-linux-x64
+          fi
+
+      - name: Generate Amalgamated Header (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          python3 amalgamate.py reduct/reduct.h dist/reduct.h reduct/
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.os }}
+          path: dist/
+
+  publish-release:
+    name: Publish Release
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
