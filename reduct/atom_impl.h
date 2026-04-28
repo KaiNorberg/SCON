@@ -207,7 +207,6 @@ REDUCT_API reduct_atom_t* reduct_atom_lookup(reduct_t* reduct, const char* str, 
 
 static inline void reduct_atom_normalize_escape(reduct_atom_t* atom)
 {
-    REDUCT_ASSERT(reduct != REDUCT_NULL);
     REDUCT_ASSERT(atom != REDUCT_NULL);
 
     char* str = atom->string;
