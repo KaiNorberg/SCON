@@ -3,6 +3,12 @@
     "displayName": "Reduct Language Support",
     "description": "Syntax highlighting and language support for Reduct",
     "version": "1.0.0",
+    "author": "Kai Norberg",
+    "publisher": "KaiNorberg",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/KaiNorberg/Reduct"
+    },
     "engines": {
         "vscode": "^1.75.0"
     },

@@ -24,7 +24,7 @@
 </div>
 <br>
 
-Reduct is a functional, immutable, S-expression based configuration and scripting language. It aims to combine the flexibility of a Lisp with the easy-of-use and performance of a language like Lua. All within a C99 header-only library.
+Reduct is a functional, immutable, S-expression based configuration and scripting language. It aims to combine the flexibility of a Lisp with the ease-of-use and performance of a language like Lua. All within a C99 header-only library.
 
 ## Tools
 
@@ -63,9 +63,9 @@ A syntax highlighting extension for Visual Studio Code can be found at `tools/re
 
 #### Setup
 
-The extension is not yet available in the marketplace.
+The extension can be found on the [marketplace](https://marketplace.visualstudio.com/items?itemName=KaiNorberg.reduct).
 
-As such, to install it, copy the `tools/reduct-vscode/` directory to `%USERPROFILE%\.vscode\extensions\` if you're on Windows or `~/.vscode/extensions/` if you're on macOS/Linux.
+Alternatively, to install it manually, copy the `tools/reduct-vscode/` directory to `%USERPROFILE%\.vscode\extensions\` if you're on Windows or `~/.vscode/extensions/` if you're on macOS/Linux.
 
 Finally, restart Visual Studio Code.
 
@@ -145,13 +145,13 @@ Which will, of course, evaluate to `Hello, World!`.
 
 For more examples, see the `bench/` and `tests/` directories.
 
-## Why?
+## Motivation
 
-There are several series of potential advantages that Reduct offers over existing languages.
+Reduct aim to provide a series of potential advantages that over existing languages.
 
 ### Performance
 
-Reduct is designed to be fast and efficient, utilizing a register-based VM and many other techniques to improve performance, allowing it to outperform even Lua, in some benchmarks.
+Reduct is designed to be fast and efficient, utilizing a register-based VM and many other techniques to improve performance, allowing it to outperform even Lua (though no the JIT version obviously, maybe one day...), in some benchmarks.
 
 See [Benchmarks](#benchmarks) for more information.
 
@@ -346,7 +346,7 @@ Use 4-space indentation.
 
 If a list spans multiple lines, the closing parentheses should be on its own line, aligned with the opening parentheses. If a list is not spanned across multiple lines, the closing parentheses should be on the same line as the last item.
 
-> The argument for placing parentheses on their own lines, braking with Lisp tradition, is to allow for multiline lists to be easily copy, pasted and cut,
+> The argument for placing parentheses on their own lines, breaking with Lisp tradition, is to allow for multiline lists to be easily copy, pasted and cut,
 
 For example:
 
@@ -391,8 +391,9 @@ int main(int argc, char **argv)
     reduct_t* reduct = NULL;
 
     reduct_error_t error = REDUCT_ERROR();
-    if (REDUCT_ERROR_CATCH(&error))
+    if (REDUCT_ERROR_CATCH(&error)) // Setup setjmp.h based error handler.
     {
+        // We will return to here if an error occurs.
         reduct_error_print(&error, stderr);
         reduct_free(reduct);
         return 1;
@@ -400,13 +401,10 @@ int main(int argc, char **argv)
 
     reduct = reduct_new(&error);
 
-    reduct_handle_t ast = reduct_parse_file(reduct, "my_file.rdt");
-
     reduct_stdlib_register(reduct, REDUCT_STDLIB_ALL);
 
-    reduct_function_t* function = reduct_compile(reduct, &ast);
+    reduct_handle_t result = reduct_eval_file(reduct, "my_file.rdt");
 
-    reduct_handle_t result = reduct_eval(reduct, function);
     reduct_stringify(reduct, &result, buffer, sizeof(buffer));
     printf("%s\n", buffer);
 
@@ -491,7 +489,7 @@ Since Reduct uses its handles to store most integers and floats, it can avoid he
 
 *See [item.h](https://github.com/KaiNorberg/Reduct/blob/main/reduct/item.h) for more information on items.*
 
-Lists are implemented as a "bit-mapped vector trie", providing $O(log_{w} n)$ access, insertion, and deletion, where $O(log_{w} n)$ is the width of each node in the trie.
+Lists are implemented as a "bit-mapped vector trie", providing $O(log_{w} n)$ access, insertion, and deletion, where $w$ is the width of each node in the trie.
 
 *See [list.h](https://github.com/KaiNorberg/Reduct/blob/main/reduct/list.h) for more information on lists.*
 
@@ -564,7 +562,7 @@ Outputs an 80 by 40 visualization of the Mandelbrot set with 10000 iterations.
 
 ## Testing
 
-Testing is done via the `tests/run_tests.sh" script, which is ran via [github actions](https://github.com/KaiNorberg/Reduct/blob/main/.github/workflows/test.yml) on Ubuntu, Windows and macOS.
+Testing is done via the `tests/run_tests.sh` script, which is ran via [github actions](https://github.com/KaiNorberg/Reduct/blob/main/.github/workflows/test.yml) on Ubuntu, Windows and macOS.
 
 The script will compile the CLI tool with clang `-fsanitize=address,undefined`, run a set of test scripts found in `tests/` and then use libfuzzer to fuzz the parser, compiler and evaluator.
 
@@ -695,7 +693,7 @@ Evaluates each expression in sequence and returns the result of the last one.
 
 Returns a user-defined anonymous function. When called, the body expressions are evaluated in sequence, and the result of the last expression is returned.
 
-**`(-> <initial: expression> {step: expression}) -> <item>**`
+**`(-> <initial: expression> {step: expression}) -> <item>`**
 
 Returns a threaded expression, where the result of each expression is passed as the first argument to the next.
 
@@ -703,7 +701,7 @@ Returns a threaded expression, where the result of each expression is passed as 
   
 Defines a variable with the given name and value within the current scope.
 
-Note that there is no `let` intrinsic in Reduct, this is because using `def` within a `do` block accomplishes the same result as a `let` expression in other Lisps, while also avoiding additional indentation and visual separation which hurts readability.
+Note that there is no `let` intrinsic in Reduct, this is because using `def` within a `do` block accomplishes the same result as a `let` expression in other Lisps:
 
 For example:
 
