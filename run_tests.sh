@@ -62,6 +62,11 @@ fi
 echo "----------------------------------------------------"
 echo "Step 3: Building fuzzer target..."
 
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "darwin"* ]]; then
+    echo -e "${YELLOW}SKIP: Fuzzing is bypassed on Windows and macOS.${NC}"
+    [ $FAIL_COUNT -eq 0 ] && exit 0 || exit 1
+fi
+
 if ! command -v clang &> /dev/null; then
     echo -e "${YELLOW}SKIP: clang not found. Install clang to enable fuzzing.${NC}"
     [ $FAIL_COUNT -eq 0 ] && exit 0 || exit 1
@@ -74,10 +79,6 @@ cmake $CMAKE_GEN_OPTS -S "$SOURCE_DIR" -B tests/build_fuzz \
 
 cmake --build tests/build_fuzz
 FUZZ_BIN="tests/build_fuzz/fuzz"
-
-if [ -f "${FUZZ_BIN}.exe" ]; then
-    FUZZ_BIN="${FUZZ_BIN}.exe"
-fi
 
 echo -e "${GREEN}Build successful: fuzz_reduct_parse created.${NC}"
 echo "----------------------------------------------------"

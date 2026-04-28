@@ -42,8 +42,8 @@ endif()
 
 option(REDUCT_USE_FUZZER "Enable libFuzzer build" OFF)
 if(REDUCT_USE_FUZZER)
-    if(MSVC)
-        message(FATAL_ERROR "libFuzzer is not supported on MSVC")
+    if(WIN32 OR APPLE)
+        message(FATAL_ERROR "libFuzzer is only supported on Linux")
     endif()
 
     add_executable(fuzz fuzz.c)
@@ -61,14 +61,13 @@ if(REDUCT_USE_FUZZER)
     )
     target_link_options(fuzz PRIVATE
         -fsanitize=fuzzer,address,undefined
-        -fuse-ld=lld
     )
     if(NOT WIN32)
         target_link_libraries(fuzz m)
     endif()
 endif()
 
-if(NOT MSVC)
+if(NOT WIN32)
     target_compile_options(reduct PRIVATE -Wall -Wextra -Werror)
 endif()
 
