@@ -8,7 +8,7 @@ fi
 
 GIT_VERSION_STRING=$(git describe --tags --always --dirty --long 2>/dev/null || echo "unknown")
 
-sed -i "s/^PROJECT_NUMBER.*/PROJECT_NUMBER = \"$GIT_VERSION_STRING\"/" meta/doxy/Doxyfile.sh
+sed -i "s/^PROJECT_NUMBER.*/PROJECT_NUMBER = \"$GIT_VERSION_STRING\"/" meta/doxy/Doxyfile
 
 doxygen meta/doxy/Doxyfile
 
