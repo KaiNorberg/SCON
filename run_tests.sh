@@ -9,6 +9,11 @@ NC='\033[0m'
 
 SOURCE_DIR="tools/reduct-cli"
 
+CMAKE_GEN_OPTS=""
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+    CMAKE_GEN_OPTS="-G Ninja"
+fi
+
 FUZZ_TIME="${FUZZ_TIME:-60}"
 
 CRASH_DIR="tests/fuzz_crashes"
@@ -16,14 +21,18 @@ CORPUS_DIR="tests/fuzz_corpus"
 
 echo -e "Step 1: Compiling with Sanitizers..."
 
-cmake -S "$SOURCE_DIR" -B tests/build_san \
+cmake $CMAKE_GEN_OPTS -S "$SOURCE_DIR" -B tests/build_san \
     -DCMAKE_BUILD_TYPE=Debug \
     -DREDUCT_USE_SANITIZERS=ON
 
 cmake --build tests/build_san
 REDUCT_BIN="tests/build_san/reduct"
 
-echo -e "${GREEN}Build successful: reduct (san) created.${NC}"
+if [ -f "${REDUCT_BIN}.exe" ]; then
+    REDUCT_BIN="${REDUCT_BIN}.exe"
+fi
+
+echo -e "${GREEN}Build successful: $REDUCT_BIN created.${NC}"
 echo "----------------------------------------------------"
 echo "Step 2: Running tests from /tests directory..."
 
@@ -58,13 +67,18 @@ if ! command -v clang &> /dev/null; then
     [ $FAIL_COUNT -eq 0 ] && exit 0 || exit 1
 fi
 
-cmake -S "$SOURCE_DIR" -B tests/build_fuzz \
+cmake $CMAKE_GEN_OPTS -S "$SOURCE_DIR" -B tests/build_fuzz \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_C_COMPILER=clang \
     -DREDUCT_USE_FUZZER=ON
 
 cmake --build tests/build_fuzz
 FUZZ_BIN="tests/build_fuzz/fuzz"
+
+if [ -f "${FUZZ_BIN}.exe" ]; then
+    FUZZ_BIN="${FUZZ_BIN}.exe"
+fi
+
 echo -e "${GREEN}Build successful: fuzz_reduct_parse created.${NC}"
 echo "----------------------------------------------------"
 echo "Step 4: Seeding fuzzer corpus from .rdt files..."

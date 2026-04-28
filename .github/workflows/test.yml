@@ -7,35 +7,42 @@ on:
     branches: ["main"]
 
 jobs:
-  test_ubuntu:
-    runs-on: ubuntu-latest
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential clang llvm
 
-      - name: Test
-        run: ./run_tests.sh
-
-  test_macos:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Setup Clang (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: egor-tensin/setup-clang@v1
 
       - name: Test
-        run: ./run_tests.sh
+        run: chmod +x run_tests.sh && ./run_tests.sh
+        env:
+          FUZZ_TIME: 30
 
-  test_windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Test
-        run: ./run_tests.sh
+      - name: Upload Fuzz Crashes
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes-${{ matrix.os }}
+          path: tests/fuzz_crashes/
+          if-no-files-found: ignore
         
