@@ -69,7 +69,7 @@ if(REDUCT_USE_FUZZER)
 endif()
 
 if(NOT WIN32)
-    target_compile_options(reduct PRIVATE -Wall -Wextra -Werror -Wno-maybe-uninitialized)
+    target_compile_options(reduct PRIVATE -Wall -Wextra -Werror -Wno-uninitialized)
 endif()
 
 install(TARGETS reduct 
