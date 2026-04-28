@@ -1138,8 +1138,6 @@ Returns the stringified representation of the item.
 
 ---
 
-````
-
 #### System & Environment
 
 **`(eval <item>) -> <item>`**
