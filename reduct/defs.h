@@ -199,7 +199,7 @@ typedef reduct_uint64_t reduct_handle_t;
  * @param _size The size of the buffer to allocate.
  */
 #define REDUCT_SCRATCH_BUFFER(_name, _size) \
-    char _name##Stack[REDUCT_STACK_BUFFER_SIZE] = {0}; \
+    char _name##Stack[REDUCT_STACK_BUFFER_SIZE]; \
     char* _name = ((reduct_size_t)(_size) + 1 <= REDUCT_STACK_BUFFER_SIZE) \
         ? _name##Stack \
         : (char*)REDUCT_MALLOC((reduct_size_t)(_size) + 1); \
