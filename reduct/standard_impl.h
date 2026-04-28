@@ -11,7 +11,7 @@
 #include "item.h"
 #include "native.h"
 #include "parse.h"
-#include "stdlib.h"
+#include "standard.h"
 #include "stringify.h"
 
 REDUCT_API reduct_handle_t reduct_assert(reduct_t* reduct, reduct_handle_t* cond, reduct_handle_t* msg)
@@ -1729,6 +1729,7 @@ REDUCT_API reduct_handle_t reduct_trim(reduct_t* reduct, reduct_handle_t* srcHan
 #define REDUCT_INTROSPECTION_IMPL(_name, _predicate_macro) \
     REDUCT_API reduct_handle_t _name(reduct_t* reduct, reduct_size_t argc, reduct_handle_t* argv) \
     { \
+        REDUCT_UNUSED(reduct); \
         REDUCT_INTROSPECTION_LOOP(_predicate_macro(&argv[i])); \
     }
 
@@ -2228,6 +2229,8 @@ REDUCT_API reduct_handle_t reduct_format(reduct_t* reduct, reduct_size_t argc, r
 
 REDUCT_API reduct_handle_t reduct_now(reduct_t* reduct)
 {
+    REDUCT_UNUSED(reduct);
+
     REDUCT_ASSERT(reduct != REDUCT_NULL);
 
     return REDUCT_HANDLE_FROM_FLOAT((reduct_float_t)REDUCT_TIME());
@@ -2235,6 +2238,8 @@ REDUCT_API reduct_handle_t reduct_now(reduct_t* reduct)
 
 REDUCT_API reduct_handle_t reduct_uptime(reduct_t* reduct)
 {
+    REDUCT_UNUSED(reduct);
+
     REDUCT_ASSERT(reduct != REDUCT_NULL);
 
     return REDUCT_HANDLE_FROM_FLOAT((reduct_float_t)REDUCT_CLOCK());

@@ -205,7 +205,7 @@ REDUCT_API reduct_atom_t* reduct_atom_lookup(reduct_t* reduct, const char* str, 
     return atom;
 }
 
-static inline void reduct_atom_normalize_escape(reduct_t* reduct, reduct_atom_t* atom)
+static inline void reduct_atom_normalize_escape(reduct_atom_t* atom)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
     REDUCT_ASSERT(atom != REDUCT_NULL);
@@ -251,6 +251,8 @@ static inline void reduct_atom_normalize_escape(reduct_t* reduct, reduct_atom_t*
 
 REDUCT_API void reduct_atom_normalize(reduct_t* reduct, reduct_atom_t* atom)
 {
+    REDUCT_UNUSED(reduct);
+
     REDUCT_ASSERT(reduct != REDUCT_NULL);
     REDUCT_ASSERT(atom != REDUCT_NULL);
 
@@ -263,7 +265,7 @@ REDUCT_API void reduct_atom_normalize(reduct_t* reduct, reduct_atom_t* atom)
 
     if (item->flags & REDUCT_ITEM_FLAG_QUOTED)
     {
-        reduct_atom_normalize_escape(reduct, atom);
+        reduct_atom_normalize_escape(atom);
     }
 
     const char* p = atom->string;

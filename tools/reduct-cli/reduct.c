@@ -6,11 +6,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-char buffer[0x10000];
-
 int main(int argc, char **argv)
-{
-    int result = 0;
+{    
+    static int result = 0;
+
+    static reduct_t* reduct = NULL;
+
+    reduct_error_t error = REDUCT_ERROR();
+    if (REDUCT_ERROR_CATCH(&error))
+    {
+        reduct_error_print(&error, stderr);
+        result = 1;
+        goto cleanup;
+    }
+
     int isSilent = 0;
     int shouldDump = 0;
     const char* evalExpr = NULL;
@@ -66,16 +75,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    reduct_t* reduct = NULL;
-
-    reduct_error_t error = REDUCT_ERROR();
-    if (REDUCT_ERROR_CATCH(&error))
-    {
-        reduct_error_print(&error, stderr);
-        result = 1;
-        goto cleanup;
-    }
-
     reduct = reduct_new(&error);
 
     reduct_args_set(reduct, argc, argv);
@@ -113,6 +112,7 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
+    static char buffer[0x10000];
     reduct_stringify(reduct, &eval, buffer, sizeof(buffer));
     printf("%s%c", buffer, REDUCT_HANDLE_IS_ATOM(&eval) ? '\0' : '\n');
 
