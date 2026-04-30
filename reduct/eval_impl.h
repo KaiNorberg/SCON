@@ -103,6 +103,7 @@ static inline REDUCT_ALWAYS_INLINE void reduct_eval_pop_frame(reduct_eval_state_
     REDUCT_ASSERT(state->frameCount > 0);
 
     reduct_eval_frame_t* frame = &state->frames[--state->frameCount];
+
     state->regCount = frame->prevRegCount;
 }
 
@@ -123,17 +124,6 @@ static inline REDUCT_ALWAYS_INLINE void reduct_eval_tail_frame(reduct_t* reduct,
     frame->closure = closure;
     frame->ip = closure->function->insts;
 }
-
-typedef struct
-{
-    reduct_eval_frame_t* frame;
-    reduct_inst_t* ip;
-    reduct_handle_t* base;
-    reduct_handle_t* constants;
-    reduct_inst_t inst;
-    reduct_opcode_t op;
-    reduct_handle_t result;
-} eval_run_state_t;
 
 static reduct_handle_t reduct_eval_run(reduct_t* reduct, reduct_eval_state_t* state, reduct_uint32_t initialFrameCount)
 {
@@ -183,16 +173,6 @@ LABEL_C_OP(_label, { \
     reduct_handle_t valC = constants[c]
 #define DECODE_SBX() reduct_int32_t sbx = REDUCT_INST_GET_SBX(inst)
 
-#define ERROR_CHECK(_expr, ...) \
-    do \
-    { \
-        if (REDUCT_UNLIKELY(!(_expr))) \
-        { \
-            frame->ip = ip; \
-            REDUCT_ERROR_RUNTIME(__VA_ARGS__); \
-        } \
-    } while (0)
-
 #define OP_ENTRY(_op, _label) [_op] = &&_label, [_op | REDUCT_MODE_CONST] = &&_label
 
 #define OP_ENTRY_C(_op, _label) [_op] = &&_label, [_op | REDUCT_MODE_CONST] = &&_label##_k
@@ -201,7 +181,7 @@ LABEL_C_OP(_label, { \
 LABEL_C_OP(_label, { \
     DECODE_A(); \
     DECODE_B(); \
-    base[a] = REDUCT_HANDLE_FROM_INT(reduct_get_int(reduct, &base[b]) _op reduct_get_int(reduct, &valC)); \
+    REDUCT_HANDLE_BITWISE_FAST(reduct, &base[a], &base[b], &valC, _op); \
     DISPATCH(); \
 })
 
@@ -213,7 +193,7 @@ LABEL_C_OP(_label, { \
     DISPATCH(); \
 })
 
-    void* dispatchTable[] = {
+    static const void* dispatchTable[] = {
         OP_ENTRY(REDUCT_OPCODE_NONE, label_none),
         OP_ENTRY(REDUCT_OPCODE_LIST, label_list),
         OP_ENTRY(REDUCT_OPCODE_JMP, label_jmp),
@@ -302,13 +282,28 @@ label_jmpt:
 LABEL_C_OP(label_call, {
     DECODE_A();
     DECODE_B();
-    ERROR_CHECK(REDUCT_HANDLE_IS_ITEM(&valC), reduct, REDUCT_NULL, "attempt to call non-callable %s",
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&valC), REDUCT_NULL, "attempt to call non-callable %s",
         reduct_item_type_str(REDUCT_HANDLE_GET_TYPE(&valC)));
     reduct_item_t* item = REDUCT_HANDLE_TO_ITEM(&valC);
+    if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_native(&item->atom)))
+    {
+        reduct_handle_t* args = &base[a];
+        frame->ip = ip;
+        reduct_handle_t result = item->atom.native(reduct, b, args);
+
+        frame = &state->frames[state->frameCount - 1];
+        base = state->regs + frame->base;
+        base[a] = result;
+        constants = frame->closure->constants;
+
+        reduct_gc_if_needed(reduct);
+
+        DISPATCH();
+    }
     if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_CLOSURE))
     {
         reduct_closure_t* closure = &item->closure;
-        ERROR_CHECK(b == closure->function->arity, reduct, REDUCT_NULL, "expected %d arguments, got %d",
+        REDUCT_ERROR_RUNTIME_ASSERT(reduct, b == closure->function->arity, REDUCT_NULL, "expected %d arguments, got %d",
             closure->function->arity, b);
 
         frame->ip = ip;
@@ -321,19 +316,6 @@ LABEL_C_OP(label_call, {
 
         DISPATCH();
     }
-    if (REDUCT_LIKELY(item->flags & REDUCT_ITEM_FLAG_NATIVE))
-    {
-        reduct_handle_t* args = &base[a];
-        frame->ip = ip;
-        reduct_handle_t result = item->atom.native(reduct, b, args);
-
-        frame = &state->frames[state->frameCount - 1];
-        base = state->regs + frame->base;
-        base[a] = result;
-        constants = frame->closure->constants;
-
-        DISPATCH();
-    }
 
     frame->ip = ip;
     REDUCT_ERROR_RUNTIME(reduct, "attempt to call non-callable %s", reduct_item_type_str(item->type));
@@ -341,33 +323,10 @@ LABEL_C_OP(label_call, {
 LABEL_C_OP(label_tailcall, {
     DECODE_A();
     DECODE_B();
-    ERROR_CHECK(REDUCT_HANDLE_IS_ITEM(&valC), reduct, REDUCT_NULL, "attempt to call non-callable %s",
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&valC), REDUCT_NULL, "attempt to call non-callable %s",
         reduct_item_type_str(REDUCT_HANDLE_GET_TYPE(&valC)));
     reduct_item_t* item = REDUCT_HANDLE_TO_ITEM(&valC);
-    if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_CLOSURE))
-    {
-        reduct_closure_t* closure = &item->closure;
-        ERROR_CHECK(b == closure->function->arity, reduct, REDUCT_NULL, "expected %d arguments, got %d",
-            closure->function->arity, b);
-
-        if (a != 0)
-        {
-            for (reduct_uint32_t i = 0; i < b; i++)
-            {
-                base[i] = base[a + i];
-            }
-        }
-
-        reduct_eval_tail_frame(reduct, state, closure);
-
-        frame = &state->frames[state->frameCount - 1];
-        ip = frame->ip;
-        base = state->regs + frame->base;
-        constants = frame->closure->constants;
-
-        DISPATCH();
-    }
-    if (REDUCT_LIKELY(item->flags & REDUCT_ITEM_FLAG_NATIVE))
+    if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_native(&item->atom)))
     {
         reduct_handle_t* args = &base[a];
         frame->ip = ip;
@@ -382,6 +341,28 @@ LABEL_C_OP(label_tailcall, {
             result = res;
             goto eval_end;
         }
+
+        frame = &state->frames[state->frameCount - 1];
+        ip = frame->ip;
+        base = state->regs + frame->base;
+        constants = frame->closure->constants;
+
+        reduct_gc_if_needed(reduct);
+
+        DISPATCH();
+    }
+    if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_CLOSURE))
+    {
+        reduct_closure_t* closure = &item->closure;
+        REDUCT_ERROR_RUNTIME_ASSERT(reduct, b == closure->function->arity, REDUCT_NULL, "expected %d arguments, got %d",
+            closure->function->arity, b);
+
+        if (a != 0)
+        {
+            REDUCT_MEMMOVE(base, base + a, b * sizeof(reduct_handle_t));
+        }
+
+        reduct_eval_tail_frame(reduct, state, closure);
 
         frame = &state->frames[state->frameCount - 1];
         ip = frame->ip;
@@ -415,9 +396,8 @@ LABEL_C_OP(label_ret, {
 })
 LABEL_C_OP(label_append, {
     DECODE_A();
-    ERROR_CHECK(REDUCT_HANDLE_IS_ITEM(&base[a]), reduct, REDUCT_NULL, "APPEND expected a list");
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_LIST(&base[a]), REDUCT_NULL, "APPEND expected a list");
     reduct_item_t* item = REDUCT_HANDLE_TO_ITEM(&base[a]);
-    ERROR_CHECK(item->type == REDUCT_ITEM_TYPE_LIST, reduct, REDUCT_NULL, "APPEND expected a list");
     reduct_list_t* listPtr = &item->list;
     reduct_list_append(reduct, listPtr, valC);
     DISPATCH();
@@ -437,11 +417,7 @@ OP_ARITH(label_div, /)
 LABEL_C_OP(label_mod, {
     DECODE_A();
     DECODE_B();
-    reduct_promotion_t prom;
-    reduct_handle_promote(reduct, &base[b], &valC, &prom);
-    ERROR_CHECK(prom.type == REDUCT_PROMOTION_TYPE_INT, reduct, REDUCT_NULL, "invalid item type");
-    ERROR_CHECK(prom.b.intVal != 0, reduct, REDUCT_NULL, "modulo by zero");
-    base[a] = REDUCT_HANDLE_FROM_INT(prom.a.intVal % prom.b.intVal);
+    REDUCT_HANDLE_MOD_FAST(reduct, &base[a], &base[b], &valC);
     DISPATCH();
 })
 OP_BITWISE(label_band, &)
@@ -449,23 +425,62 @@ OP_BITWISE(label_bor, |)
 OP_BITWISE(label_bxor, ^)
 LABEL_C_OP(label_bnot, {
     DECODE_A();
-    base[a] = REDUCT_HANDLE_FROM_INT(~reduct_get_int(reduct, &valC));
+    reduct_int64_t val;
+    if (REDUCT_LIKELY(REDUCT_HANDLE_IS_INT(&valC)))
+    {
+        val = REDUCT_HANDLE_TO_INT(&valC);
+    }
+    else
+    {
+        val = reduct_get_int(reduct, &valC);
+    }
+    base[a] = REDUCT_HANDLE_FROM_INT(~val);
     DISPATCH();
 })
 LABEL_C_OP(label_shl, {
     DECODE_A();
     DECODE_B();
-    reduct_int64_t left = reduct_get_int(reduct, &valC);
-    ERROR_CHECK(left >= 0 && left < 64, reduct, REDUCT_NULL, "expected left shift amount 0-63, got %ld", left);
-    base[a] = REDUCT_HANDLE_FROM_INT(reduct_get_int(reduct, &base[b]) << left);
+    reduct_int64_t left;
+    if (REDUCT_LIKELY(REDUCT_HANDLE_IS_INT(&valC)))
+    {
+        left = REDUCT_HANDLE_TO_INT(&valC);
+    }
+    else
+    {
+        left = reduct_get_int(reduct, &valC);
+    }
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, left >= 0 && left < 64, "expected left shift amount 0-63, got %ld", left);
+    if (REDUCT_LIKELY(REDUCT_HANDLE_IS_INT(&base[b])))
+    {
+        base[a] = REDUCT_HANDLE_FROM_INT(REDUCT_HANDLE_TO_INT(&base[b]) << left);
+    }
+    else
+    {
+        base[a] = REDUCT_HANDLE_FROM_INT(reduct_get_int(reduct, &base[b]) << left);
+    }
     DISPATCH();
 })
 LABEL_C_OP(label_shr, {
     DECODE_A();
     DECODE_B();
-    reduct_int64_t right = reduct_get_int(reduct, &valC);
-    ERROR_CHECK(right >= 0 && right < 64, reduct, REDUCT_NULL, "expected right shift amount 0-63, got %ld", right);
-    base[a] = REDUCT_HANDLE_FROM_INT(reduct_get_int(reduct, &base[b]) >> right);
+    reduct_int64_t right;
+    if (REDUCT_LIKELY(REDUCT_HANDLE_IS_INT(&valC)))
+    {
+        right = REDUCT_HANDLE_TO_INT(&valC);
+    }
+    else
+    {
+        right = reduct_get_int(reduct, &valC);
+    }
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, right >= 0 && right < 64, "expected right shift amount 0-63, got %ld", right);
+    if (REDUCT_LIKELY(REDUCT_HANDLE_IS_INT(&base[b])))
+    {
+        base[a] = REDUCT_HANDLE_FROM_INT(REDUCT_HANDLE_TO_INT(&base[b]) >> right);
+    }
+    else
+    {
+        base[a] = REDUCT_HANDLE_FROM_INT(reduct_get_int(reduct, &base[b]) >> right);
+    }
     DISPATCH();
 })
 label_closure:
@@ -473,9 +488,9 @@ label_closure:
     DECODE_A();
     reduct_uint32_t c = REDUCT_INST_GET_C(inst);
     reduct_handle_t protoHandle = frame->closure->constants[c];
-    ERROR_CHECK(REDUCT_HANDLE_IS_ITEM(&protoHandle), reduct, REDUCT_NULL, "expected closure prototype to be an item");
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&protoHandle), REDUCT_NULL, "expected closure prototype to be an item");
     reduct_item_t* protoItem = REDUCT_HANDLE_TO_ITEM(&protoHandle);
-    ERROR_CHECK(protoItem->type == REDUCT_ITEM_TYPE_FUNCTION, reduct, REDUCT_NULL,
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, protoItem->type == REDUCT_ITEM_TYPE_FUNCTION, REDUCT_NULL,
         "expected closure prototype to be a function, got %s", reduct_item_type_str(protoItem->type));
 
     reduct_function_t* proto = &protoItem->function;
@@ -540,24 +555,19 @@ REDUCT_API reduct_handle_t reduct_eval_call(reduct_t* reduct, reduct_handle_t ca
     REDUCT_ASSERT(reduct != REDUCT_NULL);
     REDUCT_ASSERT(argv != REDUCT_NULL || argc == 0);
 
-    if (!REDUCT_HANDLE_IS_ITEM(&callable))
-    {
-        REDUCT_ERROR_RUNTIME(reduct, "attempt to call non-callable value");
-    }
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&callable), REDUCT_NULL, "attempt to call non-callable value");
 
     reduct_item_t* item = REDUCT_HANDLE_TO_ITEM(&callable);
-    if (item->flags & REDUCT_ITEM_FLAG_NATIVE)
+    if (item->type == REDUCT_ITEM_TYPE_ATOM)
     {
+        REDUCT_ERROR_RUNTIME_ASSERT(reduct, reduct_atom_is_native(&item->atom), REDUCT_NULL, "attempt to call non-native atom");
         return item->atom.native(reduct, argc, argv);
     }
 
     if (item->type == REDUCT_ITEM_TYPE_CLOSURE)
     {
         reduct_closure_t* closure = &item->closure;
-        if (argc != closure->function->arity)
-        {
-            REDUCT_ERROR_RUNTIME(reduct, "expected %ld arguments, got %ld", closure->function->arity, argc);
-        }
+        REDUCT_ERROR_RUNTIME_ASSERT(reduct, argc == closure->function->arity, REDUCT_NULL, "expected %ld arguments, got %ld", closure->function->arity, argc);
 
         if (reduct->evalState == REDUCT_NULL)
         {
@@ -585,10 +595,7 @@ REDUCT_API reduct_handle_t reduct_eval_call(reduct_t* reduct, reduct_handle_t ca
             }
         }
 
-        for (reduct_size_t i = 0; i < argc; i++)
-        {
-            state->regs[target + i] = argv[i];
-        }
+        REDUCT_MEMCPY(state->regs + target, argv, argc * sizeof(reduct_handle_t));
 
         reduct_uint32_t initialFrameCount = state->frameCount;
         reduct_eval_push_frame(reduct, state, closure, target);

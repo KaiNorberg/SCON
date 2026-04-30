@@ -101,7 +101,7 @@ REDUCT_API void reduct_error_get_item_params(struct reduct_item* item, const cha
 /**
  * @brief Throw a runtime error utilizing the evaluation state to determine the context.
  *
- * @param reduct Pointer to the Reduct instance.
+ * @param reduct The Reduct structure.
  * @param message The error message format string.
  * @param ... Additional arguments.
  */
@@ -169,15 +169,31 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
 /**
  * @brief Throw a runtime error using the jump buffer in the error structure.
  *
- * @param _reduct Pointer to the reduct instance.
+ * @param _reduct The Reduct structure.
  * @param ... The error message format string and any optional arguments.
  */
 #define REDUCT_ERROR_RUNTIME(_reduct, ...) reduct_error_throw_runtime((_reduct), __VA_ARGS__)
 
 /**
+ * @brief Throw a runtime error if the expression is false.
+ *
+ * @param _reduct The Reduct structure.
+ * @param _expr The expression to check.
+ * @param ... The error message format string and any optional arguments.
+ */
+#define REDUCT_ERROR_RUNTIME_ASSERT(_reduct, _expr, ...) \
+    do \
+    { \
+        if (REDUCT_UNLIKELY(!(_expr))) \
+        { \
+            REDUCT_ERROR_RUNTIME(_reduct, __VA_ARGS__); \
+        } \
+    } while (0)
+
+/**
  * @brief Throw an internal error using the jump buffer in the error structure.
  *
- * @param _reduct Pointer to the reduct instance.
+ * @param _reduct The Reduct structure.
  * @param ... The error message format string and any optional arguments.
  */
 #define REDUCT_ERROR_INTERNAL(_reduct, ...) REDUCT_ERROR_THROW((_reduct)->error, REDUCT_NULL, INTERNAL, __VA_ARGS__)
@@ -185,7 +201,7 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
 /**
  * @brief Report a type error for a handle.
  */
-#define REDUCT_ERROR_CHECK_TYPE(_reduct, _name, _handle, _expected) \
+#define REDUCT_ERROR_TYPE(_reduct, _name, _handle, _expected) \
     do \
     { \
         REDUCT_ERROR_RUNTIME(_reduct, "%s expects %s, got %s", _name, _expected, \
@@ -198,9 +214,9 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
 #define REDUCT_ERROR_CHECK_LIST(_reduct, _handle, _name) \
     do \
     { \
-        if (!REDUCT_HANDLE_IS_LIST(_handle)) \
+        if (REDUCT_UNLIKELY(!REDUCT_HANDLE_IS_LIST(_handle))) \
         { \
-            REDUCT_ERROR_CHECK_TYPE(_reduct, _name, _handle, "a list"); \
+            REDUCT_ERROR_TYPE(_reduct, _name, _handle, "a list"); \
         } \
     } while (0)
 
@@ -210,9 +226,9 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
 #define REDUCT_ERROR_CHECK_CALLABLE(_reduct, _handle, _name) \
     do \
     { \
-        if (!REDUCT_HANDLE_IS_CALLABLE(_handle)) \
+        if (REDUCT_UNLIKELY(!REDUCT_HANDLE_IS_CALLABLE(_handle))) \
         { \
-            REDUCT_ERROR_CHECK_TYPE(_reduct, _name, _handle, "a callable"); \
+            REDUCT_ERROR_TYPE(_reduct, _name, _handle, "a callable"); \
         } \
     } while (0)
 
@@ -222,9 +238,9 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
 #define REDUCT_ERROR_CHECK_SEQUENCE(_reduct, _handle, _name) \
     do \
     { \
-        if (!REDUCT_HANDLE_IS_LIST(_handle) && !REDUCT_HANDLE_IS_ATOM(_handle)) \
+        if (REDUCT_UNLIKELY(!REDUCT_HANDLE_IS_LIST(_handle) && !REDUCT_HANDLE_IS_ATOM(_handle))) \
         { \
-            REDUCT_ERROR_CHECK_TYPE(_reduct, _name, _handle, "a list or atom"); \
+            REDUCT_ERROR_TYPE(_reduct, _name, _handle, "a list or atom"); \
         } \
     } while (0)
 

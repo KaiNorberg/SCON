@@ -39,16 +39,22 @@ static inline reduct_size_t reduct_stringify_internal(reduct_t* reduct, reduct_h
     {
     case REDUCT_ITEM_TYPE_ATOM:
     {
-        if (item->flags & REDUCT_ITEM_FLAG_INT_SHAPED)
+        reduct_atom_t* atom = &item->atom;
+        if (!(item->flags & REDUCT_ITEM_FLAG_QUOTED))
         {
-            return REDUCT_SNPRINTF(buffer, size, "%lld", (long long)item->atom.integerValue);
-        }
-        else if (item->flags & REDUCT_ITEM_FLAG_FLOAT_SHAPED)
-        {
-            return REDUCT_SNPRINTF(buffer, size, "%g", (double)item->atom.floatValue);
+            if (reduct_atom_is_int(atom))
+            {
+                return REDUCT_SNPRINTF(buffer, size, "%lld", (long long)reduct_atom_get_int(atom));
+            }
+            else if (reduct_atom_is_float(atom))
+            {
+                return REDUCT_SNPRINTF(buffer, size, "%g", (double)reduct_atom_get_float(atom));
+            }
+
+            return REDUCT_SNPRINTF(buffer, size, "%.*s", (int)atom->length, atom->string);
         }
 
-        return REDUCT_SNPRINTF(buffer, size, "\"%.*s\"", (int)item->atom.length, item->atom.string);
+        return REDUCT_SNPRINTF(buffer, size, "\"%.*s\"", (int)atom->length, atom->string);
     }
     case REDUCT_ITEM_TYPE_LIST:
     {
@@ -91,9 +97,9 @@ REDUCT_API reduct_size_t reduct_stringify(reduct_t* reduct, reduct_handle_t* han
 {
     if (REDUCT_HANDLE_IS_ATOM(handle))
     {
-        char* str;
+        const char* str;
         reduct_size_t len;
-        reduct_handle_get_string_params(reduct, handle, &str, &len);
+        reduct_handle_atom_string(reduct, handle, &str, &len);
         if (buffer != REDUCT_NULL && size > 0)
         {
             reduct_size_t copyLen = (len < size) ? len : size - 1;

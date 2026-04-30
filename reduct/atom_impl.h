@@ -1,34 +1,235 @@
 #ifndef REDUCT_ATOM_IMPL_H
 #define REDUCT_ATOM_IMPL_H 1
 
+#include "defs.h"
 #include "atom.h"
 #include "char.h"
 #include "core.h"
+
+#define REDUCT_ATOM_TOMBSTONE ((reduct_atom_t*)(uintptr_t)1)
+
+static inline reduct_bool_t reduct_atom_map_is_alive(reduct_atom_t* slot)
+{
+    return slot != REDUCT_NULL && slot != REDUCT_ATOM_TOMBSTONE;
+}
+
+static inline reduct_size_t reduct_atom_map_find(
+    reduct_t* reduct,
+    reduct_uint32_t hash,
+    const char* str,
+    reduct_size_t len,
+    reduct_atom_lookup_flags_t flags)
+{
+    REDUCT_ASSERT(reduct != REDUCT_NULL);
+    REDUCT_ASSERT(str != REDUCT_NULL);
+    REDUCT_ASSERT(reduct->atomMapCapacity != 0);
+    REDUCT_ASSERT((reduct->atomMapCapacity & (reduct->atomMapCapacity - 1)) == 0);
+    REDUCT_ASSERT(reduct->atomMapSize <= reduct->atomMapCapacity);
+
+    reduct_bool_t wantQuoted = (flags & REDUCT_ATOM_LOOKUP_QUOTED) != 0;
+
+    reduct_size_t index = hash & reduct->atomMapMask;
+    reduct_size_t step = 1;
+
+    reduct_size_t tombstoneIndex = REDUCT_ATOM_INDEX_NONE;
+
+    while (reduct->atomMap[index] != REDUCT_NULL)
+    {
+        reduct_atom_t* atom = reduct->atomMap[index];
+
+        if (atom == REDUCT_ATOM_TOMBSTONE)
+        {
+            if (tombstoneIndex == REDUCT_ATOM_INDEX_NONE)
+            {
+                tombstoneIndex = index;
+            }
+        }
+        else
+        {
+            reduct_item_t* item = REDUCT_CONTAINER_OF(atom, reduct_item_t, atom);
+            reduct_bool_t isQuoted = (item->flags & REDUCT_ITEM_FLAG_QUOTED) != 0;
+
+            if (atom->hash == hash && isQuoted == wantQuoted && reduct_atom_is_equal(atom, str, len))
+            {
+                return index;
+            }
+        }
+
+        index = (index + step) & reduct->atomMapMask;
+        step++;
+    }
+
+    if (tombstoneIndex != REDUCT_ATOM_INDEX_NONE)
+    {
+        return tombstoneIndex;
+    }
+
+    return index;
+}
+
+static inline reduct_size_t reduct_atom_map_find_or_alloc(
+    reduct_t* reduct,
+    reduct_uint32_t hash,
+    const char* str,
+    reduct_size_t len,
+    reduct_atom_lookup_flags_t flags)
+{
+    REDUCT_ASSERT(reduct != REDUCT_NULL);
+    REDUCT_ASSERT(str != REDUCT_NULL);
+
+    if (reduct->atomMapCapacity == 0)
+    {
+        reduct->atomMapCapacity = REDUCT_ATOM_MAP_INITIAL;
+        reduct->atomMapMask = reduct->atomMapCapacity - 1;
+        reduct->atomMapTombstones = 0;
+        reduct->atomMap = REDUCT_CALLOC(reduct->atomMapCapacity, sizeof(reduct_atom_t*));
+        if (reduct->atomMap == REDUCT_NULL)
+        {
+            REDUCT_ERROR_INTERNAL(reduct, "out of memory");
+        }
+    }
+
+    reduct_size_t occupied = reduct->atomMapSize + reduct->atomMapTombstones;
+    if (occupied * 4 > reduct->atomMapCapacity * 3)
+    {
+        reduct_size_t oldCapacity = reduct->atomMapCapacity;
+        reduct_atom_t** oldMap = reduct->atomMap;
+
+        reduct->atomMapCapacity = oldCapacity * REDUCT_ATOM_MAP_GROWTH;
+        reduct->atomMapMask = reduct->atomMapCapacity - 1;
+        reduct->atomMapTombstones = 0;
+        reduct->atomMap = REDUCT_CALLOC(reduct->atomMapCapacity, sizeof(reduct_atom_t*));
+        if (reduct->atomMap == REDUCT_NULL)
+        {
+            REDUCT_ERROR_INTERNAL(reduct, "out of memory");
+        }
+
+        for (reduct_size_t i = 0; i < oldCapacity; i++)
+        {
+            reduct_atom_t* atom = oldMap[i];
+
+            if (!reduct_atom_map_is_alive(atom))
+            {
+                continue;
+            }
+
+            reduct_size_t index = atom->hash & reduct->atomMapMask;
+            reduct_size_t step = 1;
+            while (reduct->atomMap[index] != REDUCT_NULL)
+            {
+                index = (index + step) & reduct->atomMapMask;
+                step++;
+            }
+
+            reduct->atomMap[index] = atom;
+            atom->index = (reduct_uint32_t)index;
+        }
+
+        if (oldMap != REDUCT_NULL)
+        {
+            REDUCT_FREE(oldMap);
+        }
+    }
+
+    reduct_size_t index = reduct_atom_map_find(reduct, hash, str, len, flags);
+
+    if (reduct_atom_map_is_alive(reduct->atomMap[index]))
+    {
+        return index;
+    }
+
+    if (reduct->atomMap[index] == REDUCT_ATOM_TOMBSTONE)
+    {
+        reduct->atomMapTombstones--;
+    }
+
+    reduct->atomMapSize++;
+    return index;
+}
+
+static inline void reduct_atom_map_update(reduct_t* reduct, reduct_atom_t* atom, reduct_size_t newIndex, reduct_uint32_t hash)
+{
+    REDUCT_ASSERT(reduct != REDUCT_NULL);
+    REDUCT_ASSERT(atom != REDUCT_NULL);
+
+    if (atom->index != REDUCT_ATOM_INDEX_NONE)
+    {
+        reduct->atomMap[atom->index] = REDUCT_ATOM_TOMBSTONE;
+        reduct->atomMapTombstones++;
+    }
+
+    reduct->atomMap[newIndex] = atom;
+    atom->index = (reduct_uint32_t)newIndex;
+    atom->hash = hash;
+
+}
 
 REDUCT_API void reduct_atom_deinit(reduct_t* reduct, reduct_atom_t* atom)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
     REDUCT_ASSERT(atom != REDUCT_NULL);
 
-    reduct_size_t bucket = atom->hash % REDUCT_BUCKETS_MAX;
-    reduct_atom_t** current = &reduct->atomBuckets[bucket];
-    while (*current)
+    if (reduct->atomMap != REDUCT_NULL && atom->index != REDUCT_ATOM_INDEX_NONE)
     {
-        if (*current == atom)
-        {
-            *current = atom->next;
-            break;
-        }
-        current = &(*current)->next;
+        reduct->atomMap[atom->index] = REDUCT_ATOM_TOMBSTONE;
+        reduct->atomMapTombstones++;
+        reduct->atomMapSize--;
     }
 
-    if (atom->string != atom->small)
+    if (atom->flags & REDUCT_ATOM_FLAG_LARGE)
     {
         REDUCT_FREE(atom->string);
     }
 }
 
-REDUCT_API reduct_atom_t* reduct_atom_lookup_int(reduct_t* reduct, reduct_int64_t value)
+REDUCT_API reduct_bool_t reduct_atom_is_equal(reduct_atom_t* atom, const char* str,
+    reduct_size_t len)
+{
+    if (atom->length != len)
+    {
+        return REDUCT_FALSE;
+    }
+    if (atom->hash != reduct_hash(str, len))
+    {
+        return REDUCT_FALSE;
+    }
+
+    return REDUCT_MEMCMP(atom->string, str, len) == 0;
+}
+
+REDUCT_API reduct_atom_t* reduct_atom_new(reduct_t* reduct, reduct_size_t len)
+{
+    reduct_item_t* item = reduct_item_new(reduct);
+    item->type = REDUCT_ITEM_TYPE_ATOM;
+
+    reduct_atom_t* atom = &item->atom;
+    reduct_atom_init(atom);
+    atom->length = (reduct_uint32_t)len;
+
+    if (len == 0)
+    {
+        item->flags |= REDUCT_ITEM_FLAG_FALSY;
+    }
+
+    if (len <= REDUCT_ATOM_SMALL_MAX)
+    {
+        atom->string = atom->small;
+    }
+    else
+    {
+        atom->string = REDUCT_MALLOC(len);
+        if (atom->string == REDUCT_NULL)
+        {
+            REDUCT_ERROR_INTERNAL(reduct, "out of memory");
+        }
+        atom->flags |= REDUCT_ATOM_FLAG_LARGE;
+    }
+
+    return atom;
+}
+
+
+REDUCT_API reduct_atom_t* reduct_atom_new_int(reduct_t* reduct, reduct_int64_t value)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
 
@@ -63,14 +264,19 @@ REDUCT_API reduct_atom_t* reduct_atom_lookup_int(reduct_t* reduct, reduct_int64_
     }
 
     const char* str = buf + sizeof(buf) - len;
-    reduct_atom_t* atom = reduct_atom_lookup(reduct, str, len, REDUCT_ATOM_LOOKUP_NONE);
+    reduct_atom_t* atom = reduct_atom_new(reduct, len);
+    REDUCT_MEMCPY(atom->string, str, len);
     atom->integerValue = value;
-    reduct_item_t* item = REDUCT_CONTAINER_OF(atom, reduct_item_t, atom);
-    item->flags |= REDUCT_ITEM_FLAG_INT_SHAPED;
+    atom->flags |= REDUCT_ATOM_FLAG_INTEGER | REDUCT_ATOM_FLAG_NUMBER_CHECKED;
+    if (value == 0)
+    {
+        reduct_item_t* item = REDUCT_CONTAINER_OF(atom, reduct_item_t, atom);
+        item->flags |= REDUCT_ITEM_FLAG_FALSY;
+    }
     return atom;
 }
 
-REDUCT_API reduct_atom_t* reduct_atom_lookup_float(reduct_t* reduct, reduct_float_t value)
+REDUCT_API reduct_atom_t* reduct_atom_new_float(reduct_t* reduct, reduct_float_t value)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
 
@@ -132,76 +338,15 @@ REDUCT_API reduct_atom_t* reduct_atom_lookup_float(reduct_t* reduct, reduct_floa
         len--;
     }
 
-    reduct_atom_t* atom = reduct_atom_lookup(reduct, res, len, REDUCT_ATOM_LOOKUP_NONE);
+    reduct_atom_t* atom = reduct_atom_new(reduct, len);
+    REDUCT_MEMCPY(atom->string, res, len);
     atom->floatValue = value;
-    reduct_item_t* item = REDUCT_CONTAINER_OF(atom, reduct_item_t, atom);
-    item->flags |= REDUCT_ITEM_FLAG_FLOAT_SHAPED;
-    return atom;
-}
-
-REDUCT_API reduct_atom_t* reduct_atom_lookup(reduct_t* reduct, const char* str, reduct_size_t len,
-    reduct_atom_lookup_flags_t flags)
-{
-    REDUCT_ASSERT(reduct != REDUCT_NULL);
-    REDUCT_ASSERT(str != REDUCT_NULL);
-
-    reduct_size_t hash = reduct_hash(str, len);
-    if (flags & REDUCT_ATOM_LOOKUP_QUOTED)
+    atom->flags |= REDUCT_ATOM_FLAG_FLOAT | REDUCT_ATOM_FLAG_NUMBER_CHECKED;
+    if (value == 0.0)
     {
-        hash ^= 0x5bd1e995;
-    }
-    reduct_size_t bucket = hash % REDUCT_BUCKETS_MAX;
-
-    reduct_atom_t** current = &reduct->atomBuckets[bucket];
-    while (*current)
-    {
-        reduct_atom_t* atom = *current;
         reduct_item_t* item = REDUCT_CONTAINER_OF(atom, reduct_item_t, atom);
-        reduct_bool_t isQuoted = (item->flags & REDUCT_ITEM_FLAG_QUOTED) != 0;
-        reduct_bool_t wantQuoted = (flags & REDUCT_ATOM_LOOKUP_QUOTED) != 0;
-        if (atom->hash == hash && isQuoted == wantQuoted && reduct_atom_is_equal(atom, str, len))
-        {
-            if (current != &reduct->atomBuckets[bucket])
-            {
-                *current = atom->next;
-                atom->next = reduct->atomBuckets[bucket];
-                reduct->atomBuckets[bucket] = atom;
-            }
-            return atom;
-        }
-        current = &(*current)->next;
+        item->flags |= REDUCT_ITEM_FLAG_FALSY;
     }
-
-    reduct_item_t* item = reduct_item_new(reduct);
-    item->type = REDUCT_ITEM_TYPE_ATOM;
-    if (flags & REDUCT_ATOM_LOOKUP_QUOTED)
-    {
-        item->flags |= REDUCT_ITEM_FLAG_QUOTED;
-    }
-    reduct_atom_t* atom = &item->atom;
-    atom->length = len;
-    atom->hash = hash;
-    atom->intrinsic = REDUCT_INTRINSIC_NONE;
-    atom->next = reduct->atomBuckets[bucket];
-    reduct->atomBuckets[bucket] = atom;
-
-    if (len < REDUCT_ATOM_SMALL_MAX)
-    {
-        REDUCT_MEMCPY(atom->small, str, len);
-        atom->small[len] = '\0';
-        atom->string = atom->small;
-    }
-    else
-    {
-        atom->string = REDUCT_MALLOC(len + 1);
-        if (atom->string == REDUCT_NULL)
-        {
-            REDUCT_ERROR_INTERNAL(reduct, "out of memory");
-        }
-        REDUCT_MEMCPY(atom->string, str, len);
-        atom->string[len] = '\0';
-    }
-
     return atom;
 }
 
@@ -238,35 +383,83 @@ static inline void reduct_atom_normalize_escape(reduct_atom_t* atom)
         }
     }
     atom->length = j;
-    if (atom->length < REDUCT_ATOM_SMALL_MAX)
-    {
-        str[j] = '\0';
-    }
-    else
-    {
-        atom->string[j] = '\0';
-    }
 }
 
-REDUCT_API void reduct_atom_normalize(reduct_t* reduct, reduct_atom_t* atom)
+REDUCT_API void reduct_atom_intern(reduct_t* reduct, reduct_atom_t* atom)
 {
-    REDUCT_UNUSED(reduct);
-
     REDUCT_ASSERT(reduct != REDUCT_NULL);
     REDUCT_ASSERT(atom != REDUCT_NULL);
 
-    reduct_item_t* item = REDUCT_CONTAINER_OF(atom, reduct_item_t, atom);
-    if (atom->length == 0)
+    if (atom->index != REDUCT_ATOM_INDEX_NONE)
     {
-        item->flags |= REDUCT_ITEM_FLAG_FALSY;
         return;
     }
 
-    if (item->flags & REDUCT_ITEM_FLAG_QUOTED)
+    atom->hash = reduct_hash(atom->string, atom->length);
+    reduct_size_t index = reduct_atom_map_find_or_alloc(reduct, atom->hash, atom->string, atom->length, REDUCT_ATOM_LOOKUP_NONE);
+    if (reduct_atom_map_is_alive(reduct->atomMap[index]))
     {
-        reduct_atom_normalize_escape(atom);
+        REDUCT_ERROR_INTERNAL(reduct, "atom already interned");
     }
 
+    reduct->atomMap[atom->index] = REDUCT_ATOM_TOMBSTONE;
+    reduct->atomMapTombstones++;
+
+    reduct->atomMap[index] = atom;
+    atom->index = (reduct_uint32_t)index;
+}
+
+REDUCT_API reduct_atom_t* reduct_atom_lookup(reduct_t* reduct, const char* str, reduct_size_t len,
+    reduct_atom_lookup_flags_t flags)
+{
+    REDUCT_ASSERT(reduct != REDUCT_NULL);
+    REDUCT_ASSERT(str != REDUCT_NULL);
+
+    reduct_uint32_t hash = reduct_hash(str, len);
+    reduct_size_t index = reduct_atom_map_find_or_alloc(reduct, hash, str, len, flags);
+    if (reduct->atomMap[index] != REDUCT_NULL && reduct->atomMap[index] != REDUCT_ATOM_TOMBSTONE)
+    {
+        return reduct->atomMap[index];
+    }
+
+    reduct_atom_t* atom = reduct_atom_new(reduct, len);
+    REDUCT_MEMCPY(atom->string, str, len);
+
+    atom->hash = hash;
+    atom->index = (reduct_uint32_t)index;
+    reduct->atomMap[index] = atom;
+
+    if (flags & REDUCT_ATOM_LOOKUP_QUOTED)
+    {
+        reduct_item_t* item = REDUCT_CONTAINER_OF(atom, reduct_item_t, atom);
+        item->flags |= REDUCT_ITEM_FLAG_QUOTED;
+
+        reduct_atom_normalize_escape(atom);
+        reduct_uint32_t hash = reduct_hash(atom->string, atom->length);
+        reduct_atom_map_update(reduct, atom, index, hash);
+    }
+
+    return atom;
+}
+
+#define REDUCT_ATOM_MAX_NUMBER_LENGTH 70
+
+REDUCT_API void reduct_atom_check_number(reduct_atom_t* atom)
+{
+    REDUCT_ASSERT(atom != REDUCT_NULL);
+
+    if (atom->flags & REDUCT_ATOM_FLAG_NUMBER_CHECKED)
+    {
+        return;
+    }
+    atom->flags |= REDUCT_ATOM_FLAG_NUMBER_CHECKED;
+
+    if (atom->length == 0 || atom->length >= REDUCT_ATOM_MAX_NUMBER_LENGTH)
+    {
+        return;
+    }
+
+    reduct_item_t* item = REDUCT_CONTAINER_OF(atom, reduct_item_t, atom);
     const char* p = atom->string;
     const char* end = p + atom->length;
     const char* start = p;
@@ -290,14 +483,14 @@ REDUCT_API void reduct_atom_normalize(reduct_t* reduct, reduct_atom_t* atom)
     {
         if (REDUCT_CHAR_TO_LOWER(p[0]) == 'i' && REDUCT_CHAR_TO_LOWER(p[1]) == 'n' && REDUCT_CHAR_TO_LOWER(p[2]) == 'f')
         {
-            item->flags |= REDUCT_ITEM_FLAG_FLOAT_SHAPED;
+            atom->flags |= REDUCT_ATOM_FLAG_FLOAT;
             atom->floatValue = sign > 0 ? REDUCT_INF : -REDUCT_INF;
             return;
         }
         if (p == start && REDUCT_CHAR_TO_LOWER(p[0]) == 'n' && REDUCT_CHAR_TO_LOWER(p[1]) == 'a' &&
             REDUCT_CHAR_TO_LOWER(p[2]) == 'n')
         {
-            item->flags |= REDUCT_ITEM_FLAG_FLOAT_SHAPED;
+            atom->flags |= REDUCT_ATOM_FLAG_FLOAT;
             atom->floatValue = REDUCT_NAN;
             return;
         }
@@ -366,7 +559,7 @@ REDUCT_API void reduct_atom_normalize(reduct_t* reduct, reduct_atom_t* atom)
         }
         if (valid && hasDigits && p == end && *(end - 1) != '_')
         {
-            item->flags |= REDUCT_ITEM_FLAG_INT_SHAPED;
+            atom->flags |= REDUCT_ATOM_FLAG_INTEGER;
             atom->integerValue = sign * (reduct_int64_t)intValue;
             if (atom->integerValue == 0)
             {
@@ -476,7 +669,7 @@ REDUCT_API void reduct_atom_normalize(reduct_t* reduct, reduct_atom_t* atom)
     {
         if (isFloat)
         {
-            item->flags |= REDUCT_ITEM_FLAG_FLOAT_SHAPED;
+            atom->flags |= REDUCT_ATOM_FLAG_FLOAT;
             double finalVal = floatValue;
             if (inExponent && expValue != 0)
             {
@@ -509,7 +702,7 @@ REDUCT_API void reduct_atom_normalize(reduct_t* reduct, reduct_atom_t* atom)
         }
         else
         {
-            item->flags |= REDUCT_ITEM_FLAG_INT_SHAPED;
+            atom->flags |= REDUCT_ATOM_FLAG_INTEGER;
             atom->integerValue = sign * (reduct_int64_t)intValue;
             if (atom->integerValue == 0)
             {
@@ -517,6 +710,40 @@ REDUCT_API void reduct_atom_normalize(reduct_t* reduct, reduct_atom_t* atom)
             }
         }
     }
+}
+
+REDUCT_API reduct_atom_t* reduct_atom_substring(struct reduct* reduct, reduct_atom_t* atom, reduct_size_t start,
+    reduct_size_t len)
+{
+    REDUCT_ASSERT(reduct != REDUCT_NULL);
+    REDUCT_ASSERT(atom != REDUCT_NULL);
+
+    if (len == 0)
+    {
+        return reduct_atom_new(reduct, 0);
+    }
+
+    if (start == 0 && len == atom->length)
+    {
+        return atom;
+    }
+
+    REDUCT_ASSERT(start + len <= atom->length);
+
+    const char* str = atom->string;
+
+    reduct_item_t* subItem = reduct_item_new(reduct);
+    subItem->type = REDUCT_ITEM_TYPE_ATOM;
+
+    reduct_atom_t* subAtom = &subItem->atom;
+    subAtom->length = len;
+    subAtom->hash = 0;
+    subAtom->index = REDUCT_ATOM_INDEX_NONE;
+    subAtom->intrinsic = 0;
+    subAtom->flags = REDUCT_ATOM_FLAG_SUBSTR;
+    subAtom->string = (char*)str + start;
+    subAtom->parent = atom;
+    return subAtom;
 }
 
 #endif

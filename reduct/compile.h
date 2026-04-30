@@ -260,7 +260,7 @@ REDUCT_API void reduct_reg_free_range(reduct_compiler_t* compiler, reduct_reg_t 
  * @param _val The integer value.
  */
 #define REDUCT_EXPR_INT(_compiler, _val) \
-    REDUCT_EXPR_CONST_ATOM(_compiler, reduct_atom_lookup_int((_compiler)->reduct, (_val)))
+    REDUCT_EXPR_CONST_ATOM(_compiler, reduct_atom_new_int((_compiler)->reduct, (_val)))
 
 /**
  * @brief Get the target register index from an expression, or -1 if no target is specified.
@@ -275,7 +275,7 @@ REDUCT_API void reduct_reg_free_range(reduct_compiler_t* compiler, reduct_reg_t 
  * @param _val The float value.
  */
 #define REDUCT_EXPR_FLOAT(_compiler, _val) \
-    REDUCT_EXPR_CONST_ATOM(_compiler, reduct_atom_lookup_float((_compiler)->reduct, (_val)))
+    REDUCT_EXPR_CONST_ATOM(_compiler, reduct_atom_new_float((_compiler)->reduct, (_val)))
 
 /**
  * @brief Compiles a single Reduct item into an expression descriptor.

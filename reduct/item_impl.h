@@ -1,3 +1,4 @@
+#include "defs.h"
 #ifndef REDUCT_ITEM_IMPL_H
 #define REDUCT_ITEM_IMPL_H 1
 
@@ -11,7 +12,6 @@ static inline void reduct_item_init(reduct_item_t* item)
 {
     item->type = REDUCT_ITEM_TYPE_NONE;
     item->flags = 0;
-    item->retainCount = 0;
     item->input = REDUCT_NULL;
     item->position = 0;
 }
@@ -29,12 +29,7 @@ REDUCT_API reduct_item_t* reduct_item_new(reduct_t* reduct)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
 
-    if (REDUCT_UNLIKELY(reduct->freeList == REDUCT_NULL))
-    {
-        reduct_gc_if_needed(reduct);
-    }
-
-    if (reduct->freeList != REDUCT_NULL)
+    if (REDUCT_LIKELY(reduct->freeList != REDUCT_NULL))
     {
         return reduct_item_pop_free_list(reduct);
     }
@@ -47,18 +42,13 @@ REDUCT_API reduct_item_t* reduct_item_new(reduct_t* reduct)
     }
     else
     {
-        block = REDUCT_MALLOC(sizeof(reduct_item_block_t));
+        block = REDUCT_CALLOC(1, sizeof(reduct_item_block_t));
         if (block == REDUCT_NULL)
         {
             REDUCT_ERROR_INTERNAL(reduct, "out of memory");
         }
     }
     reduct->blocksAllocated++;
-
-    for (reduct_size_t i = 0; i < REDUCT_ITEM_BLOCK_MAX; i++)
-    {
-        reduct_item_init(&block->items[i]);
-    }
 
     for (reduct_size_t i = 1; i < REDUCT_ITEM_BLOCK_MAX - 1; i++)
     {
@@ -108,32 +98,6 @@ REDUCT_API void reduct_item_free(reduct_t* reduct, reduct_item_t* item)
 
     item->free = reduct->freeList;
     reduct->freeList = item;
-}
-
-REDUCT_API reduct_int64_t reduct_item_get_int(reduct_item_t* item)
-{
-    if (item->flags & REDUCT_ITEM_FLAG_INT_SHAPED)
-    {
-        return item->atom.integerValue;
-    }
-    if (item->flags & REDUCT_ITEM_FLAG_FLOAT_SHAPED)
-    {
-        return (reduct_int64_t)item->atom.floatValue;
-    }
-    return 0;
-}
-
-REDUCT_API reduct_float_t reduct_item_get_float(reduct_item_t* item)
-{
-    if (item->flags & REDUCT_ITEM_FLAG_FLOAT_SHAPED)
-    {
-        return item->atom.floatValue;
-    }
-    if (item->flags & REDUCT_ITEM_FLAG_INT_SHAPED)
-    {
-        return (reduct_float_t)item->atom.integerValue;
-    }
-    return 0.0;
 }
 
 REDUCT_API const char* reduct_item_type_str(reduct_item_type_t type)

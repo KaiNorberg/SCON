@@ -99,7 +99,6 @@ REDUCT_API reduct_handle_t reduct_is_atom(struct reduct* reduct, reduct_size_t a
 REDUCT_API reduct_handle_t reduct_is_int(struct reduct* reduct, reduct_size_t argc, reduct_handle_t* argv);
 REDUCT_API reduct_handle_t reduct_is_float(struct reduct* reduct, reduct_size_t argc, reduct_handle_t* argv);
 REDUCT_API reduct_handle_t reduct_is_number(struct reduct* reduct, reduct_size_t argc, reduct_handle_t* argv);
-REDUCT_API reduct_handle_t reduct_is_string(struct reduct* reduct, reduct_size_t argc, reduct_handle_t* argv);
 REDUCT_API reduct_handle_t reduct_is_lambda(struct reduct* reduct, reduct_size_t argc, reduct_handle_t* argv);
 REDUCT_API reduct_handle_t reduct_is_native(struct reduct* reduct, reduct_size_t argc, reduct_handle_t* argv);
 REDUCT_API reduct_handle_t reduct_is_callable(struct reduct* reduct, reduct_size_t argc, reduct_handle_t* argv);
@@ -109,7 +108,6 @@ REDUCT_API reduct_handle_t reduct_is_nil(struct reduct* reduct, reduct_size_t ar
 
 REDUCT_API reduct_handle_t reduct_get_int(struct reduct* reduct, reduct_handle_t* handle);
 REDUCT_API reduct_handle_t reduct_get_float(struct reduct* reduct, reduct_handle_t* handle);
-REDUCT_API reduct_handle_t reduct_get_string(struct reduct* reduct, reduct_handle_t* handle);
 
 REDUCT_API reduct_handle_t reduct_run(struct reduct* reduct, reduct_handle_t* handle);
 REDUCT_API reduct_handle_t reduct_load(struct reduct* reduct, reduct_handle_t* path);

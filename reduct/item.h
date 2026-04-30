@@ -36,12 +36,8 @@ typedef reduct_uint8_t reduct_item_type_t;
 typedef reduct_uint8_t reduct_item_flags_t;
 #define REDUCT_ITEM_FLAG_NONE 0                ///< No flags.
 #define REDUCT_ITEM_FLAG_FALSY (1 << 0)        ///< Item is falsy.
-#define REDUCT_ITEM_FLAG_INT_SHAPED (1 << 1)   ///< Item is an integer shaped atom.
-#define REDUCT_ITEM_FLAG_FLOAT_SHAPED (1 << 2) ///< Item is a float shaped atom.
-#define REDUCT_ITEM_FLAG_INTRINSIC (1 << 3)    ///< Item is an atom and a intrinsic.
-#define REDUCT_ITEM_FLAG_NATIVE (1 << 4)       ///< Item is an atom and a native function.
-#define REDUCT_ITEM_FLAG_QUOTED (1 << 5)       ///< Item is a quoted atom.
-#define REDUCT_ITEM_FLAG_GC_MARK (1 << 6)      ///< Item is marked by GC.
+#define REDUCT_ITEM_FLAG_QUOTED (1 << 1)       ///< Item is quoted.
+#define REDUCT_ITEM_FLAG_GC_MARK (1 << 2)      ///< Item is marked by GC.
 
 #define REDUCT_ITEM_PAYLOAD_MAX 48 ///< The maximum size of the item payload.
 
@@ -59,10 +55,10 @@ typedef struct reduct_item
     reduct_uint32_t position;    ///< The position in the input buffer where the item was parsed.
     reduct_item_flags_t flags;   ///< Flags for the item.
     reduct_item_type_t type;     ///< The type of the item.
-    reduct_uint16_t retainCount; ///< The reference count for GC retention.
+    reduct_uint8_t _padding[2];
     union {
         reduct_uint32_t
-            length;         ///< Common length for the item. (Stored in the union to save space due to padding rules.)
+            length;         ///< Common length for the item. (Stored in the union due to padding rules.)
         reduct_atom_t atom; ///< An atom.
         reduct_list_t list; ///< A list.
         reduct_list_node_t node;    ///< A list node.
@@ -112,22 +108,6 @@ REDUCT_API reduct_item_t* reduct_item_new(struct reduct* reduct);
  * @param item Pointer to the item to free.
  */
 REDUCT_API void reduct_item_free(struct reduct* reduct, reduct_item_t* item);
-
-/**
- * @brief Get the integer value of an item if it is number shaped.
- *
- * @param item Pointer to the item.
- * @return The integer value, or 0 if not number shaped.
- */
-REDUCT_API reduct_int64_t reduct_item_get_int(reduct_item_t* item);
-
-/**
- * @brief Get the float value of an item if it is number shaped.
- *
- * @param item Pointer to the item.
- * @return The float value, or 0.0 if not number shaped.
- */
-REDUCT_API reduct_float_t reduct_item_get_float(reduct_item_t* item);
 
 /**
  * @brief Get the string representation of an Reduct item type.

@@ -503,62 +503,93 @@ Many additional optimization techniques are used, for example, [Computed Gotos](
 
 ## Benchmarks
 
-Included below are a handful of benchmarks comparing Reduct with python 3.14.3 and Lua 5.4.8 using hyperfine, all benchmarks were performed in Fedora 43 (6.19.11-200.fc43.x86_64).
+The included results were automatically generated using the `run_bench.sh` script, all benchmarks can be found in `bench/`.
 
-### Fib35
+All benchmarks were performed on the following system:
 
-Finds the 35th Fibonacci number without tail call optimization.
+- **Timestamp:** `Thu Apr 30 05:16:53 AM CEST 2026`
+- **CPU:** `AMD Ryzen 5 3600X 6-Core Processor`
+- **OS:** `Fedora Linux 43 (KDE Plasma Desktop Edition)`
+- **Kernel:** `6.19.13-200.fc43.x86_64`
+- **Reduct:** `Reduct 1.0.4+daf0d70`
+- **Hyperfine:** `hyperfine 1.20.0`
+- **Heaptrack:** `heaptrack 1.5.0`
+- **Lua:** `Lua 5.4.8  Copyright (C) 1994-2025 Lua.org, PUC-Rio`
+- **Python:** `Python 3.14.4`
 
-| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
-|:---|---:|---:|---:|---:|
-| `reduct bench/fib35.rdt` | 550.2 ± 11.0 | 535.5 | 572.8 | 1.00 |
-| `lua bench/fib35.lua` | 826.8 ± 38.6 | 769.7 | 900.2 | 1.50 ± 0.08 |
-| `python bench/fib35.py` | 1109.4 ± 14.7 | 1085.3 | 1136.0 | 2.02 ± 0.05 |
-
-For this benchmark, memory usage was also tracked using `heaptrack`:
-
-| Command | Peak Memory [MB] |
-|:---|---:|
-| `reduct bench/fib35.rdt` | 0.097 |
-| `lua bench/fib35.lua` | 0.099 |
-| `python bench/fib35.py` | 1.8 |
-
-### Fib65
-
-Finds the 65th Fibonacci number with tail call optimization.
+### brainfuck
 
 | Command | Mean [µs] | Min [µs] | Max [µs] | Relative |
 |:---|---:|---:|---:|---:|
-| `reduct bench/fib65.rdt` | 613.9 ± 90.6 | 535.1 | 3310.0 | 1.00 |
-| `lua bench/fib65.lua` | 1049.5 ± 165.0 | 920.3 | 2663.3 | 1.71 ± 0.37 |
-| `python bench/fib65.py` | 13155.4 ± 1254.2 | 11688.3 | 23926.9 | 21.43 ± 3.76 |
+| `reduct bench/brainfuck.rdt` | 898.0 ± 180.9 | 765.1 | 3160.4 | 1.00 |
+| `lua bench/brainfuck.lua` | 1136.6 ± 123.6 | 1026.9 | 2579.7 | 1.27 ± 0.29 |
 
-### Brainfuck
+##### Memory Usage
 
-A simple jump-table optimized Brainfuck interpreter that runs a "Hello World!" program.
-
-> This benchmark also acts as a fun Turing completeness proof.
-
-| Command | Mean [µs] | Min [µs] | Max [µs] | Relative |
-|:---|---:|---:|---:|---:|
-| `reduct bench/brainfuck.rdt` | 794.3 ± 101.8 | 720.6 | 1779.7 | 1.00 |
-| `lua bench/brainfuck.lua` | 1112.1 ± 146.5 | 1022.6 | 2359.5 | 1.40 ± 0.26 |
-
-For this benchmark, memory usage was also tracked using `heaptrack`:
-
-| Command | Peak Memory [MB] |
+| Command | Peak Memory |
 |:---|---:|
-| `reduct bench/brainfuck.rdt` | 0.185 |
-| `lua bench/brainfuck.lua` | 0.102 |
+| `reduct bench/brainfuck.rdt` | 248.62K |
+| `lua bench/brainfuck.lua` | 102.77K |
 
-### Mandelbrot
-
-Outputs an 80 by 40 visualization of the Mandelbrot set with 10000 iterations.
+### fib35
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `reduct bench/mandelbrot.rdt` | 330.7 ± 8.3 | 318.0 | 347.3 | 1.00 |
-| `lua bench/mandelbrot.lua` | 369.2 ± 14.3 | 356.5 | 403.3 | 1.12 ± 0.05 |
+| `reduct bench/fib35.rdt` | 500.5 ± 1.6 | 497.9 | 502.8 | 1.00 |
+| `lua bench/fib35.lua` | 746.5 ± 24.0 | 715.1 | 783.7 | 1.49 ± 0.05 |
+| `python3 bench/fib35.py` | 1058.3 ± 58.2 | 1015.8 | 1204.8 | 2.11 ± 0.12 |
+
+##### Memory Usage
+
+| Command | Peak Memory |
+|:---|---:|
+| `reduct bench/fib35.rdt` | 98.18K |
+| `lua bench/fib35.lua` | 99.52K |
+| `python3 bench/fib35.py` | 1.82M |
+
+### fib65
+
+| Command | Mean [µs] | Min [µs] | Max [µs] | Relative |
+|:---|---:|---:|---:|---:|
+| `reduct bench/fib65.rdt` | 645.9 ± 109.5 | 556.3 | 1709.6 | 1.00 |
+| `lua bench/fib65.lua` | 1021.2 ± 200.1 | 873.5 | 3169.0 | 1.58 ± 0.41 |
+| `python3 bench/fib65.py` | 11968.1 ± 886.4 | 11138.8 | 21730.2 | 18.53 ± 3.43 |
+
+##### Memory Usage
+
+| Command | Peak Memory |
+|:---|---:|
+| `reduct bench/fib65.rdt` | 98.18K |
+| `lua bench/fib65.lua` | 99.38K |
+| `python3 bench/fib65.py` | 1.82M |
+
+### fizzbuzz
+
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
+|:---|---:|---:|---:|---:|
+| `reduct bench/fizzbuzz.rdt` | 1.6 ± 0.2 | 1.5 | 3.5 | 1.00 |
+| `lua bench/fizzbuzz.lua` | 6.0 ± 0.9 | 5.6 | 12.2 | 3.76 ± 0.80 |
+
+##### Memory Usage
+
+| Command | Peak Memory |
+|:---|---:|
+| `reduct bench/fizzbuzz.rdt` | 98.49K |
+| `lua bench/fizzbuzz.lua` | 102.38K |
+
+### mandelbrot
+
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
+|:---|---:|---:|---:|---:|
+| `reduct bench/mandelbrot.rdt` | 309.8 ± 0.3 | 309.5 | 310.2 | 1.00 |
+| `lua bench/mandelbrot.lua` | 336.7 ± 6.4 | 331.1 | 350.5 | 1.09 ± 0.02 |
+
+##### Memory Usage
+
+| Command | Peak Memory |
+|:---|---:|
+| `reduct bench/mandelbrot.rdt` | 758.28K |
+| `lua bench/mandelbrot.lua` | 112.34K |
 
 ## Testing
 
@@ -1102,10 +1133,6 @@ Returns `true` if all items are float shaped atoms, otherwise `false`.
 
 Returns `true` if all items are integer or float shaped atoms, otherwise `false`.
 
-**`(string? <item> {item}) -> <true|false>`**
-
-Returns `true` if all items are string shaped (not number shaped) atoms, otherwise `false`.
-
 **`(lambda? <item> {item}) -> <true|false>`**
 
 Returns `true` if all items are lambdas, otherwise `false`.
@@ -1141,10 +1168,6 @@ Returns the integer shaped representation of the atom.
 **`(float <atom>) -> <number>`**
 
 Returns the float shaped representation of the atom.
-
-**`(string <item>) -> <string>`**
-
-Returns the stringified representation of the item.
 
 ---
 

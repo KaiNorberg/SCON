@@ -28,11 +28,6 @@
     (assert! (== (number? num-int num-float) true) "number? should return true if all items are numbers")
     (assert! (== (number? num-int text) false) "number? should return false if any item is not a number")
 
-    (assert! (== (string? text) true) "string? should return true for strings")
-    (assert! (== (string? num-int) false) "string? should return false for numbers")
-    (assert! (== (string? text "world") true) "string? should return true if all items are strings")
-    (assert! (== (string? text num-int) false) "string? should return false if any item is not a string")
-
     (assert! (== (lambda? my-lambda) true) "lambda? should return true for lambdas")
     (assert! (== (lambda? print!) false) "lambda? should return false for natives")
     (assert! (== (lambda? my-lambda (lambda () 1)) true) "lambda? should return true if all items are lambdas")

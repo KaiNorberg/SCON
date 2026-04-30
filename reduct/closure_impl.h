@@ -41,13 +41,20 @@ REDUCT_API reduct_closure_t* reduct_closure_new(struct reduct* reduct, reduct_fu
         }
 
         reduct_item_t* item = function->constants[i].item;
-        if (item->flags & REDUCT_ITEM_FLAG_INT_SHAPED)
+        if (item->type != REDUCT_ITEM_TYPE_ATOM)
         {
-            closure->constants[i] = REDUCT_HANDLE_FROM_INT(item->atom.integerValue);
+            closure->constants[i] = REDUCT_HANDLE_FROM_ITEM(item);
+            continue;
         }
-        else if (item->flags & REDUCT_ITEM_FLAG_FLOAT_SHAPED)
+
+        reduct_atom_t* atom = &item->atom;
+        if (reduct_atom_is_int(atom))
         {
-            closure->constants[i] = REDUCT_HANDLE_FROM_FLOAT(item->atom.floatValue);
+            closure->constants[i] = REDUCT_HANDLE_FROM_INT(atom->integerValue);
+        }
+        else if (reduct_atom_is_float(atom))
+        {
+            closure->constants[i] = REDUCT_HANDLE_FROM_FLOAT(atom->floatValue);
         }
         else
         {

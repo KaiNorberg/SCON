@@ -1,3 +1,4 @@
+#include "defs.h"
 #ifndef REDUCT_CORE_H
 #define REDUCT_CORE_H 1
 
@@ -16,10 +17,7 @@ struct reduct_item;
  * @{
  */
 
-#define REDUCT_BUCKETS_MAX 128 ///< Amount of buckets used for intering atoms.
 #define REDUCT_CONSTANTS_MAX 8 ///< Maximum amount of predefined constants.
-
-#define REDUCT_GC_THRESHOLD_INITIAL 128 ///< Initial blocks allocated threshold for garbage collection.
 
 /**
  * @brief Input flags.
@@ -37,6 +35,7 @@ typedef enum
 typedef struct reduct_input
 {
     struct reduct_input* prev;
+    reduct_handle_t ast;
     const char* buffer;
     const char* end;
     reduct_input_flags_t flags;
@@ -52,6 +51,19 @@ typedef struct reduct_constant
     struct reduct_atom* name;
     struct reduct_item* item;
 } reduct_constant_t;
+
+/**
+ * @brief Scratch buffer structure.
+ * @struct reduct_scratch_t
+ */
+typedef struct reduct_scratch
+{
+    char* buffer;
+    reduct_size_t length;
+} reduct_scratch_t;
+
+#define REDUCT_SCRATCH_INITIAL 128 ///< Initial scratch buffer size.
+#define REDUCT_SCRATCH_MAX 16 ///< The maximum number of scratch buffers.
 
 /**
  * @brief State structure.
@@ -72,7 +84,14 @@ typedef struct reduct
     reduct_item_t* nilItem;
     reduct_item_t* piItem;
     reduct_item_t* eItem;
-    struct reduct_atom* atomBuckets[REDUCT_BUCKETS_MAX];
+    reduct_size_t scratchSize;
+    reduct_size_t scratchCapacity;
+    reduct_scratch_t scratch[REDUCT_SCRATCH_MAX];
+    reduct_size_t atomMapSize;
+    reduct_size_t atomMapTombstones;
+    reduct_size_t atomMapCapacity;
+    reduct_size_t atomMapMask;
+    struct reduct_atom** atomMap;
     reduct_constant_t constants[REDUCT_CONSTANTS_MAX];
     reduct_uint32_t constantCount;
     reduct_error_t* error;
@@ -128,6 +147,73 @@ REDUCT_API void reduct_constant_register(reduct_t* reduct, const char* name, str
  */
 REDUCT_API reduct_input_t* reduct_input_new(reduct_t* reduct, const char* buffer, reduct_size_t length,
     const char* path, reduct_input_flags_t flags);
+
+/**
+ * @brief Allocate a scratch buffer.
+ *
+ * @param _reduct The Reduct structure.
+ * @param _name The name of the buffer pointer.
+ * @param _type The type of the elements.
+ * @param _length The number of elements of `_type` to reserve memory for.
+ */
+#define REDUCT_SCRATCH(_reduct, _name, _type, _length) \
+    _type* _name = REDUCT_NULL; \
+    do \
+    { \
+        reduct_size_t _needed = (_length) * sizeof(_type); \
+        if ((_reduct)->scratchSize >= REDUCT_SCRATCH_MAX) \
+        { \
+            REDUCT_ERROR_INTERNAL(_reduct, "scratch buffer overflow"); \
+        } \
+        reduct_scratch_t* _s = &(_reduct)->scratch[(_reduct)->scratchSize++]; \
+        _s->buffer = REDUCT_MALLOC(_needed); \
+        if (_s->buffer == REDUCT_NULL) \
+        { \
+            REDUCT_ERROR_INTERNAL(_reduct, "out of memory"); \
+        } \
+        _s->length = _needed; \
+        _name = (_type*)_s->buffer; \
+    } while (0)
+
+/**
+ * @brief Grow an allocated scratch buffer, the current buffer must be the last one allocated.
+ *
+ * @param _reduct The Reduct structure.
+ * @param _name The name of the buffer pointer.
+ * @param _type The type of the elements.
+ * @param _length The number of elements of `_type` to reserve memory for.
+ */
+#define REDUCT_SCRATCH_GROW(_reduct, _name, _type, _length) \
+    do \
+    { \
+        reduct_size_t _needed = (_length) * sizeof(_type); \
+        reduct_scratch_t* _s = &(_reduct)->scratch[(_reduct)->scratchSize - 1]; \
+        _s->buffer = REDUCT_REALLOC(_s->buffer, _needed); \
+        if (_s->buffer == REDUCT_NULL) \
+        { \
+            REDUCT_ERROR_INTERNAL(_reduct, "out of memory"); \
+        } \
+        _s->length = _needed; \
+        _name = (_type*)_s->buffer; \
+    } while (0)
+
+/**
+ * @brief Free a scratch buffer, the current buffer must be the last one allocated.
+ *
+ * @param _reduct The Reduct structure.
+ * @param _name The name of the buffer pointer.
+ */
+#define REDUCT_SCRATCH_FREE(_reduct, _name) \
+    do \
+    { \
+        REDUCT_ASSERT((_reduct)->scratchSize > 0); \
+        reduct_scratch_t* _s = &(_reduct)->scratch[--(_reduct)->scratchSize]; \
+        REDUCT_FREE(_s->buffer); \
+        _s->buffer = REDUCT_NULL; \
+        _s->length = 0; \
+        _name = REDUCT_NULL; \
+    } while (0)
+    
 
 /** @} */
 

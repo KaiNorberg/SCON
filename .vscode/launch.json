@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/tools/reduct-cli/build/reduct",
             "args": [
-                "${workspaceFolder}/tests/02_control_flow_logic.rdt"
+                "${workspaceFolder}/bench/fizzbuzz.rdt"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

@@ -227,9 +227,6 @@ static void reduct_parse_quoted_atom(reduct_t* reduct, reduct_parse_ctx_t* ctx)
     reduct_item_t* item = REDUCT_CONTAINER_OF(atom, reduct_item_t, atom);
     item->input = ctx->input;
     item->position = (reduct_size_t)(start - ctx->input->buffer);
-    item->flags |= REDUCT_ITEM_FLAG_QUOTED;
-
-    reduct_atom_normalize(reduct, atom);
 
     reduct_list_append(reduct, ctx->stack[ctx->current], REDUCT_HANDLE_FROM_ITEM(item));
     ctx->ptr++;
@@ -258,8 +255,6 @@ static void reduct_parse_unquoted_atom(reduct_t* reduct, reduct_parse_ctx_t* ctx
     item->input = ctx->input;
     item->position = (reduct_size_t)(start - ctx->input->buffer);
 
-    reduct_atom_normalize(reduct, atom);
-
     reduct_list_append(reduct, ctx->stack[ctx->current], REDUCT_HANDLE_FROM_ITEM(item));
 }
 
@@ -274,7 +269,7 @@ REDUCT_API reduct_handle_t reduct_parse_input(reduct_t* reduct, reduct_input_t* 
     reduct_item_t* rootItem = REDUCT_CONTAINER_OF(root, reduct_item_t, list);
     rootItem->input = input;
     reduct_handle_t result = REDUCT_HANDLE_FROM_ITEM(rootItem);
-    REDUCT_GC_RETAIN(reduct, result);
+    input->ast = result;
 
     reduct_parse_ctx_t ctx;
     ctx.ptr = input->buffer;

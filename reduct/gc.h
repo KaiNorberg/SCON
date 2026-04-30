@@ -1,3 +1,4 @@
+#include "defs.h"
 #ifndef REDUCT_GC_H
 #define REDUCT_GC_H 1
 
@@ -15,6 +16,8 @@
  * @{
  */
 
+#define REDUCT_GC_THRESHOLD_INITIAL 32 ///< Initial blocks allocated threshold for garbage collection.
+
 /**
  * @brief Run the garbage collector.
  *
@@ -27,57 +30,17 @@ REDUCT_API void reduct_gc(reduct_t* reduct);
 
  * @param reduct The Reduct structure.
  */
-REDUCT_API void reduct_gc_if_needed(reduct_t* reduct);
+static inline REDUCT_ALWAYS_INLINE void reduct_gc_if_needed(reduct_t* reduct)
+{
+    REDUCT_ASSERT(reduct != REDUCT_NULL);
 
-/**
- * @brief Retain an item, preventing it from being collected by the GC.
- *
- * @param reduct The Reduct structure.
- * @param item The item to retain, must be a item.
- */
-#define REDUCT_GC_RETAIN(_reduct, _handle) \
-    do \
-    { \
-        (void)(_reduct); \
-        reduct_handle_t __handle = (_handle); \
-        if (REDUCT_HANDLE_IS_ITEM(&__handle)) \
-        { \
-            reduct_item_t* __item = REDUCT_HANDLE_TO_ITEM(&__handle); \
-            __item->retainCount++; \
-        } \
-    } while (0)
-
-/**
- * @brief Retain a item, preventing it from being collected by the GC.
- *
- * @param reduct The Reduct structure.
- * @param item The item to retain.
- */
-#define REDUCT_GC_RETAIN_ITEM(_reduct, _item) \
-    do \
-    { \
-        (void)(_reduct); \
-        reduct_item_t* __item = (_item); \
-        __item->retainCount++; \
-    } while (0)
-
-/**
- * @brief Release a previously retained item, allowing it to be collected by the GC.
- *
- * @param reduct The Reduct structure.
- * @param item The item to release.
- */
-#define REDUCT_GC_RELEASE(_reduct, _handle) \
-    do \
-    { \
-        (void)(_reduct); \
-        reduct_handle_t __handle = (_handle); \
-        if (REDUCT_HANDLE_IS_ITEM(&__handle)) \
-        { \
-            reduct_item_t* __item = REDUCT_HANDLE_TO_ITEM(&__handle); \
-            __item->retainCount--; \
-        } \
-    } while (0)
+    if (REDUCT_UNLIKELY(reduct->blocksAllocated > reduct->gcThreshold))
+    {
+        reduct_gc(reduct);
+        reduct->blocksAllocated = 0;
+        reduct->gcThreshold = reduct->blocksAllocated + REDUCT_GC_THRESHOLD_INITIAL;
+    }
+}
 
 /** @} */
 

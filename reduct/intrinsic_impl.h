@@ -4,7 +4,7 @@
 #include "compile.h"
 #include "intrinsic.h"
 #include "item.h"
-#include "stdlib.h"
+#include "standard.h"
 
 static inline void reduct_intrinsic_check_arity(reduct_compiler_t* compiler, reduct_item_t* list,
     reduct_size_t expected, const char* name)
@@ -199,7 +199,7 @@ void reduct_intrinsic_lambda(reduct_compiler_t* compiler, reduct_item_t* list, r
         if (captured == REDUCT_NULL)
         {
             REDUCT_ERROR_COMPILE(compiler, REDUCT_CONTAINER_OF(captureName, reduct_item_t, atom),
-                "undefined variable '%s'", captureName->string);
+                "undefined variable '%.*s'", captureName->length, captureName->string);
         }
 
         if (!REDUCT_LOCAL_IS_DEFINED(captured))
@@ -760,13 +760,13 @@ static inline reduct_atom_t* reduct_fold_binary_calc(reduct_compiler_t* compiler
         switch (op)
         {
         case REDUCT_OPCODE_ADD:
-            return reduct_atom_lookup_float(compiler->reduct, lf + rf);
+            return reduct_atom_new_float(compiler->reduct, lf + rf);
         case REDUCT_OPCODE_SUB:
-            return reduct_atom_lookup_float(compiler->reduct, lf - rf);
+            return reduct_atom_new_float(compiler->reduct, lf - rf);
         case REDUCT_OPCODE_MUL:
-            return reduct_atom_lookup_float(compiler->reduct, lf * rf);
+            return reduct_atom_new_float(compiler->reduct, lf * rf);
         case REDUCT_OPCODE_DIV:
-            return (rf == 0.0) ? REDUCT_NULL : reduct_atom_lookup_float(compiler->reduct, lf / rf);
+            return (rf == 0.0) ? REDUCT_NULL : reduct_atom_new_float(compiler->reduct, lf / rf);
         default:
             return REDUCT_NULL;
         }
@@ -776,25 +776,25 @@ static inline reduct_atom_t* reduct_fold_binary_calc(reduct_compiler_t* compiler
         switch (op)
         {
         case REDUCT_OPCODE_ADD:
-            return reduct_atom_lookup_int(compiler->reduct, li + ri);
+            return reduct_atom_new_int(compiler->reduct, li + ri);
         case REDUCT_OPCODE_SUB:
-            return reduct_atom_lookup_int(compiler->reduct, li - ri);
+            return reduct_atom_new_int(compiler->reduct, li - ri);
         case REDUCT_OPCODE_MUL:
-            return reduct_atom_lookup_int(compiler->reduct, li * ri);
+            return reduct_atom_new_int(compiler->reduct, li * ri);
         case REDUCT_OPCODE_DIV:
-            return (ri == 0) ? REDUCT_NULL : reduct_atom_lookup_int(compiler->reduct, li / ri);
+            return (ri == 0) ? REDUCT_NULL : reduct_atom_new_int(compiler->reduct, li / ri);
         case REDUCT_OPCODE_MOD:
-            return (ri == 0) ? REDUCT_NULL : reduct_atom_lookup_int(compiler->reduct, li % ri);
+            return (ri == 0) ? REDUCT_NULL : reduct_atom_new_int(compiler->reduct, li % ri);
         case REDUCT_OPCODE_BAND:
-            return reduct_atom_lookup_int(compiler->reduct, li & ri);
+            return reduct_atom_new_int(compiler->reduct, li & ri);
         case REDUCT_OPCODE_BOR:
-            return reduct_atom_lookup_int(compiler->reduct, li | ri);
+            return reduct_atom_new_int(compiler->reduct, li | ri);
         case REDUCT_OPCODE_BXOR:
-            return reduct_atom_lookup_int(compiler->reduct, li ^ ri);
+            return reduct_atom_new_int(compiler->reduct, li ^ ri);
         case REDUCT_OPCODE_SHL:
-            return (ri < 0 || ri >= 64) ? REDUCT_NULL : reduct_atom_lookup_int(compiler->reduct, li << ri);
+            return (ri < 0 || ri >= 64) ? REDUCT_NULL : reduct_atom_new_int(compiler->reduct, li << ri);
         case REDUCT_OPCODE_SHR:
-            return (ri < 0 || ri >= 64) ? REDUCT_NULL : reduct_atom_lookup_int(compiler->reduct, li >> ri);
+            return (ri < 0 || ri >= 64) ? REDUCT_NULL : reduct_atom_new_int(compiler->reduct, li >> ri);
         default:
             return REDUCT_NULL;
         }
@@ -823,13 +823,22 @@ static reduct_bool_t reduct_fold_binary_expr(reduct_compiler_t* compiler, reduct
     reduct_item_t* leftItem = compiler->function->constants[leftExpr->constant].item;
     reduct_item_t* rightItem = compiler->function->constants[rightExpr->constant].item;
 
-    reduct_bool_t isFloat =
-        (leftItem->flags & REDUCT_ITEM_FLAG_FLOAT_SHAPED) || (rightItem->flags & REDUCT_ITEM_FLAG_FLOAT_SHAPED);
+    if (leftItem->type != REDUCT_ITEM_TYPE_ATOM || rightItem->type != REDUCT_ITEM_TYPE_ATOM)
+    {
+        return REDUCT_FALSE;
+    }
 
-    reduct_float_t lf = reduct_item_get_float(leftItem);
-    reduct_float_t rf = reduct_item_get_float(rightItem);
-    reduct_int64_t li = reduct_item_get_int(leftItem);
-    reduct_int64_t ri = reduct_item_get_int(rightItem);
+    if (!reduct_atom_is_number(&leftItem->atom) || !reduct_atom_is_number(&rightItem->atom))
+    {
+        return REDUCT_FALSE;
+    }
+
+    reduct_bool_t isFloat = reduct_atom_is_float(&leftItem->atom) || reduct_atom_is_float(&rightItem->atom);
+
+    reduct_float_t lf = reduct_atom_get_float(&leftItem->atom);
+    reduct_float_t rf = reduct_atom_get_float(&rightItem->atom);
+    reduct_int64_t li = reduct_atom_get_int(&leftItem->atom);
+    reduct_int64_t ri = reduct_atom_get_int(&rightItem->atom);
 
     reduct_atom_t* result = reduct_fold_binary_calc(compiler, opBase, lf, rf, li, ri, isFloat);
     if (result == REDUCT_NULL)
@@ -1023,9 +1032,9 @@ void reduct_intrinsic_bit_not(reduct_compiler_t* compiler, reduct_item_t* list, 
         compiler->function->constants[argExpr.constant].type == REDUCT_CONST_SLOT_ITEM)
     {
         reduct_item_t* argItem = compiler->function->constants[argExpr.constant].item;
-        if (argItem->flags & REDUCT_ITEM_FLAG_INT_SHAPED)
+        if (argItem->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_int(&argItem->atom))
         {
-            reduct_atom_t* result = reduct_atom_lookup_int(compiler->reduct, ~argItem->atom.integerValue);
+            reduct_atom_t* result = reduct_atom_new_int(compiler->reduct, ~reduct_atom_get_int(&argItem->atom));
             reduct_expr_done(compiler, &argExpr);
             *out = REDUCT_EXPR_CONST_ATOM(compiler, result);
             return;
@@ -1520,14 +1529,12 @@ static inline void reduct_intrinsic_register(reduct_t* reduct, reduct_intrinsic_
     reduct_atom_t* atom = reduct_atom_lookup(reduct, str, len, REDUCT_ATOM_LOOKUP_NONE);
     atom->intrinsic = intrinsic;
     atom->native = reductIntrinsicNatives[intrinsic];
-    reduct_item_t* item = REDUCT_CONTAINER_OF(atom, reduct_item_t, atom);
-    item->flags |= REDUCT_ITEM_FLAG_INTRINSIC;
-    if (atom->native != REDUCT_NULL)
+    atom->flags |= REDUCT_ATOM_FLAG_INTRINSIC;
+    if (reductIntrinsicNatives[intrinsic] != REDUCT_NULL)
     {
-        item->flags |= REDUCT_ITEM_FLAG_NATIVE;
+        atom->flags |= REDUCT_ATOM_FLAG_NATIVE;
     }
-    item->flags &= ~(REDUCT_ITEM_FLAG_INT_SHAPED | REDUCT_ITEM_FLAG_FLOAT_SHAPED);
-    REDUCT_GC_RETAIN_ITEM(reduct, item);
+    //atom->flags |= REDUCT_ATOM_FLAG_INTRINSIC_CHECKED | REDUCT_ATOM_FLAG_NATIVE_CHECKED;
 }
 
 REDUCT_API void reduct_intrinsic_register_all(reduct_t* reduct)

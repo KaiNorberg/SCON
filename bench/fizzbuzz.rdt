@@ -1,0 +1,20 @@
+(def fizzbuzz (lambda (limit)
+    (def iter (lambda (n)
+        (if {n >= limit}
+            ""
+            (do 
+                (cond
+                    ({n % 15 == 0} (println! "FizzBuzz"))
+                    ({n % 3 == 0} (println! "Fizz"))
+                    ({n % 5 == 0} (println! "Buzz"))
+                    (true (println! n))
+                )
+                (iter (++ n))
+            )
+        )
+    ))
+
+    (iter 0)
+))
+
+(fizzbuzz 10000)

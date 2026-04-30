@@ -31,6 +31,7 @@
 
 #define REDUCT_MEMSET(_ptr, _val, _size) memset(_ptr, _val, _size)
 #define REDUCT_MEMCPY(_dest, _src, _size) memcpy(_dest, _src, _size)
+#define REDUCT_MEMMOVE(_dest, _src, _size) memmove(_dest, _src, _size)
 #define REDUCT_MEMCMP(_s1, _s2, _size) memcmp(_s1, _s2, _size)
 
 #define REDUCT_STRNCPY(dest, src, n) strncpy(dest, src, n)
@@ -187,38 +188,5 @@ typedef enum
  * @brief Handle type.
  */
 typedef reduct_uint64_t reduct_handle_t;
-
-#define REDUCT_STACK_BUFFER_SIZE 256 ///< The size of temporary stack allocated buffers.
-
-/**
- * @brief Scratch buffer macro.
- *
- * Will allocate a buffer on the stack if its small enough, otherwise it will create a heap allocated buffer.
- *
- * @param _name The name of the buffer pointer.
- * @param _size The size of the buffer to allocate.
- */
-#define REDUCT_SCRATCH_BUFFER(_name, _size) \
-    char _name##Stack[REDUCT_STACK_BUFFER_SIZE]; \
-    char* _name = ((reduct_size_t)(_size) + 1 <= REDUCT_STACK_BUFFER_SIZE) \
-        ? _name##Stack \
-        : (char*)REDUCT_MALLOC((reduct_size_t)(_size) + 1); \
-    if (_name == REDUCT_NULL) \
-    { \
-        REDUCT_ERROR_INTERNAL(reduct, "out of memory"); \
-    }
-
-/**
- * @brief Scratch buffer free macro.
- * 
- * Frees a scratch buffer if it was heap allocated.
- *
- * @param _name The name of the buffer pointer.
- */
-#define REDUCT_SCRATCH_BUFFER_FREE(_name) \
-    if (_name != _name##Stack) \
-    { \
-        REDUCT_FREE(_name); \
-    }
 
 #endif

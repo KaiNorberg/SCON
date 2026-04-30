@@ -19,11 +19,11 @@ REDUCT_API reduct_t* reduct_new(reduct_error_t* error)
 
     reduct->gcThreshold = REDUCT_GC_THRESHOLD_INITIAL;
 
-    reduct->trueItem = REDUCT_CONTAINER_OF(reduct_atom_lookup_int(reduct, 1), reduct_item_t, atom);
-    reduct->falseItem = REDUCT_CONTAINER_OF(reduct_atom_lookup_int(reduct, 0), reduct_item_t, atom);
+    reduct->trueItem = REDUCT_CONTAINER_OF(reduct_atom_new_int(reduct, 1), reduct_item_t, atom);
+    reduct->falseItem = REDUCT_CONTAINER_OF(reduct_atom_new_int(reduct, 0), reduct_item_t, atom);
     reduct->nilItem = REDUCT_CONTAINER_OF(reduct_list_new(reduct), reduct_item_t, list);
-    reduct->piItem = REDUCT_CONTAINER_OF(reduct_atom_lookup_float(reduct, REDUCT_PI), reduct_item_t, atom);
-    reduct->eItem = REDUCT_CONTAINER_OF(reduct_atom_lookup_float(reduct, REDUCT_E), reduct_item_t, atom);
+    reduct->piItem = REDUCT_CONTAINER_OF(reduct_atom_new_float(reduct, REDUCT_PI), reduct_item_t, atom);
+    reduct->eItem = REDUCT_CONTAINER_OF(reduct_atom_new_float(reduct, REDUCT_E), reduct_item_t, atom);
 
     reduct->falseItem->flags |= REDUCT_ITEM_FLAG_FALSY;
     reduct->nilItem->flags |= REDUCT_ITEM_FLAG_FALSY;
@@ -49,6 +49,23 @@ REDUCT_API void reduct_free(reduct_t* reduct)
     if (reduct == REDUCT_NULL)
     {
         return;
+    }
+
+    for (reduct_size_t i = 0; i < reduct->scratchCapacity; i++)
+    {
+        if (reduct->scratch[i].buffer != REDUCT_NULL)
+        {
+            REDUCT_FREE(reduct->scratch[i].buffer);
+        }
+    }
+    reduct->scratchCapacity = 0;
+
+    if (reduct->atomMap != REDUCT_NULL)
+    {
+        REDUCT_FREE(reduct->atomMap);
+        reduct->atomMap = REDUCT_NULL;
+        reduct->atomMapCapacity = 0;
+        reduct->atomMapSize = 0;
     }
 
     reduct_item_block_t* block = reduct->block;
@@ -115,9 +132,6 @@ REDUCT_API void reduct_constant_register(reduct_t* reduct, const char* name, red
     reduct->constants[reduct->constantCount].name = atom;
     reduct->constants[reduct->constantCount].item = item;
     reduct->constantCount++;
-
-    REDUCT_GC_RETAIN_ITEM(reduct, REDUCT_CONTAINER_OF(atom, reduct_item_t, atom));
-    REDUCT_GC_RETAIN_ITEM(reduct, item);
 }
 
 REDUCT_API reduct_input_t* reduct_input_new(reduct_t* reduct, const char* buffer, reduct_size_t length,

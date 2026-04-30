@@ -1,3 +1,4 @@
+#include "atom.h"
 #include "item.h"
 #ifndef REDUCT_GC_IMPL_H
 #define REDUCT_GC_IMPL_H 1
@@ -50,6 +51,14 @@ static void reduct_gc_mark_list(reduct_t* reduct, reduct_list_t* list)
     reduct_gc_mark_node(reduct, 0, list->tail);
 }
 
+static void reduct_gc_mark_atom(reduct_t* reduct, reduct_atom_t* atom)
+{
+    if (atom->flags & REDUCT_ATOM_FLAG_SUBSTR && atom->parent != REDUCT_NULL)
+    {
+        reduct_gc_mark(reduct, REDUCT_CONTAINER_OF(atom->parent, reduct_item_t, atom));
+    }
+}
+
 static void reduct_gc_mark(reduct_t* reduct, reduct_item_t* item)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
@@ -64,6 +73,10 @@ static void reduct_gc_mark(reduct_t* reduct, reduct_item_t* item)
     if (item->type == REDUCT_ITEM_TYPE_LIST)
     {
         reduct_gc_mark_list(reduct, &item->list);
+    }
+    else if (item->type == REDUCT_ITEM_TYPE_ATOM)
+    {
+        reduct_gc_mark_atom(reduct, &item->atom);
     }
     else if (item->type == REDUCT_ITEM_TYPE_FUNCTION)
     {
@@ -93,34 +106,24 @@ static void reduct_gc_mark(reduct_t* reduct, reduct_item_t* item)
     }
 }
 
-REDUCT_API void reduct_gc_if_needed(reduct_t* reduct)
-{
-    REDUCT_ASSERT(reduct != REDUCT_NULL);
-
-    if (reduct->blocksAllocated >= reduct->gcThreshold)
-    {
-        reduct_gc(reduct);
-        reduct->blocksAllocated = 0;
-        reduct->gcThreshold = reduct->blocksAllocated + REDUCT_GC_THRESHOLD_INITIAL;
-    }
-}
-
 REDUCT_API void reduct_gc(reduct_t* reduct)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
 
-    reduct_item_block_t* rootBlock = reduct->block;
-    while (rootBlock != REDUCT_NULL)
+    reduct_input_t* input = reduct->input;
+    while (input != REDUCT_NULL)
     {
-        for (int i = 0; i < REDUCT_ITEM_BLOCK_MAX; i++)
+        if (REDUCT_HANDLE_IS_ITEM(&input->ast))
         {
-            reduct_item_t* item = &rootBlock->items[i];
-            if (item->type != REDUCT_ITEM_TYPE_NONE && item->retainCount > 0)
-            {
-                reduct_gc_mark(reduct, item);
-            }
+            reduct_gc_mark(reduct, REDUCT_HANDLE_TO_ITEM(&input->ast));
         }
-        rootBlock = rootBlock->next;
+        input = input->prev;
+    }
+
+    for (reduct_uint32_t i = 0; i < reduct->constantCount; i++)
+    {
+        reduct_gc_mark(reduct, REDUCT_CONTAINER_OF(reduct->constants[i].name, reduct_item_t, atom));
+        reduct_gc_mark(reduct, reduct->constants[i].item);
     }
 
     if (reduct->evalState != REDUCT_NULL)
@@ -140,15 +143,13 @@ REDUCT_API void reduct_gc(reduct_t* reduct)
         }
     }
 
-    reduct->freeList = REDUCT_NULL;
-
     reduct_item_block_t* block = reduct->block;
     while (block != REDUCT_NULL)
     {
         for (int i = 0; i < REDUCT_ITEM_BLOCK_MAX; i++)
         {
             reduct_item_t* item = &block->items[i];
-            if (item->flags & REDUCT_ITEM_FLAG_GC_MARK)
+            if (item->flags & REDUCT_ITEM_FLAG_GC_MARK || item->type == REDUCT_ITEM_TYPE_NONE)
             {
                 item->flags &= ~REDUCT_ITEM_FLAG_GC_MARK;
             }

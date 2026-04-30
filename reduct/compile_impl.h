@@ -17,7 +17,6 @@ REDUCT_API reduct_function_t* reduct_compile(reduct_t* reduct, reduct_handle_t* 
 
     reduct_function_t* func = reduct_function_new(reduct);
     reduct_item_t* funcItem = REDUCT_CONTAINER_OF(func, reduct_item_t, function);
-    REDUCT_GC_RETAIN_ITEM(reduct, funcItem);
 
     reduct_compiler_t compiler;
     reduct_compiler_init(&compiler, reduct, func, REDUCT_NULL);
@@ -153,9 +152,7 @@ static inline void reduct_expr_build_atom(reduct_compiler_t* compiler, reduct_it
     REDUCT_ASSERT(atom != REDUCT_NULL);
     REDUCT_ASSERT(out != REDUCT_NULL);
 
-    if (atom->flags &
-        (REDUCT_ITEM_FLAG_QUOTED | REDUCT_ITEM_FLAG_NATIVE | REDUCT_ITEM_FLAG_INTRINSIC |
-            REDUCT_ITEM_FLAG_FLOAT_SHAPED | REDUCT_ITEM_FLAG_INT_SHAPED))
+    if (atom->flags & REDUCT_ITEM_FLAG_QUOTED || reduct_atom_is_intrinsic(&atom->atom) || reduct_atom_is_number(&atom->atom) || reduct_atom_is_native(&atom->atom))
     {
         *out = REDUCT_EXPR_CONST_ITEM(compiler, atom);
         return;
@@ -205,8 +202,7 @@ static inline void reduct_expr_build_list(reduct_compiler_t* compiler, reduct_it
 
     reduct_item_t* head = reduct_list_nth_item(compiler->reduct, &list->list, 0);
     if ((head->flags & REDUCT_ITEM_FLAG_QUOTED) ||
-        (head->type == REDUCT_ITEM_TYPE_ATOM &&
-            (head->flags & (REDUCT_ITEM_FLAG_INT_SHAPED | REDUCT_ITEM_FLAG_FLOAT_SHAPED))) ||
+        (head->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_number(&head->atom)) ||
         head->type == REDUCT_ITEM_TYPE_LIST)
     {
         reduct_reg_t target = reduct_expr_get_reg(compiler, out);
@@ -229,7 +225,7 @@ static inline void reduct_expr_build_list(reduct_compiler_t* compiler, reduct_it
         return;
     }
 
-    if (head->flags & REDUCT_ITEM_FLAG_INTRINSIC)
+    if (head->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_intrinsic(&head->atom))
     {
         reduct_intrinsic_handler_t handler = reductIntrinsicHandlers[head->atom.intrinsic];
         if (handler != REDUCT_NULL)

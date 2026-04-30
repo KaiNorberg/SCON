@@ -134,6 +134,7 @@ REDUCT_API void reduct_list_append_list(struct reduct* reduct, reduct_list_t* li
 
 /**
  * @brief List iterator structure.
+ * @struct reduct_list_iter_t
  */
 typedef struct reduct_list_iter
 {
@@ -145,6 +146,8 @@ typedef struct reduct_list_iter
 
 /**
  * @brief Calculate the offset of the tail node.
+ * 
+ * @param _list Pointer to the list.
  */
 #define REDUCT_LIST_TAIL_OFFSET(_list) (((_list)->length > 0) ? (((_list)->length - 1) & ~REDUCT_LIST_MASK) : 0)
 

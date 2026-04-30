@@ -132,8 +132,10 @@ struct reduct;
  * @return Non-zero if the handle is integer shaped, zero otherwise.
  */
 #define REDUCT_HANDLE_IS_INT_SHAPED(_handle) \
-    ((REDUCT_HANDLE_IS_INT(_handle) || (REDUCT_HANDLE_GET_FLAGS(_handle) & REDUCT_ITEM_FLAG_INT_SHAPED)) && \
-        !(REDUCT_HANDLE_GET_FLAGS(_handle) & REDUCT_ITEM_FLAG_QUOTED))
+    (REDUCT_HANDLE_IS_INT(_handle) || \
+     (REDUCT_HANDLE_IS_ITEM(_handle) && REDUCT_HANDLE_IS_ATOM(_handle) && \
+      !(REDUCT_HANDLE_TO_ITEM(_handle)->flags & REDUCT_ITEM_FLAG_QUOTED) && \
+      reduct_atom_is_int(&REDUCT_HANDLE_TO_ITEM(_handle)->atom)))
 
 /**
  * @brief Check if a handle is a float or references a float shaped item.
@@ -142,16 +144,10 @@ struct reduct;
  * @return Non-zero if the handle is float shaped, zero otherwise.
  */
 #define REDUCT_HANDLE_IS_FLOAT_SHAPED(_handle) \
-    ((REDUCT_HANDLE_IS_FLOAT(_handle) || (REDUCT_HANDLE_GET_FLAGS(_handle) & REDUCT_ITEM_FLAG_FLOAT_SHAPED)) && \
-        !(REDUCT_HANDLE_GET_FLAGS(_handle) & REDUCT_ITEM_FLAG_QUOTED))
-
-/**
- * @brief Get the type of the item referenced by the handle, or `REDUCT_ITEM_TYPE_ATOM` if not an item.
- *
- * @param _handle Pointer to the handle.
- */
-#define REDUCT_HANDLE_GET_TYPE(_handle) \
-    (REDUCT_HANDLE_IS_ITEM(_handle) ? REDUCT_HANDLE_TO_ITEM(_handle)->type : REDUCT_ITEM_TYPE_ATOM)
+    (REDUCT_HANDLE_IS_FLOAT(_handle) || \
+     (REDUCT_HANDLE_IS_ITEM(_handle) && REDUCT_HANDLE_IS_ATOM(_handle) && \
+      !(REDUCT_HANDLE_TO_ITEM(_handle)->flags & REDUCT_ITEM_FLAG_QUOTED) && \
+      reduct_atom_is_float(&REDUCT_HANDLE_TO_ITEM(_handle)->atom)))
 
 /**
  * @brief Check if a handle is a number or references a number shaped item.
@@ -161,6 +157,14 @@ struct reduct;
  */
 #define REDUCT_HANDLE_IS_NUMBER_SHAPED(_handle) \
     (REDUCT_HANDLE_IS_INT_SHAPED(_handle) || REDUCT_HANDLE_IS_FLOAT_SHAPED(_handle))
+
+/**
+ * @brief Get the type of the item referenced by the handle, or `REDUCT_ITEM_TYPE_ATOM` if not an item.
+ *
+ * @param _handle Pointer to the handle.
+ */
+#define REDUCT_HANDLE_GET_TYPE(_handle) \
+    (REDUCT_HANDLE_IS_ITEM(_handle) ? REDUCT_HANDLE_TO_ITEM(_handle)->type : REDUCT_ITEM_TYPE_ATOM)
 
 /**
  * @brief Check if a handle is an item.
@@ -217,7 +221,7 @@ struct reduct;
  * @return Non-zero if the handle is a native function, zero otherwise.
  */
 #define REDUCT_HANDLE_IS_NATIVE(_handle) \
-    (REDUCT_HANDLE_IS_ITEM(_handle) && (REDUCT_HANDLE_GET_FLAGS(_handle) & REDUCT_ITEM_FLAG_NATIVE))
+    (REDUCT_HANDLE_IS_ATOM(_handle) && reduct_atom_is_native(&REDUCT_HANDLE_TO_ITEM(_handle)->atom))
 
 /**
  * @brief Check if a handle is callable.
@@ -310,7 +314,7 @@ struct reduct;
         { \
             *(_a) = REDUCT_HANDLE_FROM_INT(REDUCT_HANDLE_TO_INT(&_bVal) _op REDUCT_HANDLE_TO_INT(&_cVal)); \
         } \
-        else if (REDUCT_HANDLE_IS_FLOAT(&_bVal) && REDUCT_HANDLE_IS_FLOAT(&_cVal)) \
+        else if (REDUCT_LIKELY(REDUCT_HANDLE_IS_FLOAT(&_bVal) && REDUCT_HANDLE_IS_FLOAT(&_cVal))) \
         { \
             *(_a) = REDUCT_HANDLE_FROM_FLOAT(REDUCT_HANDLE_TO_FLOAT(&_bVal) _op REDUCT_HANDLE_TO_FLOAT(&_cVal)); \
         } \
@@ -330,6 +334,70 @@ struct reduct;
     } while (0)
 
 /**
+ * @brief Perform a bitwise operation on two handles with a fast path for integers.
+ *
+ * @param _reduct The Reduct structure.
+ * @param _a The target handle.
+ * @param _b The first handle.
+ * @param _c The second handle
+ * @param _op The bitwise operator, (e.g., &, |, ^, etc.)
+ */
+#define REDUCT_HANDLE_BITWISE_FAST(_reduct, _a, _b, _c, _op) \
+    do \
+    { \
+        reduct_handle_t _bVal = *(_b); \
+        reduct_handle_t _cVal = *(_c); \
+        if (REDUCT_LIKELY( \
+                (((_bVal ^ REDUCT_HANDLE_TAG_INT) | (_cVal ^ REDUCT_HANDLE_TAG_INT)) & REDUCT_HANDLE_MASK_TAG) == 0)) \
+        { \
+            *(_a) = REDUCT_HANDLE_FROM_INT(REDUCT_HANDLE_TO_INT(&_bVal) _op REDUCT_HANDLE_TO_INT(&_cVal)); \
+        } \
+        else \
+        { \
+            *(_a) = REDUCT_HANDLE_FROM_INT(reduct_get_int(_reduct, &_bVal) _op reduct_get_int(_reduct, &_cVal)); \
+        } \
+    } while (0)
+
+/**
+ * @brief Perform a modulo operation on two handles with a fast path for integers.
+ *
+ * @param _reduct The Reduct structure.
+ * @param _a The target handle.
+ * @param _b The first handle.
+ * @param _c The second handle
+ */
+#define REDUCT_HANDLE_MOD_FAST(_reduct, _a, _b, _c) \
+    do \
+    { \
+        reduct_handle_t _bVal = *(_b); \
+        reduct_handle_t _cVal = *(_c); \
+        if (REDUCT_LIKELY( \
+                (((_bVal ^ REDUCT_HANDLE_TAG_INT) | (_cVal ^ REDUCT_HANDLE_TAG_INT)) & REDUCT_HANDLE_MASK_TAG) == 0)) \
+        { \
+            reduct_int64_t _cv = REDUCT_HANDLE_TO_INT(&_cVal); \
+            if (REDUCT_UNLIKELY(_cv == 0)) \
+            { \
+                REDUCT_ERROR_RUNTIME(_reduct, "modulo by zero"); \
+            } \
+            *(_a) = REDUCT_HANDLE_FROM_INT(REDUCT_HANDLE_TO_INT(&_bVal) % _cv); \
+        } \
+        else \
+        { \
+            reduct_promotion_t prom; \
+            reduct_handle_promote(_reduct, _b, _c, &prom); \
+            if (REDUCT_UNLIKELY(prom.type != REDUCT_PROMOTION_TYPE_INT)) \
+            { \
+                REDUCT_ERROR_RUNTIME(_reduct, "invalid operand types for modulo"); \
+            } \
+            if (REDUCT_UNLIKELY(prom.b.intVal == 0)) \
+            { \
+                REDUCT_ERROR_RUNTIME(_reduct, "modulo by zero"); \
+            } \
+            *(_a) = REDUCT_HANDLE_FROM_INT(prom.a.intVal % prom.b.intVal); \
+        } \
+    } while (0)
+
+/**
  * @brief Check if a handle is truthy.
  *
  * @param _handle Pointer to the handle.
@@ -342,7 +410,7 @@ struct reduct;
                       ? (REDUCT_HANDLE_TO_FLOAT(_handle) != 0.0) \
                       : (REDUCT_HANDLE_IS_ITEM(_handle) \
                                 ? ((*(_handle)) != REDUCT_HANDLE_NONE && \
-                                      !(REDUCT_HANDLE_TO_ITEM(_handle)->flags & REDUCT_ITEM_FLAG_FALSY)) \
+                                      !(REDUCT_HANDLE_GET_FLAGS(_handle) & REDUCT_ITEM_FLAG_FALSY)) \
                                 : REDUCT_FALSE)))
 
 /**
@@ -457,10 +525,10 @@ REDUCT_API reduct_handle_t reduct_handle_e(struct reduct* reduct);
  *
  * @param reduct The Reduct structure.
  * @param handle The handle to the atom.
- * @param outStr Pointer to store the string pointer.
+ * @param outStr Pointer to store the string pointer, not `NULL` terminated.
  * @param outLen Pointer to store the string length.
  */
-REDUCT_API void reduct_handle_get_string_params(struct reduct* reduct, reduct_handle_t* handle, char** outStr,
+REDUCT_API void reduct_handle_atom_string(struct reduct* reduct, reduct_handle_t* handle, const char** outStr,
     reduct_size_t* outLen);
 
 /** @} */
