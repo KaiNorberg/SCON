@@ -1,7 +1,7 @@
-#include "defs.h"
 #ifndef REDUCT_ITEM_IMPL_H
 #define REDUCT_ITEM_IMPL_H 1
 
+#include "defs.h"
 #include "closure.h"
 #include "core.h"
 #include "function.h"
@@ -36,7 +36,7 @@ REDUCT_API reduct_item_t* reduct_item_new(reduct_t* reduct)
     }
 
     reduct_item_t* item = REDUCT_NULL;
-    void* allocated = REDUCT_MALLOC(sizeof(reduct_item_block_t));
+    void* allocated = REDUCT_CALLOC(1, sizeof(reduct_item_block_t));
     if (allocated == REDUCT_NULL)
     {
         REDUCT_ERROR_INTERNAL(reduct, "out of memory");
