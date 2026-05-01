@@ -189,4 +189,21 @@ typedef enum
  */
 typedef reduct_uint64_t reduct_handle_t;
 
+/**
+ * @brief Identifies a `reduct_input_t` within a Reduct structure.
+ * 
+ * Avoid the need to store a `reduct_input_t*` within a `reduct_item_t` saving space.
+ * 
+ */
+typedef reduct_uint16_t reduct_input_id_t;
+
+/**
+ * @brief Invalid handle value.
+ */
+#define REDUCT_INPUT_ID_NONE ((reduct_input_id_t)-1)
+
+#define REDUCT_ALIGNMENT 64 ///< The memory alignment for items.
+
+#define REDUCT_ROUND_UP(_val, _align) (((_val) + (_align) - 1) & ~((_align) - 1))
+
 #endif

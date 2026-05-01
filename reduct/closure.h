@@ -16,7 +16,7 @@ struct reduct_item;
  * @{
  */
 
-#define REDUCT_CLOSURE_SMALL_MAX 4 ///< The maximum number of small constants.
+#define REDUCT_CLOSURE_SMALL_MAX 5 ///< The maximum number of small constants.
 
 /**
  * @brief Closure structure.
@@ -30,16 +30,9 @@ typedef struct reduct_closure
 } reduct_closure_t;
 
 /**
- * @brief Deinitialize a closure structure.
- *
- * @param closure The closure to deinitialize.
- */
-REDUCT_API void reduct_closure_deinit(reduct_closure_t* closure);
-
-/**
  * @brief Allocate a new closure.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param function The prototype function item.
  * @return A pointer to the newly allocated closure.
  */

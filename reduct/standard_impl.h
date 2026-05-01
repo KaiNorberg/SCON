@@ -503,9 +503,15 @@ REDUCT_API reduct_handle_t reduct_concat(reduct_t* reduct, reduct_size_t argc, r
         totalLen += reduct_handle_item(reduct, &argv[i])->atom.length;
     }
 
-    reduct_atom_t* result = reduct_atom_new(reduct, totalLen);
-    char* dst = result->string;
-    for (reduct_size_t i = 0; i < argc; i++)
+    if (totalLen == 0)
+    {
+        return REDUCT_HANDLE_FROM_ATOM(reduct_atom_new(reduct, 0));
+    }
+
+    reduct_atom_t* first = &reduct_handle_item(reduct, &argv[0])->atom;
+    reduct_atom_t* result = reduct_atom_superstr(reduct, first, totalLen);
+    char* dst = result->string + first->length;
+    for (reduct_size_t i = 1; i < argc; i++)
     {
         reduct_atom_t* src = &reduct_handle_item(reduct, &argv[i])->atom;
         REDUCT_MEMCPY(dst, src->string, src->length);
@@ -532,7 +538,7 @@ static inline reduct_handle_t reduct_sequence_edge(reduct_t* reduct, reduct_hand
     }
     else
     {
-        return REDUCT_HANDLE_FROM_ATOM(reduct_atom_substring(reduct, &item->atom, index, 1));
+        return REDUCT_HANDLE_FROM_ATOM(reduct_atom_substr(reduct, &item->atom, index, 1));
     }
 }
 
@@ -570,7 +576,7 @@ static inline reduct_handle_t reduct_sequence_trim(reduct_t* reduct, reduct_hand
     }
     case REDUCT_ITEM_TYPE_ATOM:
     {
-        return REDUCT_HANDLE_FROM_ATOM(reduct_atom_substring(reduct, &item->atom, start, end - start));
+        return REDUCT_HANDLE_FROM_ATOM(reduct_atom_substr(reduct, &item->atom, start, end - start));
     }
     default:
         REDUCT_ERROR_RUNTIME(reduct, "trim expected list or atom, got %s", reduct_item_type_str(item->type));
@@ -611,7 +617,7 @@ REDUCT_API reduct_handle_t reduct_nth(reduct_t* reduct, reduct_handle_t* handle,
     case REDUCT_ITEM_TYPE_LIST:
         return reduct_list_nth(reduct, &item->list, (reduct_size_t)n);
     case REDUCT_ITEM_TYPE_ATOM:
-        return REDUCT_HANDLE_FROM_ATOM(reduct_atom_substring(reduct, &item->atom, (reduct_size_t)n, 1));
+        return REDUCT_HANDLE_FROM_ATOM(reduct_atom_substr(reduct, &item->atom, (reduct_size_t)n, 1));
     default:
         return (defaultVal != REDUCT_NULL) ? *defaultVal : reduct_handle_nil(reduct);
     }
@@ -903,7 +909,7 @@ REDUCT_API reduct_handle_t reduct_slice(reduct_t* reduct, reduct_handle_t* handl
     }
     case REDUCT_ITEM_TYPE_ATOM:
     {
-        return REDUCT_HANDLE_FROM_ATOM(reduct_atom_substring(reduct, &item->atom, start, end - start));
+        return REDUCT_HANDLE_FROM_ATOM(reduct_atom_substr(reduct, &item->atom, start, end - start));
     }
     default:
         REDUCT_ERROR_RUNTIME(reduct, "slice expected list or atom, got %s", reduct_item_type_str(item->type));
@@ -1569,7 +1575,7 @@ REDUCT_API reduct_handle_t reduct_split(reduct_t* reduct, reduct_handle_t* srcHa
     {
         for (reduct_size_t i = 0; i < srcLen; i++)
         {
-            reduct_list_append(reduct, resultList, REDUCT_HANDLE_FROM_ATOM(reduct_atom_substring(reduct, &REDUCT_HANDLE_TO_ITEM(srcHandle)->atom, i, 1)));
+            reduct_list_append(reduct, resultList, REDUCT_HANDLE_FROM_ATOM(reduct_atom_substr(reduct, &REDUCT_HANDLE_TO_ITEM(srcHandle)->atom, i, 1)));
         }
     }
     else
@@ -1579,13 +1585,13 @@ REDUCT_API reduct_handle_t reduct_split(reduct_t* reduct, reduct_handle_t* srcHa
         {
             if (REDUCT_MEMCMP(srcStr + i, sepStr, sepLen) == 0)
             {
-                reduct_list_append(reduct, resultList, REDUCT_HANDLE_FROM_ATOM(reduct_atom_substring(reduct, &REDUCT_HANDLE_TO_ITEM(srcHandle)->atom, lastPos, i - lastPos)));
+                reduct_list_append(reduct, resultList, REDUCT_HANDLE_FROM_ATOM(reduct_atom_substr(reduct, &REDUCT_HANDLE_TO_ITEM(srcHandle)->atom, lastPos, i - lastPos)));
                 i += sepLen - 1;
                 lastPos = i + 1;
             }
         }
 
-        reduct_list_append(reduct, resultList, REDUCT_HANDLE_FROM_ATOM(reduct_atom_substring(reduct, &REDUCT_HANDLE_TO_ITEM(srcHandle)->atom, lastPos, srcLen - lastPos)));
+        reduct_list_append(reduct, resultList, REDUCT_HANDLE_FROM_ATOM(reduct_atom_substr(reduct, &REDUCT_HANDLE_TO_ITEM(srcHandle)->atom, lastPos, srcLen - lastPos)));
     }
 
     return resultHandle;
@@ -1654,7 +1660,7 @@ REDUCT_API reduct_handle_t reduct_trim(reduct_t* reduct, reduct_handle_t* srcHan
         end--;
     }
 
-    return REDUCT_HANDLE_FROM_ATOM(reduct_atom_substring(reduct, &REDUCT_HANDLE_TO_ITEM(srcHandle)->atom, start, end - start + 1));
+    return REDUCT_HANDLE_FROM_ATOM(reduct_atom_substr(reduct, &REDUCT_HANDLE_TO_ITEM(srcHandle)->atom, start, end - start + 1));
 }
 
 #define REDUCT_INTROSPECTION_LOOP(_predicate) \
@@ -1684,9 +1690,17 @@ REDUCT_INTROSPECTION_IMPL(reduct_is_int, REDUCT_HANDLE_IS_INT_SHAPED)
 REDUCT_INTROSPECTION_IMPL(reduct_is_float, REDUCT_HANDLE_IS_FLOAT_SHAPED)
 REDUCT_INTROSPECTION_IMPL(reduct_is_number, REDUCT_HANDLE_IS_NUMBER_SHAPED)
 REDUCT_INTROSPECTION_IMPL(reduct_is_lambda, REDUCT_HANDLE_IS_LAMBDA)
-REDUCT_INTROSPECTION_IMPL(reduct_is_native, REDUCT_HANDLE_IS_NATIVE)
-REDUCT_INTROSPECTION_IMPL(reduct_is_callable, REDUCT_HANDLE_IS_CALLABLE)
 REDUCT_INTROSPECTION_IMPL(reduct_is_list, REDUCT_HANDLE_IS_LIST)
+
+REDUCT_API reduct_handle_t reduct_is_native(reduct_t* reduct, reduct_size_t argc, reduct_handle_t* argv)
+{
+    REDUCT_INTROSPECTION_LOOP(REDUCT_HANDLE_IS_NATIVE(reduct, &argv[i]));
+}
+
+REDUCT_API reduct_handle_t reduct_is_callable(reduct_t* reduct, reduct_size_t argc, reduct_handle_t* argv)
+{
+    REDUCT_INTROSPECTION_LOOP(REDUCT_HANDLE_IS_CALLABLE(reduct, &argv[i]));
+}
 
 #define REDUCT_PREDICATE_IS_STRING(_h) (REDUCT_HANDLE_IS_ATOM(_h) && !REDUCT_HANDLE_IS_NUMBER_SHAPED(_h))
 REDUCT_INTROSPECTION_IMPL(reduct_is_string, REDUCT_PREDICATE_IS_STRING)
@@ -1760,9 +1774,10 @@ static void reduct_resolve_path(reduct_t* reduct, const char* path, reduct_size_
     {
         reduct_eval_frame_t* frame = &reduct->evalState->frames[i - 1];
         reduct_item_t* funcItem = REDUCT_CONTAINER_OF(frame->closure->function, reduct_item_t, function);
-        if (funcItem->input != REDUCT_NULL && funcItem->input->path[0] != '\0')
+        reduct_input_t* funcInput = reduct_input_lookup(reduct, funcItem->inputId);
+        if (funcInput != REDUCT_NULL && funcInput->path[0] != '\0')
         {
-            input = funcItem->input;
+            input = funcInput;
             break;
         }
     }
@@ -2625,153 +2640,153 @@ REDUCT_API void reduct_stdlib_register(reduct_t* reduct, reduct_stdlib_sets_t se
 
     if (sets & REDUCT_STDLIB_ERROR)
     {
-        reduct_native_t natives[] = {
-            {"assert!", reduct_stdlib_assert},
-            {"throw!", reduct_stdlib_throw},
-            {"try", reduct_stdlib_try},
+        static reduct_native_t natives[] = {
+            {"assert!", reduct_stdlib_assert, REDUCT_NULL},
+            {"throw!", reduct_stdlib_throw, REDUCT_NULL},
+            {"try", reduct_stdlib_try, REDUCT_NULL},
         };
         reduct_native_register(reduct, natives, sizeof(natives) / sizeof(reduct_native_t));
     }
     if (sets & REDUCT_STDLIB_HIGHER_ORDER)
     {
-        reduct_native_t natives[] = {
-            {"map", reduct_stdlib_map},
-            {"filter", reduct_stdlib_filter},
-            {"reduce", reduct_stdlib_reduce},
-            {"apply", reduct_stdlib_apply},
-            {"any?", reduct_stdlib_any},
-            {"all?", reduct_stdlib_all},
-            {"sort", reduct_stdlib_sort},
+        static reduct_native_t natives[] = {
+            {"map", reduct_stdlib_map, REDUCT_NULL},
+            {"filter", reduct_stdlib_filter, REDUCT_NULL},
+            {"reduce", reduct_stdlib_reduce, REDUCT_NULL},
+            {"apply", reduct_stdlib_apply, REDUCT_NULL},
+            {"any?", reduct_stdlib_any, REDUCT_NULL},
+            {"all?", reduct_stdlib_all, REDUCT_NULL},
+            {"sort", reduct_stdlib_sort, REDUCT_NULL},
         };
         reduct_native_register(reduct, natives, sizeof(natives) / sizeof(reduct_native_t));
     }
     if (sets & REDUCT_STDLIB_SEQUENCES)
     {
-        reduct_native_t natives[] = {
-            {"len", reduct_stdlib_len},
-            {"range", reduct_stdlib_range},
-            {"concat", reduct_stdlib_concat},
-            {"first", reduct_stdlib_first},
-            {"last", reduct_stdlib_last},
-            {"rest", reduct_stdlib_rest},
-            {"init", reduct_stdlib_init},
-            {"nth", reduct_stdlib_nth},
-            {"assoc", reduct_stdlib_assoc},
-            {"dissoc", reduct_stdlib_dissoc},
-            {"update", reduct_stdlib_update},
-            {"index-of", reduct_stdlib_index_of},
-            {"reverse", reduct_stdlib_reverse},
-            {"slice", reduct_stdlib_slice},
-            {"flatten", reduct_stdlib_flatten},
-            {"contains?", reduct_stdlib_contains},
-            {"replace", reduct_stdlib_replace},
-            {"unique", reduct_stdlib_unique},
-            {"chunk", reduct_stdlib_chunk},
-            {"find", reduct_stdlib_find},
-            {"get-in", reduct_stdlib_get_in},
-            {"assoc-in", reduct_stdlib_assoc_in},
-            {"dissoc-in", reduct_stdlib_dissoc_in},
-            {"update-in", reduct_stdlib_update_in},
-            {"keys", reduct_stdlib_keys},
-            {"values", reduct_stdlib_values},
-            {"merge", reduct_stdlib_merge},
-            {"explode", reduct_stdlib_explode},
-            {"implode", reduct_stdlib_implode},
-            {"repeat", reduct_stdlib_repeat},
+        static reduct_native_t natives[] = {
+            {"len", reduct_stdlib_len, REDUCT_NULL},
+            {"range", reduct_stdlib_range, REDUCT_NULL},
+            {"concat", reduct_stdlib_concat, REDUCT_NULL},
+            {"first", reduct_stdlib_first, REDUCT_NULL},
+            {"last", reduct_stdlib_last, REDUCT_NULL},
+            {"rest", reduct_stdlib_rest, REDUCT_NULL},
+            {"init", reduct_stdlib_init, REDUCT_NULL},
+            {"nth", reduct_stdlib_nth, REDUCT_NULL},
+            {"assoc", reduct_stdlib_assoc, REDUCT_NULL},
+            {"dissoc", reduct_stdlib_dissoc, REDUCT_NULL},
+            {"update", reduct_stdlib_update, REDUCT_NULL},
+            {"index-of", reduct_stdlib_index_of, REDUCT_NULL},
+            {"reverse", reduct_stdlib_reverse, REDUCT_NULL},
+            {"slice", reduct_stdlib_slice, REDUCT_NULL},
+            {"flatten", reduct_stdlib_flatten, REDUCT_NULL},
+            {"contains?", reduct_stdlib_contains, REDUCT_NULL},
+            {"replace", reduct_stdlib_replace, REDUCT_NULL},
+            {"unique", reduct_stdlib_unique, REDUCT_NULL},
+            {"chunk", reduct_stdlib_chunk, REDUCT_NULL},
+            {"find", reduct_stdlib_find, REDUCT_NULL},
+            {"get-in", reduct_stdlib_get_in, REDUCT_NULL},
+            {"assoc-in", reduct_stdlib_assoc_in, REDUCT_NULL},
+            {"dissoc-in", reduct_stdlib_dissoc_in, REDUCT_NULL},
+            {"update-in", reduct_stdlib_update_in, REDUCT_NULL},
+            {"keys", reduct_stdlib_keys, REDUCT_NULL},
+            {"values", reduct_stdlib_values, REDUCT_NULL},
+            {"merge", reduct_stdlib_merge, REDUCT_NULL},
+            {"explode", reduct_stdlib_explode, REDUCT_NULL},
+            {"implode", reduct_stdlib_implode, REDUCT_NULL},
+            {"repeat", reduct_stdlib_repeat, REDUCT_NULL},
         };
         reduct_native_register(reduct, natives, sizeof(natives) / sizeof(reduct_native_t));
     }
     if (sets & REDUCT_STDLIB_STRING)
     {
-        reduct_native_t natives[] = {
-            {"starts-with?", reduct_stdlib_starts_with},
-            {"ends-with?", reduct_stdlib_ends_with},
-            {"contains?", reduct_stdlib_contains},
-            {"replace", reduct_stdlib_replace},
-            {"join", reduct_stdlib_join},
-            {"split", reduct_stdlib_split},
-            {"upper", reduct_stdlib_upper},
-            {"lower", reduct_stdlib_lower},
-            {"trim", reduct_stdlib_trim},
+        static reduct_native_t natives[] = {
+            {"starts-with?", reduct_stdlib_starts_with, REDUCT_NULL},
+            {"ends-with?", reduct_stdlib_ends_with, REDUCT_NULL},
+            {"contains?", reduct_stdlib_contains, REDUCT_NULL},
+            {"replace", reduct_stdlib_replace, REDUCT_NULL},
+            {"join", reduct_stdlib_join, REDUCT_NULL},
+            {"split", reduct_stdlib_split, REDUCT_NULL},
+            {"upper", reduct_stdlib_upper, REDUCT_NULL},
+            {"lower", reduct_stdlib_lower, REDUCT_NULL},
+            {"trim", reduct_stdlib_trim, REDUCT_NULL},
         };
         reduct_native_register(reduct, natives, sizeof(natives) / sizeof(reduct_native_t));
     }
     if (sets & REDUCT_STDLIB_INTROSPECTION)
     {
-        reduct_native_t natives[] = {
-            {"atom?", reduct_stdlib_is_atom},
-            {"int?", reduct_stdlib_is_int},
-            {"float?", reduct_stdlib_is_float},
-            {"number?", reduct_stdlib_is_number},
-            {"lambda?", reduct_stdlib_is_lambda},
-            {"native?", reduct_stdlib_is_native},
-            {"callable?", reduct_stdlib_is_callable},
-            {"list?", reduct_stdlib_is_list},
-            {"empty?", reduct_stdlib_is_empty},
-            {"nil?", reduct_stdlib_is_nil},
+        static reduct_native_t natives[] = {
+            {"atom?", reduct_stdlib_is_atom, REDUCT_NULL},
+            {"int?", reduct_stdlib_is_int, REDUCT_NULL},
+            {"float?", reduct_stdlib_is_float, REDUCT_NULL},
+            {"number?", reduct_stdlib_is_number, REDUCT_NULL},
+            {"lambda?", reduct_stdlib_is_lambda, REDUCT_NULL},
+            {"native?", reduct_stdlib_is_native, REDUCT_NULL},
+            {"callable?", reduct_stdlib_is_callable, REDUCT_NULL},
+            {"list?", reduct_stdlib_is_list, REDUCT_NULL},
+            {"empty?", reduct_stdlib_is_empty, REDUCT_NULL},
+            {"nil?", reduct_stdlib_is_nil, REDUCT_NULL},
         };
         reduct_native_register(reduct, natives, sizeof(natives) / sizeof(reduct_native_t));
     }
     if (sets & REDUCT_STDLIB_TYPE_CASTING)
     {
-        reduct_native_t natives[] = {
-            {"int", reduct_stdlib_int},
-            {"float", reduct_stdlib_float},
+        static reduct_native_t natives[] = {
+            {"int", reduct_stdlib_int, REDUCT_NULL},
+            {"float", reduct_stdlib_float, REDUCT_NULL},
         };
         reduct_native_register(reduct, natives, sizeof(natives) / sizeof(reduct_native_t));
     }
     if (sets & REDUCT_STDLIB_SYSTEM)
     {
-        reduct_native_t natives[] = {
-            {"eval", reduct_stdlib_eval},
-            {"parse", reduct_stdlib_parse},
-            {"run", reduct_stdlib_run},
-            {"load!", reduct_stdlib_load},
-            {"read-file!", reduct_stdlib_read_file},
-            {"write-file!", reduct_stdlib_write_file},
-            {"read-char!", reduct_stdlib_read_char},
-            {"read-line!", reduct_stdlib_read_line},
-            {"print!", reduct_stdlib_print},
-            {"println!", reduct_stdlib_println},
-            {"ord", reduct_stdlib_ord},
-            {"chr", reduct_stdlib_chr},
-            {"format", reduct_stdlib_format},
-            {"now!", reduct_stdlib_now},
-            {"uptime!", reduct_stdlib_uptime},
-            {"env!", reduct_stdlib_env},
-            {"args!", reduct_stdlib_args},
+        static reduct_native_t natives[] = {
+            {"eval", reduct_stdlib_eval, REDUCT_NULL},
+            {"parse", reduct_stdlib_parse, REDUCT_NULL},
+            {"run", reduct_stdlib_run, REDUCT_NULL},
+            {"load!", reduct_stdlib_load, REDUCT_NULL},
+            {"read-file!", reduct_stdlib_read_file, REDUCT_NULL},
+            {"write-file!", reduct_stdlib_write_file, REDUCT_NULL},
+            {"read-char!", reduct_stdlib_read_char, REDUCT_NULL},
+            {"read-line!", reduct_stdlib_read_line, REDUCT_NULL},
+            {"print!", reduct_stdlib_print, REDUCT_NULL},
+            {"println!", reduct_stdlib_println, REDUCT_NULL},
+            {"ord", reduct_stdlib_ord, REDUCT_NULL},
+            {"chr", reduct_stdlib_chr, REDUCT_NULL},
+            {"format", reduct_stdlib_format, REDUCT_NULL},
+            {"now!", reduct_stdlib_now, REDUCT_NULL},
+            {"uptime!", reduct_stdlib_uptime, REDUCT_NULL},
+            {"env!", reduct_stdlib_env, REDUCT_NULL},
+            {"args!", reduct_stdlib_args, REDUCT_NULL},
         };
         reduct_native_register(reduct, natives, sizeof(natives) / sizeof(reduct_native_t));
     }
     if (sets & REDUCT_STDLIB_MATH)
     {
-        reduct_native_t natives[] = {
-            {"min", reduct_stdlib_min},
-            {"max", reduct_stdlib_max},
-            {"clamp", reduct_stdlib_clamp},
-            {"abs", reduct_stdlib_abs},
-            {"floor", reduct_stdlib_floor},
-            {"ceil", reduct_stdlib_ceil},
-            {"round", reduct_stdlib_round},
-            {"pow", reduct_stdlib_pow},
-            {"exp", reduct_stdlib_exp},
-            {"log", reduct_stdlib_log},
-            {"sqrt", reduct_stdlib_sqrt},
-            {"sin", reduct_stdlib_sin},
-            {"cos", reduct_stdlib_cos},
-            {"tan", reduct_stdlib_tan},
-            {"asin", reduct_stdlib_asin},
-            {"acos", reduct_stdlib_acos},
-            {"atan", reduct_stdlib_atan},
-            {"atan2", reduct_stdlib_atan2},
-            {"sinh", reduct_stdlib_sinh},
-            {"cosh", reduct_stdlib_cosh},
-            {"tanh", reduct_stdlib_tanh},
-            {"asinh", reduct_stdlib_asinh},
-            {"acosh", reduct_stdlib_acosh},
-            {"atanh", reduct_stdlib_atanh},
-            {"rand", reduct_stdlib_rand},
-            {"seed!", reduct_stdlib_seed},
+        static reduct_native_t natives[] = {
+            {"min", reduct_stdlib_min, REDUCT_NULL},
+            {"max", reduct_stdlib_max, REDUCT_NULL},
+            {"clamp", reduct_stdlib_clamp, REDUCT_NULL},
+            {"abs", reduct_stdlib_abs, REDUCT_NULL},
+            {"floor", reduct_stdlib_floor, REDUCT_NULL},
+            {"ceil", reduct_stdlib_ceil, REDUCT_NULL},
+            {"round", reduct_stdlib_round, REDUCT_NULL},
+            {"pow", reduct_stdlib_pow, REDUCT_NULL},
+            {"exp", reduct_stdlib_exp, REDUCT_NULL},
+            {"log", reduct_stdlib_log, REDUCT_NULL},
+            {"sqrt", reduct_stdlib_sqrt, REDUCT_NULL},
+            {"sin", reduct_stdlib_sin, REDUCT_NULL},
+            {"cos", reduct_stdlib_cos, REDUCT_NULL},
+            {"tan", reduct_stdlib_tan, REDUCT_NULL},
+            {"asin", reduct_stdlib_asin, REDUCT_NULL},
+            {"acos", reduct_stdlib_acos, REDUCT_NULL},
+            {"atan", reduct_stdlib_atan, REDUCT_NULL},
+            {"atan2", reduct_stdlib_atan2, REDUCT_NULL},
+            {"sinh", reduct_stdlib_sinh, REDUCT_NULL},
+            {"cosh", reduct_stdlib_cosh, REDUCT_NULL},
+            {"tanh", reduct_stdlib_tanh, REDUCT_NULL},
+            {"asinh", reduct_stdlib_asinh, REDUCT_NULL},
+            {"acosh", reduct_stdlib_acosh, REDUCT_NULL},
+            {"atanh", reduct_stdlib_atanh, REDUCT_NULL},
+            {"rand", reduct_stdlib_rand, REDUCT_NULL},
+            {"seed!", reduct_stdlib_seed, REDUCT_NULL},
         };
         reduct_native_register(reduct, natives, sizeof(natives) / sizeof(reduct_native_t));
     }

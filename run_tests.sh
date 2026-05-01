@@ -88,7 +88,7 @@ rm -rf "$CORPUS_DIR" "$CRASH_DIR"
 mkdir -p "$CORPUS_DIR" "$CRASH_DIR"
 
 RDT_COUNT=0
-for rdt_file in $(find . -name "*.rdt" ! -path "./$CORPUS_DIR/*"); do
+for rdt_file in $(find tests/ bench/ -name "*.rdt" 2>/dev/null); do
     cp -f "$rdt_file" "$CORPUS_DIR/"
     RDT_COUNT=$((RDT_COUNT + 1))
 done

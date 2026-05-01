@@ -493,7 +493,9 @@ Lists are implemented as a "bit-mapped vector trie", providing $O(log_{w} n)$ ac
 
 *See [list.h](https://github.com/KaiNorberg/Reduct/blob/main/reduct/list.h) for more information on lists.*
 
-All atoms use [String Interning](https://en.wikipedia.org/wiki/String_interning), meaning that every unique atom is only stored once in memory. This makes any string comparison into a single pointer comparison, and it means that parsing the integer/floating point value of an atom or an items truthiness only needs to be done once.
+All symbol atoms use [String Interning](https://en.wikipedia.org/wiki/String_interning), meaning that atoms representing symbols are only stored once in memory. This makes any string comparison into a single pointer comparison.
+
+Other techniques such as arena allocation are also utilized.
 
 *See [atom.h](https://github.com/KaiNorberg/Reduct/blob/main/reduct/atom.h) for more information on atoms.*
 
@@ -507,11 +509,11 @@ The included results were automatically generated using the `run_bench.sh` scrip
 
 All benchmarks were performed on the following system:
 
-- **Timestamp:** `Thu Apr 30 05:16:53 AM CEST 2026`
+- **Timestamp:** `Fri May  1 02:07:56 AM CEST 2026`
 - **CPU:** `AMD Ryzen 5 3600X 6-Core Processor`
 - **OS:** `Fedora Linux 43 (KDE Plasma Desktop Edition)`
-- **Kernel:** `6.19.13-200.fc43.x86_64`
-- **Reduct:** `Reduct 1.0.4+daf0d70`
+- **Kernel:** `6.19.14-200.fc43.x86_64`
+- **Reduct:** `Reduct 1.0.4+d616af0`
 - **Hyperfine:** `hyperfine 1.20.0`
 - **Heaptrack:** `heaptrack 1.5.0`
 - **Lua:** `Lua 5.4.8  Copyright (C) 1994-2025 Lua.org, PUC-Rio`
@@ -521,29 +523,29 @@ All benchmarks were performed on the following system:
 
 | Command | Mean [µs] | Min [µs] | Max [µs] | Relative |
 |:---|---:|---:|---:|---:|
-| `reduct bench/brainfuck.rdt` | 898.0 ± 180.9 | 765.1 | 3160.4 | 1.00 |
-| `lua bench/brainfuck.lua` | 1136.6 ± 123.6 | 1026.9 | 2579.7 | 1.27 ± 0.29 |
+| `reduct bench/brainfuck.rdt` | 836.1 ± 143.4 | 743.9 | 2229.9 | 1.00 |
+| `lua bench/brainfuck.lua` | 1110.6 ± 163.9 | 1012.5 | 2397.1 | 1.33 ± 0.30 |
 
 ##### Memory Usage
 
 | Command | Peak Memory |
 |:---|---:|
-| `reduct bench/brainfuck.rdt` | 248.62K |
+| `reduct bench/brainfuck.rdt` | 139.72K |
 | `lua bench/brainfuck.lua` | 102.77K |
 
 ### fib35
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `reduct bench/fib35.rdt` | 500.5 ± 1.6 | 497.9 | 502.8 | 1.00 |
-| `lua bench/fib35.lua` | 746.5 ± 24.0 | 715.1 | 783.7 | 1.49 ± 0.05 |
-| `python3 bench/fib35.py` | 1058.3 ± 58.2 | 1015.8 | 1204.8 | 2.11 ± 0.12 |
+| `reduct bench/fib35.rdt` | 510.2 ± 1.7 | 508.2 | 513.0 | 1.00 |
+| `lua bench/fib35.lua` | 745.8 ± 25.3 | 711.9 | 783.1 | 1.46 ± 0.05 |
+| `python3 bench/fib35.py` | 1036.8 ± 11.9 | 1016.7 | 1057.6 | 2.03 ± 0.02 |
 
 ##### Memory Usage
 
 | Command | Peak Memory |
 |:---|---:|
-| `reduct bench/fib35.rdt` | 98.18K |
+| `reduct bench/fib35.rdt` | 98.29K |
 | `lua bench/fib35.lua` | 99.52K |
 | `python3 bench/fib35.py` | 1.82M |
 
@@ -551,15 +553,15 @@ All benchmarks were performed on the following system:
 
 | Command | Mean [µs] | Min [µs] | Max [µs] | Relative |
 |:---|---:|---:|---:|---:|
-| `reduct bench/fib65.rdt` | 645.9 ± 109.5 | 556.3 | 1709.6 | 1.00 |
-| `lua bench/fib65.lua` | 1021.2 ± 200.1 | 873.5 | 3169.0 | 1.58 ± 0.41 |
-| `python3 bench/fib65.py` | 11968.1 ± 886.4 | 11138.8 | 21730.2 | 18.53 ± 3.43 |
+| `reduct bench/fib65.rdt` | 643.2 ± 111.6 | 560.6 | 1705.1 | 1.00 |
+| `lua bench/fib65.lua` | 989.8 ± 166.3 | 864.1 | 2095.4 | 1.54 ± 0.37 |
+| `python3 bench/fib65.py` | 11932.9 ± 1433.3 | 11110.2 | 22316.1 | 18.55 ± 3.91 |
 
 ##### Memory Usage
 
 | Command | Peak Memory |
 |:---|---:|
-| `reduct bench/fib65.rdt` | 98.18K |
+| `reduct bench/fib65.rdt` | 97.06K |
 | `lua bench/fib65.lua` | 99.38K |
 | `python3 bench/fib65.py` | 1.82M |
 
@@ -567,28 +569,28 @@ All benchmarks were performed on the following system:
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `reduct bench/fizzbuzz.rdt` | 1.6 ± 0.2 | 1.5 | 3.5 | 1.00 |
-| `lua bench/fizzbuzz.lua` | 6.0 ± 0.9 | 5.6 | 12.2 | 3.76 ± 0.80 |
+| `reduct bench/fizzbuzz.rdt` | 1.7 ± 0.3 | 1.5 | 3.6 | 1.00 |
+| `lua bench/fizzbuzz.lua` | 6.0 ± 0.9 | 5.5 | 12.5 | 3.58 ± 0.83 |
 
 ##### Memory Usage
 
 | Command | Peak Memory |
 |:---|---:|
-| `reduct bench/fizzbuzz.rdt` | 98.49K |
+| `reduct bench/fizzbuzz.rdt` | 97.11K |
 | `lua bench/fizzbuzz.lua` | 102.38K |
 
 ### mandelbrot
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `reduct bench/mandelbrot.rdt` | 309.8 ± 0.3 | 309.5 | 310.2 | 1.00 |
-| `lua bench/mandelbrot.lua` | 336.7 ± 6.4 | 331.1 | 350.5 | 1.09 ± 0.02 |
+| `reduct bench/mandelbrot.rdt` | 308.7 ± 4.4 | 305.0 | 316.5 | 1.00 |
+| `lua bench/mandelbrot.lua` | 342.6 ± 13.2 | 330.8 | 367.1 | 1.11 ± 0.05 |
 
 ##### Memory Usage
 
 | Command | Peak Memory |
 |:---|---:|
-| `reduct bench/mandelbrot.rdt` | 758.28K |
+| `reduct bench/mandelbrot.rdt` | 159.50K |
 | `lua bench/mandelbrot.lua` | 112.34K |
 
 ## Testing

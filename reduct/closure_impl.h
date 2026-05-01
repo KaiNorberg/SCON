@@ -5,15 +5,6 @@
 #include "handle.h"
 #include "item.h"
 
-REDUCT_API void reduct_closure_deinit(reduct_closure_t* closure)
-{
-    REDUCT_ASSERT(closure != REDUCT_NULL);
-    if (closure->constants != closure->smallConstants)
-    {
-        REDUCT_FREE(closure->constants);
-    }
-}
-
 REDUCT_API reduct_closure_t* reduct_closure_new(struct reduct* reduct, reduct_function_t* function)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);

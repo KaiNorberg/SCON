@@ -23,7 +23,7 @@ REDUCT_API reduct_function_t* reduct_compile(reduct_t* reduct, reduct_handle_t* 
 
     reduct_item_t* astItem = REDUCT_HANDLE_TO_ITEM(ast);
     compiler.lastItem = astItem;
-    funcItem->input = astItem->input;
+    funcItem->inputId = astItem->inputId;
 
     reduct_expr_t lastExpr = REDUCT_EXPR_NONE();
     reduct_intrinsic_block_generic(&compiler, astItem, 0, &lastExpr);
@@ -64,20 +64,12 @@ REDUCT_API reduct_reg_t reduct_reg_alloc(reduct_compiler_t* compiler)
 {
     REDUCT_ASSERT(compiler != REDUCT_NULL);
 
-    for (reduct_uint32_t w = 0; w < REDUCT_REGISTER_MAX / 64; w++)
+    reduct_size_t index = reduct_bitmap_find_first_clear(compiler->regAlloc, REDUCT_BITMAP_SIZE(REDUCT_REGISTER_MAX));
+    if (index != REDUCT_BITMAP_INDEX_NONE)
     {
-        if (compiler->regAlloc[w] != ~(reduct_uint64_t)0)
-        {
-            for (reduct_uint32_t b = 0; b < 64; b++)
-            {
-                if (!(compiler->regAlloc[w] & (1ULL << b)))
-                {
-                    reduct_reg_t reg = (reduct_reg_t)(w * 64 + b);
-                    REDUCT_REG_SET_ALLOCATED(compiler, reg);
-                    return reg;
-                }
-            }
-        }
+        reduct_reg_t reg = (reduct_reg_t)index;
+        REDUCT_REG_SET_ALLOCATED(compiler, reg);
+        return reg;
     }
 
     REDUCT_ERROR_COMPILE(compiler, compiler->lastItem, "too many registers in function");
@@ -152,7 +144,7 @@ static inline void reduct_expr_build_atom(reduct_compiler_t* compiler, reduct_it
     REDUCT_ASSERT(atom != REDUCT_NULL);
     REDUCT_ASSERT(out != REDUCT_NULL);
 
-    if (atom->flags & REDUCT_ITEM_FLAG_QUOTED || reduct_atom_is_intrinsic(&atom->atom) || reduct_atom_is_number(&atom->atom) || reduct_atom_is_native(&atom->atom))
+    if (atom->flags & REDUCT_ITEM_FLAG_QUOTED || reduct_atom_is_intrinsic(compiler->reduct, &atom->atom) || reduct_atom_is_number(&atom->atom) || reduct_atom_is_native(compiler->reduct, &atom->atom))
     {
         *out = REDUCT_EXPR_CONST_ITEM(compiler, atom);
         return;
@@ -225,14 +217,10 @@ static inline void reduct_expr_build_list(reduct_compiler_t* compiler, reduct_it
         return;
     }
 
-    if (head->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_intrinsic(&head->atom))
+    if (head->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_intrinsic(compiler->reduct, &head->atom))
     {
-        reduct_intrinsic_handler_t handler = reductIntrinsicHandlers[head->atom.intrinsic];
-        if (handler != REDUCT_NULL)
-        {
-            handler(compiler, list, out);
-            return;
-        }
+        head->atom.intrinsic(compiler, list, out);
+        return;
     }
 
     reduct_uint32_t arity = (reduct_uint32_t)list->length - 1;
@@ -286,7 +274,7 @@ REDUCT_API void reduct_expr_build(reduct_compiler_t* compiler, reduct_item_t* it
     REDUCT_ASSERT(out != REDUCT_NULL);
 
     reduct_item_t* previousItem = compiler->lastItem;
-    if (item != REDUCT_NULL && item->input != REDUCT_NULL)
+    if (item != REDUCT_NULL && item->inputId != REDUCT_INPUT_ID_NONE)
     {
         compiler->lastItem = item;
     }

@@ -6,23 +6,28 @@
 #include "item.h"
 #include "list.h"
 
-static inline reduct_list_node_t* reduct_list_node_new(struct reduct* reduct)
+static reduct_list_node_t* reduct_list_node_new(struct reduct* reduct)
 {
     reduct_item_t* item = reduct_item_new(reduct);
     item->type = REDUCT_ITEM_TYPE_LIST_NODE;
-    reduct_list_node_t* node = &item->node;
-    for (reduct_uint32_t i = 0; i < REDUCT_LIST_WIDTH; i++)
-    {
-        node->children[i] = REDUCT_NULL;
-    }
     return &item->node;
 }
 
 static reduct_list_node_t* reduct_list_node_copy(reduct_t* reduct, reduct_list_node_t* node)
 {
-    reduct_list_node_t* newNode = reduct_list_node_new(reduct);
+    reduct_item_t* item = reduct_item_new(reduct);
+    item->type = REDUCT_ITEM_TYPE_LIST_NODE;
+    reduct_list_node_t* newNode = &item->node;
     REDUCT_MEMCPY(newNode, node, sizeof(reduct_list_node_t));
     return newNode;
+}
+
+static inline void reduct_list_node_init(reduct_list_node_t* node)
+{
+    for (reduct_uint32_t i = 0; i < REDUCT_LIST_WIDTH; i++)
+    {
+        node->children[i] = REDUCT_NULL;
+    }
 }
 
 REDUCT_API reduct_list_t* reduct_list_new(reduct_t* reduct)
@@ -35,7 +40,7 @@ REDUCT_API reduct_list_t* reduct_list_new(reduct_t* reduct)
     list->length = 0;
     list->shift = 0;
     list->root = REDUCT_NULL;
-    list->tail = REDUCT_NULL;
+    reduct_list_node_init(&list->tail);
     return list;
 }
 
@@ -43,7 +48,7 @@ static reduct_list_node_t* reduct_list_find_leaf(reduct_list_t* list, reduct_siz
 {
     if (index >= tailOffset || list->root == REDUCT_NULL)
     {
-        return list->tail;
+        return &list->tail;
     }
 
     reduct_list_node_t* node = list->root;
@@ -91,8 +96,8 @@ REDUCT_API reduct_list_t* reduct_list_assoc(struct reduct* reduct, reduct_list_t
     if (index >= tailOffset)
     {
         newList->root = list->root;
-        newList->tail = reduct_list_node_copy(reduct, list->tail);
-        newList->tail->handles[index & REDUCT_LIST_MASK] = val;
+        newList->tail = list->tail;
+        newList->tail.handles[index & REDUCT_LIST_MASK] = val;
     }
     else
     {
@@ -189,6 +194,10 @@ static reduct_list_node_t* reduct_push_tail(reduct_t* reduct, reduct_uint32_t sh
 
     reduct_list_node_t* newNode =
         parent != REDUCT_NULL ? reduct_list_node_copy(reduct, parent) : reduct_list_node_new(reduct);
+    if (parent == REDUCT_NULL)
+    {
+        reduct_list_node_init(newNode);
+    }
     reduct_uint32_t subIdx = (index >> shift) & REDUCT_LIST_MASK;
     newNode->children[subIdx] =
         reduct_push_tail(reduct, shift - REDUCT_LIST_BITS, index, newNode->children[subIdx], tailNode);
@@ -201,13 +210,15 @@ REDUCT_API void reduct_list_append(reduct_t* reduct, reduct_list_t* list, reduct
 
     if (list->length > 0 && (list->length & REDUCT_LIST_MASK) == 0)
     {
-        reduct_list_node_t* fullTail = list->tail;
-        list->tail = reduct_list_node_new(reduct);
-        list->tail->handles[0] = val;
+        reduct_list_node_t* fullTailNode = reduct_list_node_new(reduct);
+        REDUCT_MEMCPY(fullTailNode, &list->tail, sizeof(reduct_list_node_t));
+
+        reduct_list_node_init(&list->tail);
+        list->tail.handles[0] = val;
 
         if (list->root == REDUCT_NULL)
         {
-            list->root = fullTail;
+            list->root = fullTailNode;
             list->shift = 0;
         }
         else
@@ -215,25 +226,21 @@ REDUCT_API void reduct_list_append(reduct_t* reduct, reduct_list_t* list, reduct
             if ((list->length - 1) >> (list->shift + REDUCT_LIST_BITS) > 0)
             {
                 reduct_list_node_t* newRoot = reduct_list_node_new(reduct);
+                reduct_list_node_init(newRoot);
                 newRoot->children[0] = list->root;
-                newRoot->children[1] = reduct_push_tail(reduct, list->shift, list->length - 1, REDUCT_NULL, fullTail);
+                newRoot->children[1] = reduct_push_tail(reduct, list->shift, list->length - 1, REDUCT_NULL, fullTailNode);
                 list->root = newRoot;
                 list->shift += REDUCT_LIST_BITS;
             }
             else
             {
-                list->root = reduct_push_tail(reduct, list->shift, list->length - 1, list->root, fullTail);
+                list->root = reduct_push_tail(reduct, list->shift, list->length - 1, list->root, fullTailNode);
             }
         }
     }
     else
     {
-        if (list->tail == REDUCT_NULL)
-        {
-            list->tail = reduct_list_node_new(reduct);
-        }
-
-        list->tail->handles[list->length & REDUCT_LIST_MASK] = val;
+        list->tail.handles[list->length & REDUCT_LIST_MASK] = val;
     }
 
     list->length++;

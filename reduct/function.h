@@ -95,16 +95,9 @@ typedef struct reduct_function
 REDUCT_API void reduct_function_init(reduct_function_t* func);
 
 /**
- * @brief Deinitialize a function structure.
- *
- * @param func The function to deinitialize.
- */
-REDUCT_API void reduct_function_deinit(reduct_function_t* func);
-
-/**
  * @brief Create a new function.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @return A pointer to the newly allocated function.
  */
 REDUCT_API reduct_function_t* reduct_function_new(struct reduct* reduct);
@@ -112,7 +105,7 @@ REDUCT_API reduct_function_t* reduct_function_new(struct reduct* reduct);
 /**
  * @brief Grow the instruction buffer.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param func The function to grow.
  */
 REDUCT_API void reduct_function_grow(struct reduct* reduct, reduct_function_t* func);
@@ -120,7 +113,7 @@ REDUCT_API void reduct_function_grow(struct reduct* reduct, reduct_function_t* f
 /**
  * @brief Emit an instruction to the function.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param func The function to emit to.
  * @param inst The instruction to emit.
  * @param position The position in the source code.
@@ -141,7 +134,7 @@ static inline void reduct_function_emit(struct reduct* reduct, reduct_function_t
 /**
  * @brief Get the index of a constant in a function's constant template, adding it if it doesn't exist.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param func The function.
  * @param slot The constant slot to add or lookup.
  * @return The index of the constant in the constant template.

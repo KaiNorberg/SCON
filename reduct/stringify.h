@@ -15,7 +15,7 @@
 /**
  * @brief Converts a Reduct handle to its string representation.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param handle The handle to stringify.
  * @param buffer The destination buffer.
  * @param size The size of the destination buffer.

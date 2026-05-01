@@ -13,14 +13,16 @@ struct reduct;
  * @defgroup atom Atoms
  *
  * Atoms represent all strings within a Reduct expression, as such it also represents anything that a string can be,
- * including integers, floats and intrinsics.
+ * including integers, floats and natives.
  *
  * @{
  */
 
-#define REDUCT_ATOM_MAP_INITIAL 256 ///< The initial size of the atom map.
+#define REDUCT_ATOM_MAP_INITIAL 64 ///< The initial size of the atom map.
 #define REDUCT_ATOM_MAP_GROWTH 2    ///< The growth factor of the atom map.
 #define REDUCT_ATOM_SMALL_MAX 16 ///< The maximum length of a small atom.
+
+#define REDUCT_ATOM_TOMBSTONE ((reduct_atom_t*)(uintptr_t)1) ///< Tombstone value for the atom map.
 
 #define REDUCT_ATOM_INDEX_NONE ((reduct_uint32_t)-1) ///< The value of an unindexed atom.
 
@@ -40,10 +42,27 @@ typedef reduct_uint8_t reduct_atom_flags_t;
 #define REDUCT_ATOM_FLAG_INTRINSIC (1 << 2)    ///< Atom is known to represent an intrinsic.
 #define REDUCT_ATOM_FLAG_NATIVE (1 << 3)       ///< Atom is known to represent a native function.
 #define REDUCT_ATOM_FLAG_NUMBER_CHECKED (1 << 4) ///< Atom has been checked for integer/float shaping.
-#define REDUCT_ATOM_FLAG_SUBSTR (1 << 5) ///< Atom is a substring of another atom.
-#define REDUCT_ATOM_FLAG_LARGE (1 << 6) ///< Atom has an allocated buffer.
+#define REDUCT_ATOM_FLAG_NATIVE_CHECKED (1 << 5) ///< Atom has been checked for a native function.
+#define REDUCT_ATOM_FLAG_SUBSTR (1 << 6) ///< Atom is a substring of another atom.
+#define REDUCT_ATOM_FLAG_LARGE (1 << 7) ///< Atom has an allocated buffer.
 
-#define REDUCT_ATOM_TOMBSTONE ((reduct_atom_t*)(uintptr_t)1) ///< Tombstone value for the atom map.
+#define REDUCT_ATOM_STACK_MIN 1024 ///< The minimum size of an atom stack.
+#define REDUCT_ATOM_STACK_GROWTH 2 ///< The factor by which we increase the minimum size until the needed capacity is reached.
+
+/**
+ * @brief Atom block structure.
+ * @struct reduct_atom_block_t
+ * 
+ * Used to more efficiently allocate large strings for atoms.
+ */
+typedef struct reduct_atom_stack
+{
+    struct reduct_atom_stack* next;
+    struct reduct_atom_stack* prev;
+    reduct_uint32_t capacity;
+    reduct_uint32_t count;
+    char* data;
+} reduct_atom_stack_t;
 
 /**
  * @brief Atom structure.
@@ -54,69 +73,31 @@ typedef struct reduct_atom
     reduct_uint32_t length; ///< The length of the string (must be first, check the `reduct_item_t` structure).
     reduct_uint32_t hash;   ///< The hash of the string.
     reduct_uint32_t index; ///< The index within the atom map.
-    reduct_intrinsic_t intrinsic;      ///< Cached intrinsic, item must have `REDUCT_ATOM_FLAG_INTRINSIC`.
     reduct_atom_flags_t flags; ///< Atom flags.
-    struct
+    reduct_uint8_t _padding[3];
+    char* string; ///< Pointer to the data.
+    union
     {
-        union
+        char small[REDUCT_ATOM_SMALL_MAX]; ///< Small string data, atom must not have `REDUCT_ATOM_FLAG_LARGE | REDUCT_ATOM_FLAG_SUBSTR`.
+        struct
         {
-            char small[REDUCT_ATOM_SMALL_MAX]; ///< Small string data, atom must not have `REDUCT_ATOM_FLAG_LARGE | REDUCT_ATOM_FLAG_SUBSTR`.
+            struct reduct_atom_stack* stack; ///< The stack that this atoms string was allocated from, atom must have `REDUCT_ATOM_FLAG_LARGE`.
             struct reduct_atom* parent; ///< The atom that this atom is a substring of, atom must have `REDUCT_ATOM_FLAG_SUBSTR`.
         };
-        char* string; ///< Pointer to the data, atom must have not have `REDUCT_ATOM_FLAG_NODES`.
     };
     union {
         reduct_int64_t integerValue; ///< Pre-computed integer value, atom must have `REDUCT_ATOM_FLAG_INTEGER`.
         reduct_float_t floatValue;   ///< Pre-computed float value, atom must have `REDUCT_ATOM_FLAG_FLOAT`.
-        reduct_native_fn native;     ///< Cached native function, atom must have `REDUCT_ATOM_FLAG_NATIVE`.
+        struct
+        {
+            reduct_native_fn native;     ///< Cached native function, atom must have `REDUCT_ATOM_FLAG_NATIVE`.
+            reduct_native_intrinsic_fn intrinsic; ///< Cached intrinsic function, atom must have `REDUCT_ATOM_FLAG_NATIVE`.
+        };
     };
 } reduct_atom_t;
 
 #define REDUCT_FNV_PRIME 16777619U    ///< FNV-1a 32-bit prime.
 #define REDUCT_FNV_OFFSET 2166136261U ///< FNV-1a 32-bit offset basis.
-
-/**
- * @brief Hash a string.
- *
- * @param str The string to hash.
- * @param len The length of the string.
- * @return The hash of the string.
- */
-static inline REDUCT_ALWAYS_INLINE reduct_uint32_t reduct_hash(const char* str, reduct_size_t len)
-{
-    reduct_uint32_t hash = REDUCT_FNV_OFFSET;
-    for (reduct_size_t i = 0; i < len; i++)
-    {
-        hash ^= (unsigned char)str[i];
-        hash *= REDUCT_FNV_PRIME;
-    }
-    return hash;
-}
-
-/**
- * @brief Initialize an atom.
- *
- * @param atom Pointer to the atom to initialize.
- */
-static inline void reduct_atom_init(reduct_atom_t* atom)
-{
-    REDUCT_ASSERT(atom != REDUCT_NULL);
-    atom->length = 0;
-    atom->hash = 0;
-    atom->index = REDUCT_ATOM_INDEX_NONE;
-    atom->intrinsic = REDUCT_INTRINSIC_NONE;
-    atom->flags = 0;
-    atom->string = REDUCT_NULL;
-    atom->integerValue = 0;
-}
-
-/**
- * @brief Deinitialize an atom.
- *
- * @param reduct Pointer to the Reduct structure.
- * @param atom Pointer to the atom to deinitialize.
- */
-REDUCT_API void reduct_atom_deinit(struct reduct* reduct, reduct_atom_t* atom);
 
 /**
  * @brief Check if an atom is equal to a string.
@@ -180,31 +161,49 @@ REDUCT_API reduct_atom_t* reduct_atom_lookup(struct reduct* reduct, const char* 
     reduct_atom_lookup_flags_t flags);
 
 /**
- * @brief Check if an atom is a number.
+ * @brief Cache if an atom is a number.
  *
  * @param atom Pointer to the atom.
  */
 REDUCT_API void reduct_atom_check_number(reduct_atom_t* atom);
 
 /**
+ * @brief Cache if an atom is a native function.
+ *
+ * @param reduct Pointer to the Reduct structure.
+ * @param atom Pointer to the atom.
+ */
+REDUCT_API void reduct_atom_check_native(struct reduct* reduct, reduct_atom_t* atom);
+
+/**
  * @brief Check if an atom is an intrinsic.
  *
+ * @param reduct Pointer to the Reduct structure.
  * @param atom Pointer to the atom.
  * @return `REDUCT_TRUE` if the atom is an intrinsic, `REDUCT_FALSE` otherwise.
  */
-static inline REDUCT_ALWAYS_INLINE reduct_bool_t reduct_atom_is_intrinsic(reduct_atom_t* atom)
+static inline REDUCT_ALWAYS_INLINE reduct_bool_t reduct_atom_is_intrinsic(struct reduct* reduct, reduct_atom_t* atom)
 {
+    if (REDUCT_UNLIKELY(!(atom->flags & REDUCT_ATOM_FLAG_NATIVE_CHECKED)))
+    {
+        reduct_atom_check_native(reduct, atom);
+    }
     return (atom->flags & REDUCT_ATOM_FLAG_INTRINSIC) != 0;
 }
 
 /**
  * @brief Check if an atom is a native function.
  *
+ * @param reduct Pointer to the Reduct structure.
  * @param atom Pointer to the atom.
  * @return `REDUCT_TRUE` if the atom is a native function, `REDUCT_FALSE` otherwise.
  */
-static inline REDUCT_ALWAYS_INLINE reduct_bool_t reduct_atom_is_native(reduct_atom_t* atom)
+static inline reduct_bool_t reduct_atom_is_native(struct reduct* reduct, reduct_atom_t* atom)
 {
+    if (REDUCT_UNLIKELY(!(atom->flags & REDUCT_ATOM_FLAG_NATIVE_CHECKED)))
+    {
+        reduct_atom_check_native(reduct, atom);
+    }
     return (atom->flags & REDUCT_ATOM_FLAG_NATIVE) != 0;
 }
 
@@ -302,8 +301,20 @@ static inline REDUCT_ALWAYS_INLINE reduct_float_t reduct_atom_get_float(reduct_a
  * @param len The length of the substring.
  * @return A pointer to the new atom.
  */
-REDUCT_API reduct_atom_t* reduct_atom_substring(struct reduct* reduct, reduct_atom_t* atom, reduct_size_t start,
+REDUCT_API reduct_atom_t* reduct_atom_substr(struct reduct* reduct, reduct_atom_t* atom, reduct_size_t start,
     reduct_size_t len);
+
+/**
+ * @brief Create a superstring of an existing atom.
+ *
+ * If the atom is at the end of its stack and there is enough capacity, it will extend the existing allocation. Otherwise, it will allocate a new atom and copy the existing data.
+ *
+ * @param reduct Pointer to the Reduct structure.
+ * @param atom Pointer to the source atom.
+ * @param len The new total length.
+ * @return A pointer to the new atom.
+ */
+REDUCT_API reduct_atom_t* reduct_atom_superstr(struct reduct* reduct, reduct_atom_t* atom, reduct_size_t len);
 
 /**
  * @brief Create a new atom by copying data directly into it.

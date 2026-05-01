@@ -1,3 +1,4 @@
+#include "item.h"
 #ifndef REDUCT_ATOM_IMPL_H
 #define REDUCT_ATOM_IMPL_H 1
 
@@ -164,24 +165,6 @@ static inline void reduct_atom_map_update(reduct_t* reduct, reduct_atom_t* atom,
 
 }
 
-REDUCT_API void reduct_atom_deinit(reduct_t* reduct, reduct_atom_t* atom)
-{
-    REDUCT_ASSERT(reduct != REDUCT_NULL);
-    REDUCT_ASSERT(atom != REDUCT_NULL);
-
-    if (reduct->atomMap != REDUCT_NULL && atom->index != REDUCT_ATOM_INDEX_NONE)
-    {
-        reduct->atomMap[atom->index] = REDUCT_ATOM_TOMBSTONE;
-        reduct->atomMapTombstones++;
-        reduct->atomMapSize--;
-    }
-
-    if (atom->flags & REDUCT_ATOM_FLAG_LARGE)
-    {
-        REDUCT_FREE(atom->string);
-    }
-}
-
 REDUCT_API reduct_bool_t reduct_atom_is_equal(reduct_atom_t* atom, const char* str,
     reduct_size_t len)
 {
@@ -197,13 +180,68 @@ REDUCT_API reduct_bool_t reduct_atom_is_equal(reduct_atom_t* atom, const char* s
     return REDUCT_MEMCMP(atom->string, str, len) == 0;
 }
 
+static inline reduct_atom_stack_t* reduct_atom_stack_new(reduct_t* reduct, reduct_size_t capacity)
+{
+    reduct_item_t* item = reduct_item_new(reduct);
+    item->type = REDUCT_ITEM_TYPE_ATOM_STACK;
+
+    reduct_atom_stack_t* stack = &item->atomStack;
+    stack->capacity = (reduct_uint32_t)capacity;
+    stack->count = 0;
+    stack->data = REDUCT_MALLOC(capacity);
+    if (stack->data == REDUCT_NULL)
+    {
+        REDUCT_ERROR_INTERNAL(reduct, "out of memory");
+    }
+
+    stack->next = reduct->atomStack;
+    stack->prev = REDUCT_NULL;
+    if (reduct->atomStack != REDUCT_NULL)
+    {
+        reduct->atomStack->prev = stack;
+    }
+    reduct->atomStack = stack;
+    return stack;
+}
+
+static inline char* reduct_atom_stack_alloc(reduct_t* reduct, reduct_size_t size, reduct_atom_stack_t** out)
+{
+    REDUCT_ASSERT(reduct != REDUCT_NULL);
+
+    reduct_atom_stack_t* stack = reduct->atomStack;
+    if (stack == REDUCT_NULL || stack->count + size > stack->capacity)
+    {
+        reduct_size_t capacity = REDUCT_ATOM_STACK_MIN;
+        while (capacity < size)
+        {
+            capacity *= REDUCT_ATOM_MAP_GROWTH;
+        }
+        stack = reduct_atom_stack_new(reduct, capacity);
+        if (stack == REDUCT_NULL)
+        {
+            return REDUCT_NULL;
+        }
+    }
+
+    char* data = stack->data + stack->count;
+    stack->count += (reduct_uint32_t)size;
+    if (out != REDUCT_NULL)
+    {
+        *out = stack;
+    }
+    return data;
+}
+
 REDUCT_API reduct_atom_t* reduct_atom_new(reduct_t* reduct, reduct_size_t len)
 {
     reduct_item_t* item = reduct_item_new(reduct);
     item->type = REDUCT_ITEM_TYPE_ATOM;
 
     reduct_atom_t* atom = &item->atom;
-    reduct_atom_init(atom);
+    atom->hash = 0;
+    atom->index = REDUCT_ATOM_INDEX_NONE;
+    atom->flags = 0;
+    atom->string = REDUCT_NULL;
     atom->length = (reduct_uint32_t)len;
 
     if (len == 0)
@@ -217,7 +255,7 @@ REDUCT_API reduct_atom_t* reduct_atom_new(reduct_t* reduct, reduct_size_t len)
     }
     else
     {
-        atom->string = REDUCT_MALLOC(len);
+        atom->string = reduct_atom_stack_alloc(reduct, len, &atom->stack);
         if (atom->string == REDUCT_NULL)
         {
             REDUCT_ERROR_INTERNAL(reduct, "out of memory");
@@ -712,7 +750,40 @@ REDUCT_API void reduct_atom_check_number(reduct_atom_t* atom)
     }
 }
 
-REDUCT_API reduct_atom_t* reduct_atom_substring(struct reduct* reduct, reduct_atom_t* atom, reduct_size_t start,
+REDUCT_API void reduct_atom_check_native(reduct_t* reduct, reduct_atom_t* atom)
+{
+    REDUCT_ASSERT(reduct != REDUCT_NULL);
+    REDUCT_ASSERT(atom != REDUCT_NULL);
+
+    if (atom->flags & REDUCT_ATOM_FLAG_NATIVE_CHECKED)
+    {
+        return;
+    }
+    atom->flags |= REDUCT_ATOM_FLAG_NATIVE_CHECKED;
+
+    reduct_uint32_t hash = atom->hash;
+    if (hash == 0)
+    {
+        hash = reduct_hash(atom->string, atom->length);
+    }
+
+    reduct_native_entry_t* entry = reduct_native_map_find(reduct, hash, atom->string, atom->length);
+    if (entry == REDUCT_NULL)
+    {
+        return;
+    }
+
+    atom->native = entry->nativeFn;
+    atom->flags |= REDUCT_ATOM_FLAG_NATIVE;
+
+    if (entry->intrinsicFn != REDUCT_NULL)
+    {
+        atom->intrinsic = entry->intrinsicFn;
+        atom->flags |= REDUCT_ATOM_FLAG_INTRINSIC;
+    }
+}
+
+REDUCT_API reduct_atom_t* reduct_atom_substr(struct reduct* reduct, reduct_atom_t* atom, reduct_size_t start,
     reduct_size_t len)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
@@ -739,11 +810,47 @@ REDUCT_API reduct_atom_t* reduct_atom_substring(struct reduct* reduct, reduct_at
     subAtom->length = len;
     subAtom->hash = 0;
     subAtom->index = REDUCT_ATOM_INDEX_NONE;
-    subAtom->intrinsic = 0;
     subAtom->flags = REDUCT_ATOM_FLAG_SUBSTR;
     subAtom->string = (char*)str + start;
     subAtom->parent = atom;
     return subAtom;
+}
+
+REDUCT_API reduct_atom_t* reduct_atom_superstr(struct reduct* reduct, reduct_atom_t* atom, reduct_size_t len)
+{
+    REDUCT_ASSERT(reduct != REDUCT_NULL);
+    REDUCT_ASSERT(atom != REDUCT_NULL);
+    REDUCT_ASSERT(len > atom->length);
+
+    if (len == 0)
+    {
+        return reduct_atom_new(reduct, 0);
+    }
+
+    if (atom->flags & REDUCT_ATOM_FLAG_LARGE && reduct->atomStack != REDUCT_NULL)
+    {
+        reduct_atom_stack_t* stack = reduct->atomStack;
+        if (stack->data + stack->count == atom->string + atom->length && stack->count + len - atom->length <= stack->capacity)
+        {
+            stack->count += len - atom->length;
+
+            reduct_item_t* superItem = reduct_item_new(reduct);
+            superItem->type = REDUCT_ITEM_TYPE_ATOM;
+
+            reduct_atom_t* superAtom = &superItem->atom;
+            superAtom->length = len;
+            superAtom->hash = 0;
+            superAtom->index = REDUCT_ATOM_INDEX_NONE;
+            superAtom->flags = REDUCT_ATOM_FLAG_LARGE;
+            superAtom->string = atom->string;
+            superAtom->stack = atom->stack;            
+            return superAtom;
+        }
+    }
+    
+    reduct_atom_t* superAtom = reduct_atom_new(reduct, len);
+    REDUCT_MEMCPY(superAtom->string, atom->string, atom->length);
+    return superAtom;
 }
 
 #endif

@@ -1,4 +1,3 @@
-#include "error.h"
 #ifndef REDUCT_CORE_IMPL_H
 #define REDUCT_CORE_IMPL_H 1
 
@@ -7,17 +6,16 @@
 #include "eval.h"
 #include "gc.h"
 #include "item.h"
+#include "native_impl.h"
 
 REDUCT_API reduct_t* reduct_new(reduct_error_t* error)
 {
     reduct_t* reduct = REDUCT_CALLOC(1, sizeof(reduct_t));
     if (reduct == REDUCT_NULL)
     {
-        REDUCT_ERROR_THROW(error, REDUCT_NULL, INTERNAL, "out of memory");
+        REDUCT_ERROR_THROW(REDUCT_NULL, error, REDUCT_NULL, INTERNAL, "out of memory");
     }
     reduct->error = error;
-
-    reduct->gcThreshold = REDUCT_GC_THRESHOLD_INITIAL;
 
     reduct->trueItem = REDUCT_CONTAINER_OF(reduct_atom_new_int(reduct, 1), reduct_item_t, atom);
     reduct->falseItem = REDUCT_CONTAINER_OF(reduct_atom_new_int(reduct, 0), reduct_item_t, atom);
@@ -68,6 +66,21 @@ REDUCT_API void reduct_free(reduct_t* reduct)
         reduct->atomMapSize = 0;
     }
 
+    if (reduct->nativeMap != REDUCT_NULL)
+    {
+        for (reduct_size_t i = 0; i < reduct->nativeMapCapacity; i++)
+        {
+            if (reduct->nativeMap[i].name != REDUCT_NULL)
+            {
+                REDUCT_FREE(reduct->nativeMap[i].name);
+            }
+        }
+        REDUCT_FREE(reduct->nativeMap);
+        reduct->nativeMap = REDUCT_NULL;
+        reduct->nativeMapCapacity = 0;
+        reduct->nativeMapSize = 0;
+    }
+
     reduct_item_block_t* block = reduct->block;
     while (block != REDUCT_NULL)
     {
@@ -78,10 +91,7 @@ REDUCT_API void reduct_free(reduct_t* reduct)
             reduct_item_free(reduct, item);
         }
 
-        if (block != &reduct->firstBlock)
-        {
-            REDUCT_FREE(block);
-        }
+        REDUCT_FREE(block->allocated);
         block = next;
     }
 
@@ -123,7 +133,7 @@ REDUCT_API void reduct_constant_register(reduct_t* reduct, const char* name, red
 
     if (reduct->constantCount >= REDUCT_CONSTANTS_MAX)
     {
-        REDUCT_ERROR_THROW(reduct->error, item, INTERNAL, "too many constants");
+        REDUCT_ERROR_INTERNAL(reduct, "too many constants");
     }
 
     reduct_size_t len = REDUCT_STRLEN(name);
@@ -157,11 +167,29 @@ REDUCT_API reduct_input_t* reduct_input_new(reduct_t* reduct, const char* buffer
     input->prev = reduct->input;
     input->buffer = buffer;
     input->end = buffer + length;
+    input->id = reduct->newInputId++;
     input->flags = flags;
     REDUCT_STRNCPY(input->path, path, REDUCT_PATH_MAX - 1);
     input->path[REDUCT_PATH_MAX - 1] = '\0';
     reduct->input = input;
     return input;
+}
+
+REDUCT_API reduct_input_t* reduct_input_lookup(reduct_t* reduct, reduct_input_id_t id)
+{
+    REDUCT_ASSERT(reduct != REDUCT_NULL);
+
+    reduct_input_t* input = reduct->input;
+    while (input != REDUCT_NULL)
+    {
+        if (input->id == id)
+        {
+            return input;
+        }
+        input = input->prev;
+    }
+
+    return REDUCT_NULL;
 }
 
 #endif

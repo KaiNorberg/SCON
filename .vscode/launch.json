@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/tools/reduct-cli/build/reduct",
             "args": [
-                "${workspaceFolder}/bench/fizzbuzz.rdt"
+                "${workspaceFolder}/bench/brainfuck.rdt"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

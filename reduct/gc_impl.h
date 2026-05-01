@@ -1,5 +1,4 @@
 #include "atom.h"
-#include "item.h"
 #ifndef REDUCT_GC_IMPL_H
 #define REDUCT_GC_IMPL_H 1
 
@@ -8,8 +7,33 @@
 #include "gc.h"
 #include "item.h"
 #include "list.h"
+#include "item_impl.h"
 
 static void reduct_gc_mark(reduct_t* reduct, reduct_item_t* item);
+
+static void reduct_gc_mark_node(reduct_t* reduct, reduct_uint32_t shift, reduct_list_node_t* node);
+
+static void reduct_gc_mark_node_contents(reduct_t* reduct, reduct_uint32_t shift, reduct_list_node_t* node)
+{
+    if (shift == 0)
+    {
+        for (reduct_uint32_t i = 0; i < REDUCT_LIST_WIDTH; i++)
+        {
+            reduct_handle_t h = node->handles[i];
+            if (REDUCT_HANDLE_IS_ITEM(&h))
+            {
+                reduct_gc_mark(reduct, REDUCT_HANDLE_TO_ITEM(&h));
+            }
+        }
+    }
+    else
+    {
+        for (reduct_uint32_t i = 0; i < REDUCT_LIST_WIDTH; i++)
+        {
+            reduct_gc_mark_node(reduct, shift - REDUCT_LIST_BITS, node->children[i]);
+        }
+    }
+}
 
 static void reduct_gc_mark_node(reduct_t* reduct, reduct_uint32_t shift, reduct_list_node_t* node)
 {
@@ -25,30 +49,13 @@ static void reduct_gc_mark_node(reduct_t* reduct, reduct_uint32_t shift, reduct_
     }
     item->flags |= REDUCT_ITEM_FLAG_GC_MARK;
 
-    if (shift == 0)
-    {
-        for (int i = 0; i < REDUCT_LIST_WIDTH; i++)
-        {
-            reduct_handle_t h = node->handles[i];
-            if (REDUCT_HANDLE_IS_ITEM(&h))
-            {
-                reduct_gc_mark(reduct, REDUCT_HANDLE_TO_ITEM(&h));
-            }
-        }
-    }
-    else
-    {
-        for (int i = 0; i < REDUCT_LIST_WIDTH; i++)
-        {
-            reduct_gc_mark_node(reduct, shift - REDUCT_LIST_BITS, node->children[i]);
-        }
-    }
+    reduct_gc_mark_node_contents(reduct, shift, node);
 }
 
 static void reduct_gc_mark_list(reduct_t* reduct, reduct_list_t* list)
 {
     reduct_gc_mark_node(reduct, list->shift, list->root);
-    reduct_gc_mark_node(reduct, 0, list->tail);
+    reduct_gc_mark_node_contents(reduct, 0, &list->tail);
 }
 
 static void reduct_gc_mark_atom(reduct_t* reduct, reduct_atom_t* atom)
@@ -56,6 +63,10 @@ static void reduct_gc_mark_atom(reduct_t* reduct, reduct_atom_t* atom)
     if (atom->flags & REDUCT_ATOM_FLAG_SUBSTR && atom->parent != REDUCT_NULL)
     {
         reduct_gc_mark(reduct, REDUCT_CONTAINER_OF(atom->parent, reduct_item_t, atom));
+    }
+    if (atom->flags & REDUCT_ATOM_FLAG_LARGE && atom->stack != REDUCT_NULL)
+    {
+        reduct_gc_mark(reduct, REDUCT_CONTAINER_OF(atom->stack, reduct_item_t, atomStack));
     }
 }
 
@@ -143,23 +154,69 @@ REDUCT_API void reduct_gc(reduct_t* reduct)
         }
     }
 
+    reduct->freeList = REDUCT_NULL;
+    reduct->freeCount = 0;
+
+    reduct_item_block_t* prev = REDUCT_NULL;
     reduct_item_block_t* block = reduct->block;
     while (block != REDUCT_NULL)
     {
-        for (int i = 0; i < REDUCT_ITEM_BLOCK_MAX; i++)
+        reduct_item_block_t* next = block->next;
+        reduct_uint32_t count = 0;
+        for (reduct_uint32_t i = 0; i < REDUCT_ITEM_BLOCK_MAX; i++)
         {
-            reduct_item_t* item = &block->items[i];
-            if (item->flags & REDUCT_ITEM_FLAG_GC_MARK || item->type == REDUCT_ITEM_TYPE_NONE)
+            if (block->items[i].flags & REDUCT_ITEM_FLAG_GC_MARK)
             {
-                item->flags &= ~REDUCT_ITEM_FLAG_GC_MARK;
+                count++;
+            }
+        }
+
+        if (count == 0)
+        {
+            for (reduct_uint32_t i = 0; i < REDUCT_ITEM_BLOCK_MAX; i++)
+            {
+                reduct_item_deinit(reduct, &block->items[i]);
+            }
+            reduct->blockCount--;
+            REDUCT_FREE(block->allocated);
+        }
+        else
+        {
+            for (reduct_uint32_t i = 0; i < REDUCT_ITEM_BLOCK_MAX; i++)
+            {
+                reduct_item_t* item = &block->items[i];
+                if (item->flags & REDUCT_ITEM_FLAG_GC_MARK)
+                {
+                    item->flags &= ~REDUCT_ITEM_FLAG_GC_MARK;
+                }
+                else
+                {
+                    reduct_item_free(reduct, item);
+                }
+            }
+
+            if (prev == REDUCT_NULL)
+            {
+                reduct->block = block;
             }
             else
             {
-                reduct_item_free(reduct, item);
+                prev->next = block;
             }
+            prev = block;
         }
-        block = block->next;
+        block = next;
     }
+
+    if (prev != REDUCT_NULL)
+    {
+        prev->next = REDUCT_NULL;
+    }
+    else
+    {
+        reduct->block = REDUCT_NULL;
+    }
+    reduct->prevBlockCount = reduct->blockCount;
 }
 
 #endif

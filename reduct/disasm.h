@@ -15,7 +15,7 @@
 /**
  * @brief Disassembles a compiled function.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param function The compiled function to disassemble.
  * @param out The output file stream to write the disassembly to.
  */

@@ -156,7 +156,7 @@ REDUCT_API reduct_handle_t reduct_seed(struct reduct* reduct, reduct_handle_t* v
 /**
  * @brief Register a set from the standard library to the Reduct instance.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param sets The sets to register.
  */
 REDUCT_API void reduct_stdlib_register(struct reduct* reduct, reduct_stdlib_sets_t sets);

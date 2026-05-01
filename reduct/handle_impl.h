@@ -202,13 +202,13 @@ static inline void reduct_handle_unpack(reduct_handle_t* handle, reduct_cmp_val_
     }
 
     out->item = REDUCT_HANDLE_TO_ITEM(handle);
-    if (out->item != REDUCT_NULL && out->item->type == REDUCT_ITEM_TYPE_LIST)
+    if (out->item->type == REDUCT_ITEM_TYPE_LIST)
     {
         out->group = 2;
         return;
     }
 
-    if (out->item != REDUCT_NULL && out->item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_float(&out->item->atom))
+    if (out->item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_float(&out->item->atom))
     {
         out->group = 0;
         out->isFloat = REDUCT_TRUE;
@@ -216,11 +216,11 @@ static inline void reduct_handle_unpack(reduct_handle_t* handle, reduct_cmp_val_
         return;
     }
 
-    if (out->item != REDUCT_NULL && out->item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_int(&out->item->atom))
+    if (out->item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_int(&out->item->atom))
     {
         out->group = 0;
         out->isFloat = REDUCT_FALSE;
-        out->num.f = reduct_atom_get_int(&out->item->atom);
+        out->num.i = reduct_atom_get_int(&out->item->atom);
         return;
     }
 

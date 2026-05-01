@@ -11,12 +11,8 @@
  * @brief Garbage collection
  * @defgroup gc Garbage Collection
  *
- * @todo The Garbage collector really needs to be optimized.
- *
  * @{
  */
-
-#define REDUCT_GC_THRESHOLD_INITIAL 32 ///< Initial blocks allocated threshold for garbage collection.
 
 /**
  * @brief Run the garbage collector.
@@ -26,19 +22,17 @@
 REDUCT_API void reduct_gc(reduct_t* reduct);
 
 /**
- * @brief Optionally run the garbage collector if the number of allocated blocks exceeds the threshold.
-
+ * @brief Optionally run the garbage collector if the free list is low.
+ *
  * @param reduct The Reduct structure.
  */
 static inline REDUCT_ALWAYS_INLINE void reduct_gc_if_needed(reduct_t* reduct)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
 
-    if (REDUCT_UNLIKELY(reduct->blocksAllocated > reduct->gcThreshold))
+    if (REDUCT_UNLIKELY(reduct->blockCount * REDUCT_ITEM_BLOCK_MAX * 3 > reduct->freeCount * 4 && reduct->blockCount > reduct->prevBlockCount))
     {
         reduct_gc(reduct);
-        reduct->blocksAllocated = 0;
-        reduct->gcThreshold = reduct->blocksAllocated + REDUCT_GC_THRESHOLD_INITIAL;
     }
 }
 

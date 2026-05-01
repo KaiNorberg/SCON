@@ -25,10 +25,11 @@
 typedef reduct_uint8_t reduct_item_type_t;
 #define REDUCT_ITEM_TYPE_NONE 0      ///< No type.
 #define REDUCT_ITEM_TYPE_ATOM 1      ///< An atom.
-#define REDUCT_ITEM_TYPE_LIST 2      ///< A list.
-#define REDUCT_ITEM_TYPE_FUNCTION 3  ///< A function.
-#define REDUCT_ITEM_TYPE_CLOSURE 4   ///< A closure.
-#define REDUCT_ITEM_TYPE_LIST_NODE 5 ///< A list node.
+#define REDUCT_ITEM_TYPE_ATOM_STACK 2 ///< An atom stack.
+#define REDUCT_ITEM_TYPE_LIST 3      ///< A list.
+#define REDUCT_ITEM_TYPE_LIST_NODE 4 ///< A list node.
+#define REDUCT_ITEM_TYPE_FUNCTION 5  ///< A function.
+#define REDUCT_ITEM_TYPE_CLOSURE 6   ///< A closure.
 
 /**
  * @brief Item flags enumeration.
@@ -39,7 +40,7 @@ typedef reduct_uint8_t reduct_item_flags_t;
 #define REDUCT_ITEM_FLAG_QUOTED (1 << 1)       ///< Item is quoted.
 #define REDUCT_ITEM_FLAG_GC_MARK (1 << 2)      ///< Item is marked by GC.
 
-#define REDUCT_ITEM_PAYLOAD_MAX 48 ///< The maximum size of the item payload.
+#define REDUCT_ITEM_PAYLOAD_MAX 56 ///< The maximum size of the item payload.
 
 /**
  * @brief Item structure.
@@ -51,15 +52,15 @@ typedef reduct_uint8_t reduct_item_flags_t;
  */
 typedef struct reduct_item
 {
-    struct reduct_input* input;  ///< The parsed input that created this item.
     reduct_uint32_t position;    ///< The position in the input buffer where the item was parsed.
     reduct_item_flags_t flags;   ///< Flags for the item.
     reduct_item_type_t type;     ///< The type of the item.
-    reduct_uint8_t _padding[2];
+    reduct_input_id_t inputId;   ///< The input ID of the item.
     union {
         reduct_uint32_t
             length;         ///< Common length for the item. (Stored in the union due to padding rules.)
         reduct_atom_t atom; ///< An atom.
+        reduct_atom_stack_t atomStack; ///< An atom stack.
         reduct_list_t list; ///< A list.
         reduct_list_node_t node;    ///< A list node.
         reduct_function_t function; ///< A function.
@@ -70,10 +71,10 @@ typedef struct reduct_item
 } reduct_item_t;
 
 #ifdef _Static_assert
-_Static_assert(sizeof(reduct_item_t) == 64, "reduct_item_t must be 64 bytes");
+_Static_assert(sizeof(reduct_item_t) == REDUCT_ALIGNMENT, "reduct_item_t must be aligned");
 #endif
 
-#define REDUCT_ITEM_BLOCK_MAX 255 ///< The maximum number of items in a block.
+#define REDUCT_ITEM_BLOCK_MAX 126 ///< The maximum number of items in a block.
 
 /**
  * @brief Item block structure.
@@ -83,9 +84,11 @@ _Static_assert(sizeof(reduct_item_t) == 64, "reduct_item_t must be 64 bytes");
  */
 typedef struct reduct_item_block
 {
-    struct reduct_item_block* next;
-    reduct_uint8_t _padding[sizeof(reduct_item_t) - sizeof(struct reduct_item_block*)];
+    void* allocated; ///< The actual pointer returned by the memory allocation.
+    struct reduct_item_block* next;    
+    reduct_uint8_t _padding[REDUCT_ALIGNMENT - sizeof(void*) - sizeof(struct reduct_item_block*)];
     reduct_item_t items[REDUCT_ITEM_BLOCK_MAX];
+    reduct_uint8_t _alignmentPadding[REDUCT_ALIGNMENT]; ///< Padding space for aligning blocks, should never be accessed.
 } reduct_item_block_t;
 
 #ifdef _Static_assert
@@ -100,6 +103,14 @@ _Static_assert((sizeof(reduct_item_block_t) & (sizeof(reduct_item_block_t) - 1))
  * @return A pointer to the newly created item.
  */
 REDUCT_API reduct_item_t* reduct_item_new(struct reduct* reduct);
+
+/**
+ * @brief Deinitialize a Reduct item without adding it to the freelist.
+ *
+ * @param reduct Pointer to the Reduct structure.
+ * @param item Pointer to the item to deinitialize.
+ */
+REDUCT_API void reduct_item_deinit(struct reduct* reduct, reduct_item_t* item);
 
 /**
  * @brief Free an Reduct item.

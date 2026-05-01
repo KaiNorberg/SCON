@@ -8,6 +8,7 @@ struct reduct_item;
 #include "error.h"
 #include "item.h"
 #include "list.h"
+#include "native.h"
 
 /**
  * @file core.h
@@ -38,6 +39,7 @@ typedef struct reduct_input
     reduct_handle_t ast;
     const char* buffer;
     const char* end;
+    reduct_input_id_t id;
     reduct_input_flags_t flags;
     char path[REDUCT_PATH_MAX];
 } reduct_input_t;
@@ -71,33 +73,39 @@ typedef struct reduct_scratch
  */
 typedef struct reduct
 {
-    reduct_size_t blocksAllocated;
-    reduct_size_t gcThreshold;
+    reduct_size_t prevBlockCount;
+    reduct_size_t blockCount;
     reduct_item_block_t* block;
-    struct reduct_item* freeList;
+    reduct_size_t freeCount;
+    reduct_item_t* freeList;
     reduct_input_t* input;
     reduct_jmp_buf_t jmp;
-    reduct_item_block_t firstBlock;
     reduct_input_t firstInput;
     reduct_item_t* trueItem;
     reduct_item_t* falseItem;
     reduct_item_t* nilItem;
     reduct_item_t* piItem;
     reduct_item_t* eItem;
-    reduct_size_t scratchSize;
-    reduct_size_t scratchCapacity;
-    reduct_scratch_t scratch[REDUCT_SCRATCH_MAX];
+    reduct_atom_stack_t* atomStack;
     reduct_size_t atomMapSize;
     reduct_size_t atomMapTombstones;
     reduct_size_t atomMapCapacity;
     reduct_size_t atomMapMask;
     struct reduct_atom** atomMap;
+    reduct_size_t nativeMapSize;
+    reduct_size_t nativeMapCapacity;
+    reduct_size_t nativeMapMask;
+    reduct_native_entry_t* nativeMap;
     reduct_constant_t constants[REDUCT_CONSTANTS_MAX];
     reduct_uint32_t constantCount;
     reduct_error_t* error;
     struct reduct_eval_state* evalState;
+    reduct_input_id_t newInputId;
     int argc;
     char** argv;
+    reduct_size_t scratchSize;
+    reduct_size_t scratchCapacity;
+    reduct_scratch_t scratch[REDUCT_SCRATCH_MAX];
 } reduct_t;
 
 /**
@@ -138,7 +146,7 @@ REDUCT_API void reduct_constant_register(reduct_t* reduct, const char* name, str
 /**
  * @brief Create a new input structure and push it onto the input stack.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param buffer The input buffer.
  * @param length The length of the input buffer.
  * @param path The path to the input file.
@@ -149,9 +157,18 @@ REDUCT_API reduct_input_t* reduct_input_new(reduct_t* reduct, const char* buffer
     const char* path, reduct_input_flags_t flags);
 
 /**
+ * @brief Lookup an input structure by its ID.
+ *
+ * @param reduct Pointer to the Reduct structure.
+ * @param id The ID of the input structure.
+ * @return A pointer to the input structure, or `REDUCT_NULL` if not found.
+ */
+REDUCT_API reduct_input_t* reduct_input_lookup(reduct_t* reduct, reduct_input_id_t id);
+
+/**
  * @brief Allocate a scratch buffer.
  *
- * @param _reduct The Reduct structure.
+ * @param _reduct Pointer to the Reduct structure.
  * @param _name The name of the buffer pointer.
  * @param _type The type of the elements.
  * @param _length The number of elements of `_type` to reserve memory for.
@@ -178,7 +195,7 @@ REDUCT_API reduct_input_t* reduct_input_new(reduct_t* reduct, const char* buffer
 /**
  * @brief Grow an allocated scratch buffer, the current buffer must be the last one allocated.
  *
- * @param _reduct The Reduct structure.
+ * @param _reduct Pointer to the Reduct structure.
  * @param _name The name of the buffer pointer.
  * @param _type The type of the elements.
  * @param _length The number of elements of `_type` to reserve memory for.
@@ -200,7 +217,7 @@ REDUCT_API reduct_input_t* reduct_input_new(reduct_t* reduct, const char* buffer
 /**
  * @brief Free a scratch buffer, the current buffer must be the last one allocated.
  *
- * @param _reduct The Reduct structure.
+ * @param _reduct Pointer to the Reduct structure.
  * @param _name The name of the buffer pointer.
  */
 #define REDUCT_SCRATCH_FREE(_reduct, _name) \
@@ -213,7 +230,24 @@ REDUCT_API reduct_input_t* reduct_input_new(reduct_t* reduct, const char* buffer
         _s->length = 0; \
         _name = REDUCT_NULL; \
     } while (0)
-    
+
+/**
+ * @brief Hash a string.
+ *
+ * @param str The string to hash.
+ * @param len The length of the string.
+ * @return The hash of the string.
+ */
+static inline REDUCT_ALWAYS_INLINE reduct_uint32_t reduct_hash(const char* str, reduct_size_t len)
+{
+    reduct_uint32_t hash = REDUCT_FNV_OFFSET;
+    for (reduct_size_t i = 0; i < len; i++)
+    {
+        hash ^= (unsigned char)str[i];
+        hash *= REDUCT_FNV_PRIME;
+    }
+    return hash;
+}
 
 /** @} */
 

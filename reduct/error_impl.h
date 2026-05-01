@@ -1,3 +1,4 @@
+#include "reduct.h"
 #ifndef REDUCT_ERROR_IMPL_H
 #define REDUCT_ERROR_IMPL_H 1
 
@@ -197,15 +198,16 @@ REDUCT_API void reduct_error_set(reduct_error_t* error, const char* path, const 
     REDUCT_VA_END(args);
 }
 
-REDUCT_API void reduct_error_get_item_params(struct reduct_item* item, const char** path, const char** input,
+REDUCT_API void reduct_error_get_item_params(reduct_t* reduct, reduct_item_t* item, const char** path, const char** input,
     reduct_size_t* inputLength, reduct_size_t* regionLength, reduct_size_t* position)
 {
-    if (item != REDUCT_NULL && item->input != REDUCT_NULL)
+    if (item != REDUCT_NULL && item->inputId != REDUCT_INPUT_ID_NONE)
     {
-        *path = item->input->path;
-        *input = item->input->buffer;
-        *inputLength = item->input->end - item->input->buffer;
-        *regionLength = reduct_error_get_region_length(item->input->buffer + item->position, item->input->end);
+        reduct_input_t* itemInput = reduct_input_lookup(reduct, item->inputId);
+        *path = itemInput->path;
+        *input = itemInput->buffer;
+        *inputLength = (reduct_size_t)(itemInput->end - itemInput->buffer);
+        *regionLength = reduct_error_get_region_length(itemInput->buffer + item->position, itemInput->end);
         if (*regionLength == 0)
         {
             *regionLength = 1;
@@ -244,12 +246,13 @@ REDUCT_API void reduct_error_throw_runtime(struct reduct* reduct, const char* me
             }
 
             reduct_item_t* funcItem = REDUCT_CONTAINER_OF(func, reduct_item_t, function);
-            if (funcItem->input != REDUCT_NULL)
+            if (funcItem->inputId != REDUCT_INPUT_ID_NONE)
             {
-                path = funcItem->input->path;
-                input = funcItem->input->buffer;
-                inputLength = (reduct_size_t)(funcItem->input->end - funcItem->input->buffer);
-                regionLength = reduct_error_get_region_length(input + position, funcItem->input->end);
+                reduct_input_t* itemInput = reduct_input_lookup(reduct, funcItem->inputId);
+                path = itemInput->path;
+                input = itemInput->buffer;
+                inputLength = (reduct_size_t)(itemInput->end - itemInput->buffer);
+                regionLength = reduct_error_get_region_length(input + position, itemInput->end);
                 if (regionLength == 0)
                 {
                     regionLength = 1;

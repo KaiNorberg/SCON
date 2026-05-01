@@ -49,7 +49,7 @@ typedef struct reduct_list
     reduct_uint32_t length;   ///< Total number of elements.
     reduct_uint32_t shift;    ///< The amount to shift the index to compute access paths.
     reduct_list_node_t* root; ///< Pointer to the trie root node.
-    reduct_list_node_t* tail; ///< Pointer to the tail node.
+    reduct_list_node_t tail;  ///< The tail node, stored inline.
 } reduct_list_t;
 
 /**

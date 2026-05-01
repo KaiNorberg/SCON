@@ -225,7 +225,7 @@ static void reduct_parse_quoted_atom(reduct_t* reduct, reduct_parse_ctx_t* ctx)
     reduct_atom_t* atom = reduct_atom_lookup(reduct, start, len, REDUCT_ATOM_LOOKUP_QUOTED);
 
     reduct_item_t* item = REDUCT_CONTAINER_OF(atom, reduct_item_t, atom);
-    item->input = ctx->input;
+    item->inputId = ctx->input->id;
     item->position = (reduct_size_t)(start - ctx->input->buffer);
 
     reduct_list_append(reduct, ctx->stack[ctx->current], REDUCT_HANDLE_FROM_ITEM(item));
@@ -252,7 +252,7 @@ static void reduct_parse_unquoted_atom(reduct_t* reduct, reduct_parse_ctx_t* ctx
 
     reduct_atom_t* atom = reduct_atom_lookup(reduct, start, len, REDUCT_ATOM_LOOKUP_NONE);
     reduct_item_t* item = REDUCT_CONTAINER_OF(atom, reduct_item_t, atom);
-    item->input = ctx->input;
+    item->inputId = ctx->input->id;
     item->position = (reduct_size_t)(start - ctx->input->buffer);
 
     reduct_list_append(reduct, ctx->stack[ctx->current], REDUCT_HANDLE_FROM_ITEM(item));
@@ -267,7 +267,7 @@ REDUCT_API reduct_handle_t reduct_parse_input(reduct_t* reduct, reduct_input_t* 
     }
 
     reduct_item_t* rootItem = REDUCT_CONTAINER_OF(root, reduct_item_t, list);
-    rootItem->input = input;
+    rootItem->inputId = input->id;
     reduct_handle_t result = REDUCT_HANDLE_FROM_ITEM(rootItem);
     input->ast = result;
 
@@ -299,7 +299,7 @@ REDUCT_API reduct_handle_t reduct_parse_input(reduct_t* reduct, reduct_input_t* 
 
             reduct_list_t* child = reduct_list_new(reduct);
             reduct_item_t* item = REDUCT_CONTAINER_OF(child, reduct_item_t, list);
-            item->input = input;
+            item->inputId = input->id;
             item->position = (reduct_size_t)(ctx.ptr - input->buffer) + 1;
 
             ctx.current++;

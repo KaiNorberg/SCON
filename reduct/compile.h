@@ -1,13 +1,14 @@
-#include "defs.h"
 #ifndef REDUCT_COMPILE_H
 #define REDUCT_COMPILE_H 1
 
 #include "core.h"
+#include "defs.h"
 #include "function.h"
 #include "gc.h"
 #include "inst.h"
 #include "item.h"
 #include "list.h"
+#include "bitmap.h"
 
 /**
  * @file compile.h
@@ -51,11 +52,11 @@ typedef struct reduct_local
 typedef struct reduct_compiler
 {
     struct reduct_compiler* enclosing;                  ///< The enclosing compiler context, or `REDUCT_NULL`.
-    reduct_t* reduct;                                   ///< The Reduct structure.
+    reduct_t* reduct;                                   ///< Pointer to the Reduct structure.
     reduct_function_t* function;                        ///< The function being compiled.
     reduct_uint16_t localCount;                         ///< The amount of local variables.
-    reduct_uint64_t regAlloc[REDUCT_REGISTER_MAX / 64]; ///< Bitmask of allocated registers.
-    reduct_uint64_t regLocal[REDUCT_REGISTER_MAX / 64]; ///< Bitmask of registers used by locals.
+    reduct_bitmap_t regAlloc[REDUCT_BITMAP_SIZE(REDUCT_REGISTER_MAX)]; ///< Bitmask of allocated registers.
+    reduct_bitmap_t regLocal[REDUCT_BITMAP_SIZE(REDUCT_REGISTER_MAX)]; ///< Bitmask of registers used by locals.
     reduct_local_t locals[REDUCT_REGISTER_MAX];         ///< The local variables.
     reduct_item_t* lastItem; ///< The last item processed by the compiler, used for error reporting.
 } reduct_compiler_t;
@@ -65,7 +66,7 @@ typedef struct reduct_compiler
  *
  * @warning The jump buffer must have been set using `REDUCT_CATCH` before calling this function.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param ast The root AST item to compile (usually a list of expressions).
  * @return A pointer to the compiled function.
  */
@@ -75,7 +76,7 @@ REDUCT_API reduct_function_t* reduct_compile(reduct_t* reduct, reduct_handle_t* 
  * @brief Initialize a compiler context.
  *
  * @param compiler The compiler context to initialize.
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param function The function to compile into.
  * @param enclosing The enclosing compiler context, or `REDUCT_NULL`.
  */
@@ -98,7 +99,7 @@ REDUCT_API void reduct_compiler_deinit(reduct_compiler_t* compiler);
 #define REDUCT_REG_SET_ALLOCATED(_compiler, _reg) \
     do \
     { \
-        (_compiler)->regAlloc[(_reg) / 64] |= (1ULL << ((_reg) % 64)); \
+        REDUCT_BITMAP_SET((_compiler)->regAlloc, (_reg)); \
         if ((_reg) + 1 > (_compiler)->function->registerCount) \
         { \
             (_compiler)->function->registerCount = (_reg) + 1; \
@@ -111,7 +112,7 @@ REDUCT_API void reduct_compiler_deinit(reduct_compiler_t* compiler);
  * @param _compiler The compiler instance.
  * @param _reg The register to clear.
  */
-#define REDUCT_REG_CLEAR_ALLOCATED(_compiler, _reg) ((_compiler)->regAlloc[(_reg) / 64] &= ~(1ULL << ((_reg) % 64)))
+#define REDUCT_REG_CLEAR_ALLOCATED(_compiler, _reg) REDUCT_BITMAP_CLEAR((_compiler)->regAlloc, (_reg))
 
 /**
  * @brief Check if a register is allocated.
@@ -119,7 +120,7 @@ REDUCT_API void reduct_compiler_deinit(reduct_compiler_t* compiler);
  * @param _compiler The compiler instance.
  * @param _reg The register to check.
  */
-#define REDUCT_REG_IS_ALLOCATED(_compiler, _reg) (((_compiler)->regAlloc[(_reg) / 64] & (1ULL << ((_reg) % 64))) != 0)
+#define REDUCT_REG_IS_ALLOCATED(_compiler, _reg) REDUCT_BITMAP_TEST((_compiler)->regAlloc, (_reg))
 
 /**
  * @brief Set a register as a local.
@@ -127,7 +128,7 @@ REDUCT_API void reduct_compiler_deinit(reduct_compiler_t* compiler);
  * @param _compiler The compiler instance.
  * @param _reg The register to set as a local.
  */
-#define REDUCT_REG_SET_LOCAL(_compiler, _reg) ((_compiler)->regLocal[(_reg) / 64] |= (1ULL << ((_reg) % 64)))
+#define REDUCT_REG_SET_LOCAL(_compiler, _reg) REDUCT_BITMAP_SET((_compiler)->regLocal, (_reg))
 
 /**
  * @brief Clear a register's local status.
@@ -135,7 +136,7 @@ REDUCT_API void reduct_compiler_deinit(reduct_compiler_t* compiler);
  * @param _compiler The compiler instance.
  * @param _reg The register to clear.
  */
-#define REDUCT_REG_CLEAR_LOCAL(_compiler, _reg) ((_compiler)->regLocal[(_reg) / 64] &= ~(1ULL << ((_reg) % 64)))
+#define REDUCT_REG_CLEAR_LOCAL(_compiler, _reg) REDUCT_BITMAP_CLEAR((_compiler)->regLocal, (_reg))
 
 /**
  * @brief Check if a register is a local.
@@ -143,7 +144,7 @@ REDUCT_API void reduct_compiler_deinit(reduct_compiler_t* compiler);
  * @param _compiler The compiler instance.
  * @param _reg The register to check.
  */
-#define REDUCT_REG_IS_LOCAL(_compiler, _reg) (((_compiler)->regLocal[(_reg) / 64] & (1ULL << ((_reg) % 64))) != 0)
+#define REDUCT_REG_IS_LOCAL(_compiler, _reg) REDUCT_BITMAP_TEST((_compiler)->regLocal, (_reg))
 
 /**
  * @brief Allocate a new register.

@@ -17,7 +17,7 @@
  *
  * @warning The jump buffer must have been set using `REDUCT_CATCH` before calling this function.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param str The Reduct string to parse, Reduct will take ownership of this string.
  * @param len The length of the input string.
  * @param path The path to the file being parsed (for error reporting).
@@ -30,7 +30,7 @@ REDUCT_API reduct_handle_t reduct_parse(reduct_t* reduct, const char* str, reduc
  *
  * @warning The jump buffer must have been set using `REDUCT_CATCH` before calling this function.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param path The path to the file to parse.
  * @return The root item of the parsed expression, will be retained by the GC.
  */

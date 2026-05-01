@@ -220,8 +220,8 @@ struct reduct;
  * @param _handle Pointer to the handle.
  * @return Non-zero if the handle is a native function, zero otherwise.
  */
-#define REDUCT_HANDLE_IS_NATIVE(_handle) \
-    (REDUCT_HANDLE_IS_ATOM(_handle) && reduct_atom_is_native(&REDUCT_HANDLE_TO_ITEM(_handle)->atom))
+#define REDUCT_HANDLE_IS_NATIVE(_reduct, _handle) \
+    (REDUCT_HANDLE_IS_ATOM(_handle) && reduct_atom_is_native(_reduct, &REDUCT_HANDLE_TO_ITEM(_handle)->atom))
 
 /**
  * @brief Check if a handle is callable.
@@ -229,7 +229,7 @@ struct reduct;
  * @param _handle Pointer to the handle.
  * @return Non-zero if the handle is callable, zero otherwise.
  */
-#define REDUCT_HANDLE_IS_CALLABLE(_handle) (REDUCT_HANDLE_IS_LAMBDA(_handle) || REDUCT_HANDLE_IS_NATIVE(_handle))
+#define REDUCT_HANDLE_IS_CALLABLE(_reduct, _handle) (REDUCT_HANDLE_IS_LAMBDA(_handle) || REDUCT_HANDLE_IS_NATIVE(_reduct, _handle))
 
 /**
  * @brief Get the integer value of a handle.
@@ -282,7 +282,7 @@ struct reduct;
 /**
  * @brief Compare two handles using a given operator with a fast path for integers and floats.
  *
- * @param _reduct The Reduct structure.
+ * @param _reduct Pointer to the Reduct structure.
  * @param _a The first handle.
  * @param _b The second handle.
  * @param _op The comparison operator (e.g., <, >, <=, >=, etc.).
@@ -298,7 +298,7 @@ struct reduct;
 /**
  * @brief Perform a arithmetic operation on two handles with a fast path for integers and floats.
  *
- * @param _reduct The Reduct structure.
+ * @param _reduct Pointer to the Reduct structure.
  * @param _a The target handle.
  * @param _b The first handle.
  * @param _c The second handle
@@ -336,7 +336,7 @@ struct reduct;
 /**
  * @brief Perform a bitwise operation on two handles with a fast path for integers.
  *
- * @param _reduct The Reduct structure.
+ * @param _reduct Pointer to the Reduct structure.
  * @param _a The target handle.
  * @param _b The first handle.
  * @param _c The second handle
@@ -361,7 +361,7 @@ struct reduct;
 /**
  * @brief Perform a modulo operation on two handles with a fast path for integers.
  *
- * @param _reduct The Reduct structure.
+ * @param _reduct Pointer to the Reduct structure.
  * @param _a The target handle.
  * @param _b The first handle.
  * @param _c The second handle
@@ -405,7 +405,7 @@ struct reduct;
  */
 #define REDUCT_HANDLE_IS_TRUTHY(_handle) \
     (REDUCT_HANDLE_IS_INT(_handle) \
-            ? (REDUCT_HANDLE_TO_INT(_handle) != 0) \
+            ? ((*(_handle) & REDUCT_HANDLE_MASK_VAL) != 0) \
             : (REDUCT_HANDLE_IS_FLOAT(_handle) \
                       ? (REDUCT_HANDLE_TO_FLOAT(_handle) != 0.0) \
                       : (REDUCT_HANDLE_IS_ITEM(_handle) \
@@ -418,7 +418,7 @@ struct reduct;
  *
  * If the handle is an integer or float, it will be upgraded to an item handle by looking up a corresponding atom.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param handle The handle to ensure.
  */
 REDUCT_API void reduct_handle_ensure_item(struct reduct* reduct, reduct_handle_t* handle);
@@ -426,7 +426,7 @@ REDUCT_API void reduct_handle_ensure_item(struct reduct* reduct, reduct_handle_t
 /**
  * @brief Ensure that a handle is an item and return the pointer.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param handle The handle.
  * @return The item pointer.
  */
@@ -466,7 +466,7 @@ typedef struct
  * If both handles are numeric, they are promoted to the highest precision type (float if either is a float, otherwise
  * integer).
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param a The first handle.
  * @param b The second handle.
  * @param out The promotion result structure.
@@ -477,7 +477,7 @@ REDUCT_API void reduct_handle_promote(struct reduct* reduct, reduct_handle_t* a,
 /**
  * @brief Check if two items are exactly equal string-wise or structurally.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param a The first handle, will be upgraded.
  * @param b The second handle, will be upgraded.
  * @return `REDUCT_TRUE` if the items are strictly equal, `REDUCT_FALSE` otherwise.
@@ -489,7 +489,7 @@ REDUCT_API reduct_bool_t reduct_handle_is_equal(struct reduct* reduct, reduct_ha
  *
  * Useful for sorting or range checks.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param a The first handle.
  * @param b The second handle.
  * @return A negative value if a < b, zero if a == b, and a positive value if a > b.
@@ -523,7 +523,7 @@ REDUCT_API reduct_handle_t reduct_handle_e(struct reduct* reduct);
 /**
  * @brief Get the string pointer and length from an atom handle.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param handle The handle to the atom.
  * @param outStr Pointer to store the string pointer, not `NULL` terminated.
  * @param outLen Pointer to store the string length.

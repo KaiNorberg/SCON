@@ -24,7 +24,7 @@ static void reduct_eval_state_init(reduct_t* reduct, reduct_eval_state_t* state)
 
     state->regCount = 1;
     state->regCapacity = REDUCT_EVAL_REGS_INITIAL;
-    state->regs = (reduct_handle_t*)REDUCT_MALLOC(sizeof(reduct_handle_t) * state->regCapacity);
+    state->regs = (reduct_handle_t*)REDUCT_CALLOC(state->regCapacity, sizeof(reduct_handle_t));
     if (state->regs == REDUCT_NULL)
     {
         REDUCT_FREE(state->frames);
@@ -52,6 +52,7 @@ static inline REDUCT_ALWAYS_INLINE void reduct_eval_ensure_regs(reduct_t* reduct
         return;
     }
 
+    reduct_uint32_t oldCapacity = state->regCapacity;
     while (neededRegs > state->regCapacity)
     {
         state->regCapacity *= REDUCT_EVAL_REGS_GROWTH_FACTOR;
@@ -62,6 +63,7 @@ static inline REDUCT_ALWAYS_INLINE void reduct_eval_ensure_regs(reduct_t* reduct
         reduct_eval_state_deinit(state);
         REDUCT_ERROR_INTERNAL(reduct, "out of memory");
     }
+    REDUCT_MEMSET(newRegs + oldCapacity, 0, (state->regCapacity - oldCapacity) * sizeof(reduct_handle_t));
     state->regs = newRegs;
 }
 
@@ -285,7 +287,7 @@ LABEL_C_OP(label_call, {
     REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&valC), REDUCT_NULL, "attempt to call non-callable %s",
         reduct_item_type_str(REDUCT_HANDLE_GET_TYPE(&valC)));
     reduct_item_t* item = REDUCT_HANDLE_TO_ITEM(&valC);
-    if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_native(&item->atom)))
+    if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_native(reduct, &item->atom)))
     {
         reduct_handle_t* args = &base[a];
         frame->ip = ip;
@@ -326,7 +328,7 @@ LABEL_C_OP(label_tailcall, {
     REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&valC), REDUCT_NULL, "attempt to call non-callable %s",
         reduct_item_type_str(REDUCT_HANDLE_GET_TYPE(&valC)));
     reduct_item_t* item = REDUCT_HANDLE_TO_ITEM(&valC);
-    if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_native(&item->atom)))
+    if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_native(reduct, &item->atom)))
     {
         reduct_handle_t* args = &base[a];
         frame->ip = ip;
@@ -488,10 +490,10 @@ label_closure:
     DECODE_A();
     reduct_uint32_t c = REDUCT_INST_GET_C(inst);
     reduct_handle_t protoHandle = frame->closure->constants[c];
-    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&protoHandle), REDUCT_NULL, "expected closure prototype to be an item");
+    REDUCT_ASSERT(REDUCT_HANDLE_IS_ITEM(&protoHandle));
+
     reduct_item_t* protoItem = REDUCT_HANDLE_TO_ITEM(&protoHandle);
-    REDUCT_ERROR_RUNTIME_ASSERT(reduct, protoItem->type == REDUCT_ITEM_TYPE_FUNCTION, REDUCT_NULL,
-        "expected closure prototype to be a function, got %s", reduct_item_type_str(protoItem->type));
+    REDUCT_ASSERT(protoItem->type == REDUCT_ITEM_TYPE_FUNCTION);
 
     reduct_function_t* proto = &protoItem->function;
     base[a] = REDUCT_HANDLE_FROM_CLOSURE(reduct_closure_new(reduct, proto));
@@ -560,7 +562,7 @@ REDUCT_API reduct_handle_t reduct_eval_call(reduct_t* reduct, reduct_handle_t ca
     reduct_item_t* item = REDUCT_HANDLE_TO_ITEM(&callable);
     if (item->type == REDUCT_ITEM_TYPE_ATOM)
     {
-        REDUCT_ERROR_RUNTIME_ASSERT(reduct, reduct_atom_is_native(&item->atom), REDUCT_NULL, "attempt to call non-native atom");
+        REDUCT_ERROR_RUNTIME_ASSERT(reduct, reduct_atom_is_native(reduct, &item->atom), REDUCT_NULL, "attempt to call non-native atom");
         return item->atom.native(reduct, argc, argv);
     }
 

@@ -88,6 +88,7 @@ REDUCT_API void reduct_error_set(reduct_error_t* error, const char* path, const 
 /**
  * @brief Get the error parameters from a Reduct item.
  *
+ * @param reduct Pointer to the Reduct structure.
  * @param item Pointer to the item.
  * @param path Pointer to the path variable.
  * @param input Pointer to the input variable.
@@ -95,13 +96,13 @@ REDUCT_API void reduct_error_set(reduct_error_t* error, const char* path, const 
  * @param regionLength Pointer to the region length variable.
  * @param position Pointer to the position variable.
  */
-REDUCT_API void reduct_error_get_item_params(struct reduct_item* item, const char** path, const char** input,
+REDUCT_API void reduct_error_get_item_params(struct reduct* reduct, struct reduct_item* item, const char** path, const char** input,
     reduct_size_t* inputLength, reduct_size_t* regionLength, reduct_size_t* position);
 
 /**
  * @brief Throw a runtime error utilizing the evaluation state to determine the context.
  *
- * @param reduct The Reduct structure.
+ * @param reduct Pointer to the Reduct structure.
  * @param message The error message format string.
  * @param ... Additional arguments.
  */
@@ -117,12 +118,13 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
 /**
  * @brief Throw an error using the jump buffer in the error structure.
  *
+ * @param _reduct Pointer to the Reduct structure.
  * @param _error Pointer to the error structure.
  * @param _item Pointer to the item that caused the error.
  * @param _type The suffix of the error type (e.g., INTERNAL, RUNTIME, etc.).
  * @param ... The error message format string and any optional arguments.
  */
-#define REDUCT_ERROR_THROW(_error, _item, _type, ...) \
+#define REDUCT_ERROR_THROW(_reduct, _error, _item, _type, ...) \
     do \
     { \
         const char* __path; \
@@ -130,7 +132,7 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
         reduct_size_t __input_length; \
         reduct_size_t __region_length; \
         reduct_size_t __position; \
-        reduct_error_get_item_params((_item), &__path, &__input, &__input_length, &__region_length, &__position); \
+        reduct_error_get_item_params((_reduct), (_item), &__path, &__input, &__input_length, &__region_length, &__position); \
         reduct_error_set((_error), __path, __input, __input_length, __region_length, __position, \
             REDUCT_ERROR_TYPE_##_type, __VA_ARGS__); \
         REDUCT_LONGJMP((_error)->jmp, REDUCT_TRUE); \
@@ -160,8 +162,8 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
  * @param ... The error message format string and any optional arguments.
  */
 #define REDUCT_ERROR_COMPILE(_compiler, _item, ...) \
-    REDUCT_ERROR_THROW((_compiler)->reduct->error, \
-        (((_item) != REDUCT_NULL && (_item)->input != REDUCT_NULL) \
+    REDUCT_ERROR_THROW((_compiler->reduct), (_compiler)->reduct->error, \
+        (((_item) != REDUCT_NULL && (_item)->inputId != REDUCT_INPUT_ID_NONE) \
                 ? (_item) \
                 : ((_compiler)->lastItem != REDUCT_NULL ? (_compiler)->lastItem : (_item))), \
         COMPILE, __VA_ARGS__)
@@ -169,7 +171,7 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
 /**
  * @brief Throw a runtime error using the jump buffer in the error structure.
  *
- * @param _reduct The Reduct structure.
+ * @param _reduct Pointer to the Reduct structure.
  * @param ... The error message format string and any optional arguments.
  */
 #define REDUCT_ERROR_RUNTIME(_reduct, ...) reduct_error_throw_runtime((_reduct), __VA_ARGS__)
@@ -177,7 +179,7 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
 /**
  * @brief Throw a runtime error if the expression is false.
  *
- * @param _reduct The Reduct structure.
+ * @param _reduct Pointer to the Reduct structure.
  * @param _expr The expression to check.
  * @param ... The error message format string and any optional arguments.
  */
@@ -193,10 +195,10 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
 /**
  * @brief Throw an internal error using the jump buffer in the error structure.
  *
- * @param _reduct The Reduct structure.
+ * @param _reduct Pointer to the Reduct structure.
  * @param ... The error message format string and any optional arguments.
  */
-#define REDUCT_ERROR_INTERNAL(_reduct, ...) REDUCT_ERROR_THROW((_reduct)->error, REDUCT_NULL, INTERNAL, __VA_ARGS__)
+#define REDUCT_ERROR_INTERNAL(_reduct, ...) REDUCT_ERROR_THROW(reduct, (_reduct)->error, REDUCT_NULL, INTERNAL, __VA_ARGS__)
 
 /**
  * @brief Report a type error for a handle.
@@ -226,7 +228,7 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
 #define REDUCT_ERROR_CHECK_CALLABLE(_reduct, _handle, _name) \
     do \
     { \
-        if (REDUCT_UNLIKELY(!REDUCT_HANDLE_IS_CALLABLE(_handle))) \
+        if (REDUCT_UNLIKELY(!REDUCT_HANDLE_IS_CALLABLE(_reduct, _handle))) \
         { \
             REDUCT_ERROR_TYPE(_reduct, _name, _handle, "a callable"); \
         } \

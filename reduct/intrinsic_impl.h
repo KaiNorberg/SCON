@@ -157,7 +157,7 @@ void reduct_intrinsic_lambda(reduct_compiler_t* compiler, reduct_item_t* list, r
 
     reduct_function_t* func = reduct_function_new(compiler->reduct);
     reduct_item_t* funcItem = REDUCT_CONTAINER_OF(func, reduct_item_t, function);
-    funcItem->input = list->input;
+    funcItem->inputId = list->inputId;
     reduct_const_slot_t slot = REDUCT_CONST_SLOT_ITEM(funcItem);
     reduct_const_t funcConst = reduct_function_lookup_constant(compiler->reduct, compiler->function, &slot);
 
@@ -1207,85 +1207,6 @@ void reduct_intrinsic_greater_equal(reduct_compiler_t* compiler, reduct_item_t* 
     reduct_intrinsic_comparison_generic(compiler, list, out, REDUCT_OPCODE_GE);
 }
 
-reduct_intrinsic_handler_t reductIntrinsicHandlers[REDUCT_INTRINSIC_MAX] = {
-    [REDUCT_INTRINSIC_NONE] = REDUCT_NULL,
-
-    [REDUCT_INTRINSIC_QUOTE] = reduct_intrinsic_quote,
-    [REDUCT_INTRINSIC_LIST] = reduct_intrinsic_list,
-    [REDUCT_INTRINSIC_DO] = reduct_intrinsic_do,
-    [REDUCT_INTRINSIC_LAMBDA] = reduct_intrinsic_lambda,
-    [REDUCT_INTRINSIC_THREAD] = reduct_intrinsic_thread,
-
-    [REDUCT_INTRINSIC_DEF] = reduct_intrinsic_def,
-
-    [REDUCT_INTRINSIC_IF] = reduct_intrinsic_if,
-    [REDUCT_INTRINSIC_COND] = reduct_intrinsic_cond,
-    [REDUCT_INTRINSIC_MATCH] = reduct_intrinsic_match,
-    [REDUCT_INTRINSIC_AND] = reduct_intrinsic_and,
-    [REDUCT_INTRINSIC_OR] = reduct_intrinsic_or,
-    [REDUCT_INTRINSIC_NOT] = reduct_intrinsic_not,
-
-    [REDUCT_INTRINSIC_ADD] = reduct_intrinsic_add,
-    [REDUCT_INTRINSIC_SUB] = reduct_intrinsic_sub,
-    [REDUCT_INTRINSIC_MUL] = reduct_intrinsic_mul,
-    [REDUCT_INTRINSIC_DIV] = reduct_intrinsic_div,
-    [REDUCT_INTRINSIC_MOD] = reduct_intrinsic_mod,
-    [REDUCT_INTRINSIC_INC] = reduct_intrinsic_inc,
-    [REDUCT_INTRINSIC_DEC] = reduct_intrinsic_dec,
-    [REDUCT_INTRINSIC_BAND] = reduct_intrinsic_bit_and,
-    [REDUCT_INTRINSIC_BOR] = reduct_intrinsic_bit_or,
-    [REDUCT_INTRINSIC_BXOR] = reduct_intrinsic_bit_xor,
-    [REDUCT_INTRINSIC_BNOT] = reduct_intrinsic_bit_not,
-    [REDUCT_INTRINSIC_SHL] = reduct_intrinsic_bit_shl,
-    [REDUCT_INTRINSIC_SHR] = reduct_intrinsic_bit_shr,
-
-    [REDUCT_INTRINSIC_EQ] = reduct_intrinsic_equal,
-    [REDUCT_INTRINSIC_NEQ] = reduct_intrinsic_not_equal,
-    [REDUCT_INTRINSIC_SNEQ] = reduct_intrinsic_strict_not_equal,
-    [REDUCT_INTRINSIC_SEQ] = reduct_intrinsic_strict_equal,
-    [REDUCT_INTRINSIC_LT] = reduct_intrinsic_less,
-    [REDUCT_INTRINSIC_LE] = reduct_intrinsic_less_equal,
-    [REDUCT_INTRINSIC_GT] = reduct_intrinsic_greater,
-    [REDUCT_INTRINSIC_GE] = reduct_intrinsic_greater_equal,
-};
-
-const char* reductIntrinsics[REDUCT_INTRINSIC_MAX] = {
-    [REDUCT_INTRINSIC_NONE] = "",
-    [REDUCT_INTRINSIC_QUOTE] = "quote",
-    [REDUCT_INTRINSIC_LIST] = "list",
-    [REDUCT_INTRINSIC_DO] = "do",
-    [REDUCT_INTRINSIC_DEF] = "def",
-    [REDUCT_INTRINSIC_LAMBDA] = "lambda",
-    [REDUCT_INTRINSIC_THREAD] = "->",
-    [REDUCT_INTRINSIC_IF] = "if",
-    [REDUCT_INTRINSIC_COND] = "cond",
-    [REDUCT_INTRINSIC_MATCH] = "match",
-    [REDUCT_INTRINSIC_AND] = "and",
-    [REDUCT_INTRINSIC_OR] = "or",
-    [REDUCT_INTRINSIC_NOT] = "not",
-    [REDUCT_INTRINSIC_ADD] = "+",
-    [REDUCT_INTRINSIC_SUB] = "-",
-    [REDUCT_INTRINSIC_MUL] = "*",
-    [REDUCT_INTRINSIC_DIV] = "/",
-    [REDUCT_INTRINSIC_MOD] = "%",
-    [REDUCT_INTRINSIC_INC] = "++",
-    [REDUCT_INTRINSIC_DEC] = "--",
-    [REDUCT_INTRINSIC_SEQ] = "eq?",
-    [REDUCT_INTRINSIC_SNEQ] = "ne?",
-    [REDUCT_INTRINSIC_EQ] = "==",
-    [REDUCT_INTRINSIC_NEQ] = "!=",
-    [REDUCT_INTRINSIC_LT] = "<",
-    [REDUCT_INTRINSIC_LE] = "<=",
-    [REDUCT_INTRINSIC_GT] = ">",
-    [REDUCT_INTRINSIC_GE] = ">=",
-    [REDUCT_INTRINSIC_BAND] = "&",
-    [REDUCT_INTRINSIC_BOR] = "|",
-    [REDUCT_INTRINSIC_BXOR] = "^",
-    [REDUCT_INTRINSIC_BNOT] = "~",
-    [REDUCT_INTRINSIC_SHL] = "<<",
-    [REDUCT_INTRINSIC_SHR] = ">>",
-};
-
 #define REDUCT_INTRINSIC_NATIVE_ARITH(_name, _op, _identity) \
     static reduct_handle_t reduct_intrinsic_native_##_name(reduct_t* reduct, reduct_size_t argc, \
         reduct_handle_t* argv) \
@@ -1490,61 +1411,47 @@ static reduct_handle_t reduct_intrinsic_native_not(reduct_t* reduct, reduct_size
     return REDUCT_HANDLE_IS_TRUTHY(&argv[0]) ? REDUCT_HANDLE_FALSE() : REDUCT_HANDLE_TRUE();
 }
 
-reduct_native_fn reductIntrinsicNatives[REDUCT_INTRINSIC_MAX] = {
-    [REDUCT_INTRINSIC_LIST] = reduct_intrinsic_native_list,
-    [REDUCT_INTRINSIC_DO] = reduct_intrinsic_native_do,
-    [REDUCT_INTRINSIC_AND] = reduct_intrinsic_native_and,
-    [REDUCT_INTRINSIC_OR] = reduct_intrinsic_native_or,
-    [REDUCT_INTRINSIC_NOT] = reduct_intrinsic_native_not,
-    [REDUCT_INTRINSIC_ADD] = reduct_intrinsic_native_add,
-    [REDUCT_INTRINSIC_SUB] = reduct_intrinsic_native_sub,
-    [REDUCT_INTRINSIC_MUL] = reduct_intrinsic_native_mul,
-    [REDUCT_INTRINSIC_DIV] = reduct_intrinsic_native_div,
-    [REDUCT_INTRINSIC_MOD] = reduct_intrinsic_native_mod,
-    [REDUCT_INTRINSIC_INC] = reduct_intrinsic_native_inc,
-    [REDUCT_INTRINSIC_DEC] = reduct_intrinsic_native_dec,
-    [REDUCT_INTRINSIC_BAND] = reduct_intrinsic_native_band,
-    [REDUCT_INTRINSIC_BOR] = reduct_intrinsic_native_bor,
-    [REDUCT_INTRINSIC_BXOR] = reduct_intrinsic_native_bxor,
-    [REDUCT_INTRINSIC_BNOT] = reduct_intrinsic_native_bnot,
-    [REDUCT_INTRINSIC_SHL] = reduct_intrinsic_native_shl,
-    [REDUCT_INTRINSIC_SHR] = reduct_intrinsic_native_shr,
-    [REDUCT_INTRINSIC_EQ] = reduct_intrinsic_native_eq,
-    [REDUCT_INTRINSIC_NEQ] = reduct_intrinsic_native_neq,
-    [REDUCT_INTRINSIC_SEQ] = reduct_intrinsic_native_seq,
-    [REDUCT_INTRINSIC_SNEQ] = reduct_intrinsic_native_sneq,
-    [REDUCT_INTRINSIC_LT] = reduct_intrinsic_native_lt,
-    [REDUCT_INTRINSIC_LE] = reduct_intrinsic_native_le,
-    [REDUCT_INTRINSIC_GT] = reduct_intrinsic_native_gt,
-    [REDUCT_INTRINSIC_GE] = reduct_intrinsic_native_ge,
+static reduct_native_t reductIntrinsics[] = {
+    {"quote", REDUCT_NULL, reduct_intrinsic_quote},
+    {"list", reduct_intrinsic_native_list, reduct_intrinsic_list},
+    {"do", reduct_intrinsic_native_do, reduct_intrinsic_do},
+    {"lambda", REDUCT_NULL, reduct_intrinsic_lambda},
+    {"->", REDUCT_NULL, reduct_intrinsic_thread},
+    {"def", REDUCT_NULL, reduct_intrinsic_def},
+    {"if", REDUCT_NULL, reduct_intrinsic_if},
+    {"cond", REDUCT_NULL, reduct_intrinsic_cond},
+    {"match", REDUCT_NULL, reduct_intrinsic_match},
+    {"and", reduct_intrinsic_native_and, reduct_intrinsic_and},
+    {"or", reduct_intrinsic_native_or, reduct_intrinsic_or},
+    {"not", reduct_intrinsic_native_not, reduct_intrinsic_not},
+    {"+", reduct_intrinsic_native_add, reduct_intrinsic_add},
+    {"-", reduct_intrinsic_native_sub, reduct_intrinsic_sub},
+    {"*", reduct_intrinsic_native_mul, reduct_intrinsic_mul},
+    {"/", reduct_intrinsic_native_div, reduct_intrinsic_div},
+    {"%", reduct_intrinsic_native_mod, reduct_intrinsic_mod},
+    {"++", reduct_intrinsic_native_inc, reduct_intrinsic_inc},
+    {"--", reduct_intrinsic_native_dec, reduct_intrinsic_dec},
+    {"&", reduct_intrinsic_native_band, reduct_intrinsic_bit_and},
+    {"|", reduct_intrinsic_native_bor, reduct_intrinsic_bit_or},
+    {"^", reduct_intrinsic_native_bxor, reduct_intrinsic_bit_xor},
+    {"~", reduct_intrinsic_native_bnot, reduct_intrinsic_bit_not},
+    {"<<", reduct_intrinsic_native_shl, reduct_intrinsic_bit_shl},
+    {">>", reduct_intrinsic_native_shr, reduct_intrinsic_bit_shr},
+    {"==", reduct_intrinsic_native_eq, reduct_intrinsic_equal},
+    {"!=", reduct_intrinsic_native_neq, reduct_intrinsic_not_equal},
+    {"eq?", reduct_intrinsic_native_seq, reduct_intrinsic_strict_equal},
+    {"ne?", reduct_intrinsic_native_sneq, reduct_intrinsic_strict_not_equal},
+    {"<", reduct_intrinsic_native_lt, reduct_intrinsic_less},
+    {"<=", reduct_intrinsic_native_le, reduct_intrinsic_less_equal},
+    {">", reduct_intrinsic_native_gt, reduct_intrinsic_greater},
+    {">=", reduct_intrinsic_native_ge, reduct_intrinsic_greater_equal},
 };
-
-static inline void reduct_intrinsic_register(reduct_t* reduct, reduct_intrinsic_t intrinsic)
-{
-    REDUCT_ASSERT(reduct != REDUCT_NULL);
-    REDUCT_ASSERT(intrinsic > REDUCT_INTRINSIC_NONE && intrinsic < REDUCT_INTRINSIC_MAX);
-
-    const char* str = reductIntrinsics[intrinsic];
-    reduct_size_t len = REDUCT_STRLEN(str);
-    reduct_atom_t* atom = reduct_atom_lookup(reduct, str, len, REDUCT_ATOM_LOOKUP_NONE);
-    atom->intrinsic = intrinsic;
-    atom->native = reductIntrinsicNatives[intrinsic];
-    atom->flags |= REDUCT_ATOM_FLAG_INTRINSIC;
-    if (reductIntrinsicNatives[intrinsic] != REDUCT_NULL)
-    {
-        atom->flags |= REDUCT_ATOM_FLAG_NATIVE;
-    }
-    //atom->flags |= REDUCT_ATOM_FLAG_INTRINSIC_CHECKED | REDUCT_ATOM_FLAG_NATIVE_CHECKED;
-}
 
 REDUCT_API void reduct_intrinsic_register_all(reduct_t* reduct)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
 
-    for (reduct_size_t i = REDUCT_INTRINSIC_NONE + 1; i < REDUCT_INTRINSIC_MAX; i++)
-    {
-        reduct_intrinsic_register(reduct, (reduct_intrinsic_t)i);
-    }
+    reduct_native_register(reduct, reductIntrinsics, sizeof(reductIntrinsics) / sizeof(reductIntrinsics[0]));
 }
 
 #endif
