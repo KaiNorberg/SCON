@@ -1,4 +1,4 @@
-# Fromhttps://github.com/janet-lang/janet/blob/master/examples/fizzbuzz.janet
+# From https://github.com/janet-lang/janet/blob/master/examples/fizzbuzz.janet
 
 (loop [i :range [0 10000] # Modified the range
        :let [fizz (zero? (% i 3))

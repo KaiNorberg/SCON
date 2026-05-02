@@ -1,4 +1,3 @@
-## fib65 in janet
 (defn fib [n a b]
   (if (< n 2)
     a
