@@ -1951,7 +1951,7 @@ load_shared_lib:
             REDUCT_ERROR_RUNTIME(reduct, REDUCT_LIB_ERROR());
         }
 
-        reduct_module_init_fn init = REDUCT_LIB_SYM(lib, REDUCT_LIB_ENTRY);
+        reduct_module_init_fn init = (reduct_module_init_fn)REDUCT_LIB_SYM(lib, REDUCT_LIB_ENTRY);
         if (init == REDUCT_NULL)
         {
             REDUCT_LIB_CLOSE(lib);
