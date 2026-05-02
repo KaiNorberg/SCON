@@ -82,6 +82,8 @@ if(NOT WIN32)
     target_link_libraries(reduct_static PRIVATE m)
 endif()
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 option(REDUCT_USE_SANITIZERS "Enable address and undefined behavior sanitizers" OFF)
 if(REDUCT_USE_SANITIZERS AND NOT WIN32)
     target_compile_options(reduct PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)

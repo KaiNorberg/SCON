@@ -24,7 +24,7 @@ cmake $CMAKE_GEN_OPTS -S "." -B tests/build_san \
     -DREDUCT_USE_SANITIZERS=ON
 
 cmake --build tests/build_san
-REDUCT_BIN="tests/build_san/tools/reduct-cli/reduct"
+REDUCT_BIN="tests/build_san/reduct"
 
 if [ -f "${REDUCT_BIN}.exe" ]; then
     REDUCT_BIN="${REDUCT_BIN}.exe"
@@ -76,7 +76,7 @@ cmake $CMAKE_GEN_OPTS -S "." -B tests/build_fuzz \
     -DREDUCT_USE_FUZZER=ON
 
 cmake --build tests/build_fuzz
-FUZZ_BIN="tests/build_fuzz/tools/reduct-cli/fuzz"
+FUZZ_BIN="tests/build_fuzz/fuzz"
 
 echo -e "${GREEN}Build successful: fuzz target created.${NC}"
 echo "----------------------------------------------------"
