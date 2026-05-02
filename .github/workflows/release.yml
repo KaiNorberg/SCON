@@ -50,8 +50,9 @@ jobs:
           mkdir -p dist
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             cp build/tools/reduct-cli/reduct.exe dist/reduct-cli-windows-x64.exe
-            cp build/libreduct.dll dist/reduct.dll
-            cp build/libreduct.a dist/reduct.lib
+            cp build/reduct.dll dist/reduct.dll
+            cp build/reduct.lib dist/reduct.lib
+            cp build/reduct_static.lib dist/reduct_static.lib
           elif [ "${{ matrix.os }}" = "macos-latest" ]; then
             cp build/tools/reduct-cli/reduct dist/reduct-cli-macos-x64
             cp build/libreduct.dylib dist/libreduct.dylib

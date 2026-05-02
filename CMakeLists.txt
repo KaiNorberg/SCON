@@ -56,7 +56,11 @@ set(REDUCT_SOURCES
 
 add_library(reduct SHARED ${REDUCT_SOURCES})
 add_library(reduct_static STATIC ${REDUCT_SOURCES})
-set_target_properties(reduct_static PROPERTIES OUTPUT_NAME reduct)
+if(WIN32)
+    set_target_properties(reduct_static PROPERTIES OUTPUT_NAME reduct_static)
+else()
+    set_target_properties(reduct_static PROPERTIES OUTPUT_NAME reduct)
+endif()
 
 target_compile_definitions(reduct PRIVATE REDUCT_BUILD_LIB)
 if(WIN32)
