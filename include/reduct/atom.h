@@ -97,11 +97,8 @@ typedef struct reduct_atom
     char* string; ///< Pointer to the data.
     union
     {
-        char small[REDUCT_ATOM_SMALL_MAX]; ///< Small string data, atom must not have `REDUCT_ATOM_FLAG_LARGE | REDUCT_ATOM_FLAG_SUBSTR`.
-        struct
-        {
-            struct reduct_atom_stack* stack; ///< The stack that this atoms string was allocated from, atom must have `REDUCT_ATOM_FLAG_LARGE`.
-        };
+        char smallString[REDUCT_ATOM_SMALL_MAX]; ///< Small string data, atom must not have `REDUCT_ATOM_FLAG_LARGE`.
+        struct reduct_atom_stack* stack; ///< The stack that this atoms string was allocated from, atom must have `REDUCT_ATOM_FLAG_LARGE`.
     };
     union {
         reduct_int64_t integerValue; ///< Pre-computed integer value, atom must have `REDUCT_ATOM_FLAG_INTEGER`.

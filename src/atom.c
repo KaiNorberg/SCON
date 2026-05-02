@@ -248,7 +248,7 @@ REDUCT_API reduct_atom_t* reduct_atom_new(reduct_t* reduct, reduct_size_t len)
 
     if (len <= REDUCT_ATOM_SMALL_MAX)
     {
-        atom->string = atom->small;
+        atom->string = atom->smallString;
     }
     else
     {
@@ -836,7 +836,7 @@ REDUCT_API reduct_atom_t* reduct_atom_substr(struct reduct* reduct, reduct_atom_
     else
     {
         subAtom->flags = 0;
-        subAtom->string = subAtom->small;
+        subAtom->string = subAtom->smallString;
         REDUCT_MEMCPY(subAtom->string, str + start, len);
     }
     return subAtom;
