@@ -33,6 +33,7 @@
 #define REDUCT_MEMCPY(_dest, _src, _size) memcpy(_dest, _src, _size)
 #define REDUCT_MEMMOVE(_dest, _src, _size) memmove(_dest, _src, _size)
 #define REDUCT_MEMCMP(_s1, _s2, _size) memcmp(_s1, _s2, _size)
+#define REDUCT_MEMCHR(_ptr, _val, _size) memchr(_ptr, _val, _size)
 
 #define REDUCT_STRNCPY(dest, src, n) strncpy(dest, src, n)
 #define REDUCT_STRCMP(s1, s2) strcmp(s1, s2)

@@ -167,6 +167,15 @@ struct reduct;
     (REDUCT_HANDLE_IS_ITEM(_handle) ? REDUCT_HANDLE_TO_ITEM(_handle)->type : REDUCT_ITEM_TYPE_ATOM)
 
 /**
+ * @brief Get the string representation of the type of the item referenced by the handle.
+ *
+ * @param _handle Pointer to the handle.
+ * @return The string representation of the item type.
+ */
+#define REDUCT_HANDLE_GET_TYPE_STR(_handle) \
+    (REDUCT_HANDLE_IS_ITEM(_handle) ? reduct_item_type_str(REDUCT_HANDLE_TO_ITEM(_handle)) : (REDUCT_HANDLE_IS_INT(_handle) ? "int" : "float"))
+
+/**
  * @brief Check if a handle is an item.
  *
  * @param _handle Pointer to the handle.
@@ -387,7 +396,7 @@ struct reduct;
             reduct_handle_promote(_reduct, _b, _c, &prom); \
             if (REDUCT_UNLIKELY(prom.type != REDUCT_PROMOTION_TYPE_INT)) \
             { \
-                REDUCT_ERROR_RUNTIME(_reduct, "invalid operand types for modulo"); \
+                REDUCT_ERROR_RUNTIME(_reduct, "modulo: incompatible operand types"); \
             } \
             if (REDUCT_UNLIKELY(prom.b.intVal == 0)) \
             { \

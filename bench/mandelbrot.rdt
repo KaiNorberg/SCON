@@ -10,7 +10,10 @@
         (if {x >= width}
             row
             (iter-x (++ x) y (concat row 
-                (if {(check 0.0 0.0 0 {x / width * 3.5 - 2.5} {y / height * 2.0 - 1.0}) == max-iter} "*" " ")
+                (if {(check 0.0 0.0 0 {x / width * 3.5 - 2.5} {y / height * 2.0 - 1.0}) == max-iter} 
+                    "*" 
+                    " "
+                )
             ))
         )
     ))

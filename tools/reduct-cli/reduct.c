@@ -21,6 +21,7 @@ int main(int argc, char **argv)
     }
 
     int isSilent = 0;
+    int parseOnly = 0;
     int shouldDump = 0;
     const char* evalExpr = NULL;
     const char* filename = NULL;
@@ -46,6 +47,10 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "-d") == 0)
         {
             shouldDump = 1;
+        }
+        else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--parse-only") == 0)
+        {
+            parseOnly = 1;
         }
         else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0)
         {
@@ -96,6 +101,15 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
+    static char buffer[0x10000];
+
+    if (parseOnly)
+    {    
+        reduct_stringify(reduct, &ast, buffer, sizeof(buffer));
+        printf("%s", buffer);
+        goto cleanup;
+    }
+
     reduct_stdlib_register(reduct, REDUCT_STDLIB_ALL);
 
     reduct_function_t* function = reduct_compile(reduct, &ast);
@@ -112,9 +126,8 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
-    static char buffer[0x10000];
     reduct_stringify(reduct, &eval, buffer, sizeof(buffer));
-    printf("%s%c", buffer, REDUCT_HANDLE_IS_ATOM(&eval) ? '\0' : '\n');
+    printf("%s", buffer);
 
 cleanup:
     reduct_free(reduct);

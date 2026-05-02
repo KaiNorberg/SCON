@@ -1,4 +1,5 @@
 (do
+    (println! (format "Hello, {}!" "World"))
     (assert! (== (format "Hello, {}!" "World") "Hello, World!") "format should replace {} with arguments")
     (assert! (== (format "{1} {0}" "World" "Hello") "Hello World") "format should support explicit indexing")
     (assert! (== (format "No args") "No args") "format should handle strings without placeholders")

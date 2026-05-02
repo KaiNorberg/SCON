@@ -14,7 +14,8 @@ struct reduct_item;
  * @{
  */
 
-#define REDUCT_ERROR_MAX_LEN 512 ///< Maximum length of an error string.
+#define REDUCT_ERROR_MAX_LEN 512             ///< Maximum length of an error string.
+#define REDUCT_ERROR_BACKTRACE_MAX 16       ///< Maximum number of backtrace frames.
 
 /**
  * @brief Error type enumeration.
@@ -30,6 +31,18 @@ typedef enum reduct_error_type
 } reduct_error_type_t;
 
 /**
+ * @brief Backtrace frame structure.
+ * @struct reduct_error_frame_t
+ *
+ * Stores the source location for a single frame of the call stack at the time of a runtime error.
+ */
+typedef struct reduct_error_frame
+{
+    reduct_input_id_t inputId;  ///< The input ID of the source file.
+    reduct_uint32_t position;   ///< The position in the input buffer.
+} reduct_error_frame_t;
+
+/**
  * @brief Error structure.
  * @struct reduct_error_t
  */
@@ -43,6 +56,9 @@ typedef struct
     reduct_jmp_buf_t jmp;
     reduct_error_type_t type; ///< The type of the error.
     char message[REDUCT_ERROR_MAX_LEN];
+    struct reduct* reduct;                                       ///< The owning Reduct structure.
+    reduct_error_frame_t frames[REDUCT_ERROR_BACKTRACE_MAX];     ///< Backtrace frames for the error.
+    reduct_uint8_t frameCount;                                   ///< The number of backtrace frames.
 } reduct_error_t;
 
 /**
@@ -207,7 +223,7 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
     do \
     { \
         REDUCT_ERROR_RUNTIME(_reduct, "%s expects %s, got %s", _name, _expected, \
-            reduct_item_type_str(REDUCT_HANDLE_GET_TYPE(_handle))); \
+            REDUCT_HANDLE_GET_TYPE_STR(_handle)); \
     } while (0)
 
 /**
@@ -246,9 +262,6 @@ REDUCT_API REDUCT_NORETURN void reduct_error_throw_runtime(struct reduct* reduct
         } \
     } while (0)
 
-/**
- * @brief Check the arity of a native function call.
- */
 REDUCT_API void reduct_error_check_arity(struct reduct* reduct, reduct_size_t argc, reduct_size_t expected,
     const char* name);
 REDUCT_API void reduct_error_check_min_arity(struct reduct* reduct, reduct_size_t argc, reduct_size_t min,

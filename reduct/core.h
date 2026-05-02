@@ -1,4 +1,3 @@
-#include "defs.h"
 #ifndef REDUCT_CORE_H
 #define REDUCT_CORE_H 1
 
@@ -8,6 +7,7 @@ struct reduct_item;
 #include "error.h"
 #include "item.h"
 #include "list.h"
+#include "eval.h"
 #include "native.h"
 
 /**
@@ -73,19 +73,17 @@ typedef struct reduct_scratch
  */
 typedef struct reduct
 {
+    reduct_eval_frame_t* frames;
+    reduct_size_t frameCount;
+    reduct_size_t frameCapacity;
+    reduct_handle_t* regs;
+    reduct_size_t regCount;
+    reduct_size_t regCapacity;
     reduct_size_t prevBlockCount;
     reduct_size_t blockCount;
     reduct_item_block_t* block;
     reduct_size_t freeCount;
     reduct_item_t* freeList;
-    reduct_input_t* input;
-    reduct_jmp_buf_t jmp;
-    reduct_input_t firstInput;
-    reduct_item_t* trueItem;
-    reduct_item_t* falseItem;
-    reduct_item_t* nilItem;
-    reduct_item_t* piItem;
-    reduct_item_t* eItem;
     reduct_atom_stack_t* atomStack;
     reduct_size_t atomMapSize;
     reduct_size_t atomMapTombstones;
@@ -96,16 +94,23 @@ typedef struct reduct
     reduct_size_t nativeMapCapacity;
     reduct_size_t nativeMapMask;
     reduct_native_entry_t* nativeMap;
-    reduct_constant_t constants[REDUCT_CONSTANTS_MAX];
-    reduct_uint32_t constantCount;
-    reduct_error_t* error;
-    struct reduct_eval_state* evalState;
-    reduct_input_id_t newInputId;
-    int argc;
-    char** argv;
     reduct_size_t scratchSize;
     reduct_size_t scratchCapacity;
     reduct_scratch_t scratch[REDUCT_SCRATCH_MAX];
+    reduct_input_t* input;
+    reduct_input_t firstInput;
+    reduct_item_t* trueItem;
+    reduct_item_t* falseItem;
+    reduct_item_t* nilItem;
+    reduct_item_t* piItem;
+    reduct_item_t* eItem;
+    reduct_uint32_t constantCount;
+    reduct_constant_t constants[REDUCT_CONSTANTS_MAX];
+    reduct_jmp_buf_t jmp;
+    reduct_error_t* error;
+    reduct_input_id_t newInputId;
+    int argc;
+    char** argv;  
 } reduct_t;
 
 /**

@@ -5,9 +5,18 @@
             (if {ip >= (len code)}
                 jumps
                 (match (nth code ip)
-                    ("[" (iter (++ ip) (concat ip stack) jumps))
-                    ("]" (iter (++ ip) (rest stack) (-> jumps (assoc open-ip ip 0) (assoc ip open-ip 0))))
-                    (iter (++ ip) stack jumps)
+                    ("[" (iter (++ ip)
+                        (prepend stack ip)
+                        jumps
+                    ))
+                    ("]" (iter (++ ip)
+                        (rest stack)
+                        (-> jumps (assoc open-ip ip 0) (assoc ip open-ip 0))
+                    ))
+                    (iter (++ ip)
+                        stack
+                        jumps
+                    )
                 )
             )
         ))
@@ -18,18 +27,50 @@
         (if {ip >= (len code)}
             output
             (match (nth code ip)
-                (">" (iter mem (++ dp) (++ ip) output))
-                ("<" (iter mem (-- dp) (++ ip) output))
-                ("+" (iter (update mem dp ++ 0) dp (++ ip) output))
-                ("-" (iter (update mem dp -- 0) dp (++ ip) output))
-                ("." (iter mem dp (++ ip) (concat output (chr (nth mem dp 0)))))
-                ("[" (iter mem dp (if {(nth mem dp 0) == 0} (nth jumps ip) (++ ip)) output))
-                ("]" (iter mem dp (if {(nth mem dp 0) != 0} (nth jumps ip) (++ ip)) output))
-                (iter mem dp (++ ip) output)
+                (">" (iter mem
+                    (++ dp)
+                    (++ ip)
+                    output
+                ))
+                ("<" (iter mem
+                    (-- dp)
+                    (++ ip)
+                    output
+                ))
+                ("+" (iter (update mem dp ++ 0)
+                    dp
+                    (++ ip)
+                    output
+                ))
+                ("-" (iter (update mem dp -- 0)
+                    dp
+                    (++ ip)
+                    output
+                ))
+                ("." (iter mem
+                    dp
+                    (++ ip)
+                    (concat output (chr (nth mem dp 0)))
+                ))
+                ("[" (iter mem
+                    dp
+                    (if {(nth mem dp 0) == 0} (nth jumps ip) (++ ip))
+                    output
+                ))
+                ("]" (iter mem
+                    dp
+                    (if {(nth mem dp 0) != 0} (nth jumps ip) (++ ip))
+                    output
+                ))
+                (iter mem
+                    dp
+                    (++ ip)
+                    output
+                )
             )
         )
     ))
     (iter () 0 0 "")
 ))
 
-(bf "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.") 
+(bf "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.")

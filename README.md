@@ -301,6 +301,37 @@ As an example, variables can be used to create a more traditional "function defi
 (add 1 2) // Evaluates to "3"
 ```
 
+## Parser Evaluation
+
+The parser can apply several possible transformations before any code or data is evaluated.
+
+### Comments
+
+Comments are ignored by the parser and can be used to document your code.
+
+```lisp
+// This is a line comment.
+
+/*
+    This is a
+    block comment.
+*/
+```
+
+### Association Lists
+
+The parser provides syntax sugar around the `get-in` native such that any atom followed by a `.` and another atom or list (e.g., `a.b`), that does not evaluate to a float-shaped atom, will be expanded into a `get-in` call.
+
+For example:
+
+```lisp
+(def data (("a" 1) ("b" 2) ("c" (("d" 3)))))
+
+data.a // (get-in data "a") -> 1
+data.(nth "ab" 1) // (get-in data (nth "ab" 1)) -> 2
+data.c.d // (get-in data ("c" "d")) -> 3
+```
+
 ### Infix Expressions
 
 Infix expressions provide a more convenient way to write certain expressions, particularly mathematical or logical expressions.
@@ -369,6 +400,17 @@ Use `kebab-case` for variable and function names.
 (def my-function (lambda (x y)
     (+ x y)
 )) 
+```
+
+### Parameter alignment
+
+In cases where the same function is called with different arguments depending on some condition, align the arguments to improve readability.
+
+```lisp
+(if (is-valid? data)
+    (process-data data 100  true  "active")
+    (process-data data 0    false "inactive")
+)
 ```
 
 ## C API
@@ -728,7 +770,7 @@ Returns a user-defined anonymous function. When called, the body expressions are
 
 **`(-> <initial: expression> {step: expression}) -> <item>`**
 
-Returns a threaded expression, where the result of each expression is passed as the first argument to the next.
+Returns the result of a series of threaded expressions, where the result of each expression is passed as the first argument to the next.
 
 **`(def <name: atom> <value: item>) -> <value: item>`**
   
@@ -962,6 +1004,14 @@ Returns a new list containing a sequence of numbers from `<start>` up to (but no
 
 Returns a new atom or list by concatenating all items, can also be utilized for "append" or "prepend" operations. If any of the items is a list, the result will be a list, otherwise it will be an atom.
 
+**`(append <list> {item}) -> <item>`**
+
+Returns a new list or atom by appending all items to the end of the first argument.
+
+**`(prepend <list> {item}) -> <item>`**
+
+Returns a new list or atom by prepending all items to the beginning of the first argument.
+
 **`(first <item>) -> <atom>`**
 
 Returns the first item of a list or the first character of an atom as a new atom.
@@ -1187,9 +1237,30 @@ Parses the provided string into a Reduct expression without evaluating it.
 
 Parses and evaluates the provided string.
 
-**`(load! <path: string>) -> <item>`**
+**`(import <path: string>) -> <item>`**
 
 Parses and evaluates the file at the provided path, returning the result.
+
+Primarily intended to be used for importing libraries or modules, where libraries return a association list.
+
+For example:
+
+```lisp
+// math.rdt
+(def add (lambda (a b) (+ a b)))
+(def sub (lambda (a b) (- a b)))
+
+(list
+    ("add" add)
+    ("sub" sub)
+)
+
+// my_file.rdt
+(def math (import "math.rdt"))
+
+((get-in math "add") 1 2) // Returns "3"
+(math.add 1 2) // Returns "3"
+```
 
 **`(read-file! <path: string>) -> <string>`**
 

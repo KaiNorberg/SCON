@@ -47,7 +47,7 @@ REDUCT_API void reduct_compiler_init(reduct_compiler_t* compiler, reduct_t* redu
     compiler->reduct = reduct;
     compiler->function = function;
     compiler->localCount = 0;
-    compiler->lastItem = REDUCT_NULL;
+    compiler->lastItem = enclosing != REDUCT_NULL ? enclosing->lastItem : REDUCT_NULL;
 
     REDUCT_MEMSET(compiler->regAlloc, 0, sizeof(compiler->regAlloc));
     REDUCT_MEMSET(compiler->regLocal, 0, sizeof(compiler->regLocal));
@@ -72,7 +72,7 @@ REDUCT_API reduct_reg_t reduct_reg_alloc(reduct_compiler_t* compiler)
         return reg;
     }
 
-    REDUCT_ERROR_COMPILE(compiler, compiler->lastItem, "too many registers in function");
+    REDUCT_ERROR_COMPILE(compiler, compiler->lastItem, "too many registers in function, limit is %u", REDUCT_REGISTER_MAX);
     return REDUCT_REG_INVALID;
 }
 
@@ -108,7 +108,7 @@ REDUCT_API reduct_reg_t reduct_reg_alloc_range(reduct_compiler_t* compiler, redu
         i += length;
     }
 
-    REDUCT_ERROR_COMPILE(compiler, compiler->lastItem, "too many registers in function");
+    REDUCT_ERROR_COMPILE(compiler, compiler->lastItem, "too many registers in function, limit is %u", REDUCT_REGISTER_MAX);
     return REDUCT_REG_INVALID;
 }
 
@@ -174,6 +174,32 @@ static inline void reduct_expr_build_atom(reduct_compiler_t* compiler, reduct_it
     REDUCT_ERROR_COMPILE(compiler, atom, "undefined variable '%.*s'", atom->atom.length, atom->atom.string);
 }
 
+static inline reduct_bool_t reduct_compiler_is_data(reduct_compiler_t* compiler, reduct_item_t* item)
+{
+    if (item->flags & REDUCT_ITEM_FLAG_QUOTED)
+    {
+        return REDUCT_TRUE;
+    }
+
+    if (item->type == REDUCT_ITEM_TYPE_ATOM)
+    {
+        return reduct_atom_is_number(&item->atom);
+    }
+
+    if (item->type == REDUCT_ITEM_TYPE_LIST)
+    {
+        if (item->length == 0)
+        {
+            return REDUCT_TRUE;
+        }
+
+        reduct_item_t* head = reduct_list_nth_item(compiler->reduct, &item->list, 0);
+        return reduct_compiler_is_data(compiler, head);
+    }
+
+    return REDUCT_FALSE;
+}
+
 static inline void reduct_expr_build_list(reduct_compiler_t* compiler, reduct_item_t* list, reduct_expr_t* out)
 {
     REDUCT_ASSERT(compiler != REDUCT_NULL);
@@ -193,9 +219,7 @@ static inline void reduct_expr_build_list(reduct_compiler_t* compiler, reduct_it
     }
 
     reduct_item_t* head = reduct_list_nth_item(compiler->reduct, &list->list, 0);
-    if ((head->flags & REDUCT_ITEM_FLAG_QUOTED) ||
-        (head->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_number(&head->atom)) ||
-        head->type == REDUCT_ITEM_TYPE_LIST)
+    if (reduct_compiler_is_data(compiler, head))
     {
         reduct_reg_t target = reduct_expr_get_reg(compiler, out);
         reduct_compile_list(compiler, target);
@@ -230,7 +254,7 @@ static inline void reduct_expr_build_list(reduct_compiler_t* compiler, reduct_it
 
     if (base + regCount > REDUCT_REGISTER_MAX)
     {
-        REDUCT_ERROR_COMPILE(compiler, list, "too many registers in function");
+        REDUCT_ERROR_COMPILE(compiler, list, "too many registers in function, limit is %u", REDUCT_REGISTER_MAX);
     }
 
     for (reduct_uint32_t i = 0; i < regCount; i++)
@@ -298,7 +322,7 @@ REDUCT_API reduct_local_t* reduct_local_def(reduct_compiler_t* compiler, reduct_
 
     if (compiler->localCount >= REDUCT_REGISTER_MAX)
     {
-        REDUCT_ERROR_COMPILE(compiler, compiler->lastItem, "too many local variables");
+        REDUCT_ERROR_COMPILE(compiler, compiler->lastItem, "too many local variables in function, limit is %u", REDUCT_REGISTER_MAX);
     }
 
     compiler->locals[compiler->localCount].name = name;
@@ -332,7 +356,7 @@ REDUCT_API reduct_local_t* reduct_local_add_arg(reduct_compiler_t* compiler, red
 
     if (compiler->localCount >= REDUCT_REGISTER_MAX)
     {
-        REDUCT_ERROR_COMPILE(compiler, compiler->lastItem, "too many local variables");
+        REDUCT_ERROR_COMPILE(compiler, compiler->lastItem, "too many local variables in function, limit is %u", REDUCT_REGISTER_MAX);
     }
 
     reduct_reg_t reg = reduct_reg_alloc(compiler);

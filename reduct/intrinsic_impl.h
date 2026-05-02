@@ -11,7 +11,7 @@ static inline void reduct_intrinsic_check_arity(reduct_compiler_t* compiler, red
 {
     if (REDUCT_UNLIKELY(list->length != (reduct_uint32_t)expected + 1))
     {
-        REDUCT_ERROR_COMPILE(compiler, list, "%s expects exactly %zu argument(s), got %zu", name,
+        REDUCT_ERROR_COMPILE(compiler, list, "%s expects %zu argument(s), got %zu", name,
             (reduct_size_t)expected, (reduct_size_t)list->length - 1);
     }
 }
@@ -31,7 +31,7 @@ static inline void reduct_intrinsic_check_arity_range(reduct_compiler_t* compile
 {
     if (REDUCT_UNLIKELY(list->length < (reduct_uint32_t)min + 1 || list->length > (reduct_uint32_t)max + 1))
     {
-        REDUCT_ERROR_COMPILE(compiler, list, "%s expects between %zu and %zu argument(s), got %zu", name,
+        REDUCT_ERROR_COMPILE(compiler, list, "%s expects %zu to %zu argument(s), got %zu", name,
             (reduct_size_t)min, (reduct_size_t)max, (reduct_size_t)list->length - 1);
     }
 }
@@ -146,18 +146,19 @@ void reduct_intrinsic_lambda(reduct_compiler_t* compiler, reduct_item_t* list, r
     reduct_item_t* args = reduct_list_nth_item(compiler->reduct, &list->list, 1);
     if (args->type != REDUCT_ITEM_TYPE_LIST)
     {
-        REDUCT_ERROR_COMPILE(compiler, args, "lambda expects a list of arguments, got %s",
-            reduct_item_type_str(args->type));
+        REDUCT_ERROR_COMPILE(compiler, args, "lambda: parameter list must be a list, got %s",
+            reduct_item_type_str(args));
     }
 
     if (args->length > 255)
     {
-        REDUCT_ERROR_COMPILE(compiler, args, "lambda expects at most 255 arguments, got %d", args->length);
+        REDUCT_ERROR_COMPILE(compiler, args, "lambda: at most 255 parameters allowed, got %d", args->length);
     }
 
     reduct_function_t* func = reduct_function_new(compiler->reduct);
     reduct_item_t* funcItem = REDUCT_CONTAINER_OF(func, reduct_item_t, function);
     funcItem->inputId = list->inputId;
+    funcItem->position = list->position;
     reduct_const_slot_t slot = REDUCT_CONST_SLOT_ITEM(funcItem);
     reduct_const_t funcConst = reduct_function_lookup_constant(compiler->reduct, compiler->function, &slot);
 
@@ -172,8 +173,8 @@ void reduct_intrinsic_lambda(reduct_compiler_t* compiler, reduct_item_t* list, r
         reduct_item_t* argName = REDUCT_HANDLE_TO_ITEM(&h);
         if (argName->type != REDUCT_ITEM_TYPE_ATOM)
         {
-            REDUCT_ERROR_COMPILE(compiler, argName, "lambda expects a list of atoms as arguments, got %s",
-                reduct_item_type_str(argName->type));
+            REDUCT_ERROR_COMPILE(compiler, argName, "lambda: each parameter must be an atom name, got %s",
+                reduct_item_type_str(argName));
         }
         reduct_local_add_arg(&childCompiler, &argName->atom);
     }
@@ -297,8 +298,8 @@ void reduct_intrinsic_def(reduct_compiler_t* compiler, reduct_item_t* list, redu
     reduct_item_t* name = reduct_list_nth_item(compiler->reduct, &list->list, 1);
     if (name->type != REDUCT_ITEM_TYPE_ATOM)
     {
-        REDUCT_ERROR_COMPILE(compiler, name, "def expects an atom as the name, got %s",
-            reduct_item_type_str(name->type));
+        REDUCT_ERROR_COMPILE(compiler, name, "def: name must be an atom, got %s",
+            reduct_item_type_str(name));
     }
 
     reduct_local_t* local = reduct_local_def(compiler, &name->atom);
@@ -353,8 +354,8 @@ static reduct_item_t* reduct_intrinsic_get_pair(reduct_compiler_t* compiler, red
     reduct_item_t* pair = REDUCT_HANDLE_TO_ITEM(h);
     if (pair->type != REDUCT_ITEM_TYPE_LIST || pair->length != 2)
     {
-        REDUCT_ERROR_COMPILE(compiler, pair, "%s clauses must be lists of exactly two items, got %s (length %u)", name,
-            reduct_item_type_str(pair->type), pair->length);
+        REDUCT_ERROR_COMPILE(compiler, pair, "%s: each clause must be a list of 2 items, got %s (length %u)", name,
+            reduct_item_type_str(pair), pair->length);
     }
     return pair;
 }
@@ -524,7 +525,7 @@ void reduct_intrinsic_cond(reduct_compiler_t* compiler, reduct_item_t* list, red
 
         if (jumpCount >= REDUCT_REGISTER_MAX)
         {
-            REDUCT_ERROR_COMPILE(compiler, list, "too many clauses in cond, got %u", jumpCount);
+            REDUCT_ERROR_COMPILE(compiler, list, "cond: too many clauses, limit is %u", REDUCT_REGISTER_MAX);
         }
         jumpsEnd[jumpCount++] = reduct_compile_jump(compiler, REDUCT_OPCODE_JMP, 0);
 
@@ -610,7 +611,7 @@ void reduct_intrinsic_match(reduct_compiler_t* compiler, reduct_item_t* list, re
         reduct_compile_build_into_target(compiler, reduct_list_nth_item(compiler->reduct, &pair->list, 1), resultReg);
         if (REDUCT_UNLIKELY(jumpCount >= REDUCT_REGISTER_MAX))
         {
-            REDUCT_ERROR_COMPILE(compiler, list, "too many clauses in match, limit is %u", REDUCT_REGISTER_MAX);
+            REDUCT_ERROR_COMPILE(compiler, list, "match: too many clauses, limit is %u", REDUCT_REGISTER_MAX);
         }
         jumpsEnd[jumpCount++] = reduct_compile_jump(compiler, REDUCT_OPCODE_JMP, 0);
         reduct_compile_jump_patch(compiler, jumpNext);
@@ -691,7 +692,7 @@ static void reduct_intrinsic_and_or(reduct_compiler_t* compiler, reduct_item_t* 
         {
             if (REDUCT_UNLIKELY(jumpCount >= REDUCT_REGISTER_MAX))
             {
-                REDUCT_ERROR_COMPILE(compiler, list, "too many arguments for logical operator, limit is %u",
+                REDUCT_ERROR_COMPILE(compiler, list, "and/or: too many operands, limit is %u",
                     REDUCT_REGISTER_MAX);
             }
             jumps[jumpCount++] = reduct_compile_jump(compiler, jumpOp, target);
@@ -1135,7 +1136,7 @@ static void reduct_intrinsic_comparison_generic(reduct_compiler_t* compiler, red
         {
             if (jumpCount >= REDUCT_REGISTER_MAX)
             {
-                REDUCT_ERROR_COMPILE(compiler, list, "comparison expects at most 256 arguments, got %u", jumpCount);
+                REDUCT_ERROR_COMPILE(compiler, list, "comparison: too many operands, limit is %u", REDUCT_REGISTER_MAX);
             }
             jumps[jumpCount++] = reduct_compile_jump(compiler, REDUCT_OPCODE_JMPF, target);
 
@@ -1327,7 +1328,7 @@ static reduct_handle_t reduct_intrinsic_native_list(reduct_t* reduct, reduct_siz
     reduct_list_t* list = reduct_list_new(reduct);
     for (reduct_size_t i = 0; i < argc; i++)
     {
-        reduct_list_append(reduct, list, argv[i]);
+        reduct_list_push(reduct, list, argv[i]);
     }
     return REDUCT_HANDLE_FROM_LIST(list);
 }
@@ -1339,7 +1340,9 @@ static reduct_handle_t reduct_intrinsic_native_mod(reduct_t* reduct, reduct_size
     reduct_handle_promote(reduct, &argv[0], &argv[1], &prom);
     if (prom.type != REDUCT_PROMOTION_TYPE_INT)
     {
-        REDUCT_ERROR_RUNTIME(reduct, "%% expects integer arguments");
+        REDUCT_ERROR_RUNTIME(reduct, "%%: expected integer operands, got %s and %s",
+            REDUCT_HANDLE_GET_TYPE_STR(&argv[0]),
+            REDUCT_HANDLE_GET_TYPE_STR(&argv[1]));
     }
     if (prom.b.intVal == 0)
     {
@@ -1379,7 +1382,7 @@ static reduct_handle_t reduct_intrinsic_native_shl(reduct_t* reduct, reduct_size
     reduct_int64_t right = reduct_get_int(reduct, &argv[1]);
     if (right < 0 || right >= 64)
     {
-        REDUCT_ERROR_RUNTIME(reduct, "shift amount out of range");
+        REDUCT_ERROR_RUNTIME(reduct, "<<: shift amount must be 0-63, got %ld", right);
     }
     return REDUCT_HANDLE_FROM_INT(left << right);
 }
@@ -1391,7 +1394,7 @@ static reduct_handle_t reduct_intrinsic_native_shr(reduct_t* reduct, reduct_size
     reduct_int64_t right = reduct_get_int(reduct, &argv[1]);
     if (right < 0 || right >= 64)
     {
-        REDUCT_ERROR_RUNTIME(reduct, "shift amount out of range");
+        REDUCT_ERROR_RUNTIME(reduct, ">>: shift amount must be 0-63, got %ld", right);
     }
     return REDUCT_HANDLE_FROM_INT(left >> right);
 }

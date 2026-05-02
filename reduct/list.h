@@ -95,6 +95,26 @@ REDUCT_API reduct_list_t* reduct_list_slice(struct reduct* reduct, reduct_list_t
     reduct_size_t end);
 
 /**
+ * @brief Create a new list by appending an element to an existing list.
+ *
+ * @param reduct Pointer to the Reduct structure.
+ * @param list Pointer to the source list.
+ * @param val The value to append.
+ * @return A pointer to the newly created list.
+ */
+REDUCT_API reduct_list_t* reduct_list_append(struct reduct* reduct, reduct_list_t* list, reduct_handle_t val);
+
+/**
+ * @brief Create a new list by prepending an element to an existing list.
+ *
+ * @param reduct Pointer to the Reduct structure.
+ * @param list Pointer to the source list.
+ * @param val The value to prepend.
+ * @return A pointer to the newly created list.
+ */
+REDUCT_API reduct_list_t* reduct_list_prepend(struct reduct* reduct, reduct_list_t* list, reduct_handle_t val);
+
+/**
  * @brief Get the nth element of the list.
  *
  * @param reduct Pointer to the Reduct structure.
@@ -115,22 +135,22 @@ REDUCT_API reduct_handle_t reduct_list_nth(struct reduct* reduct, reduct_list_t*
 REDUCT_API struct reduct_item* reduct_list_nth_item(struct reduct* reduct, reduct_list_t* list, reduct_size_t index);
 
 /**
- * @brief Append an element to the list.
+ * @brief Push a new element to the list.
  *
  * @param reduct Pointer to the Reduct structure.
  * @param list The target list (must be editable).
  * @param val Handle to the value to append.
  */
-REDUCT_API void reduct_list_append(struct reduct* reduct, reduct_list_t* list, reduct_handle_t val);
+REDUCT_API void reduct_list_push(struct reduct* reduct, reduct_list_t* list, reduct_handle_t val);
 
 /**
- * @brief Append all elements from one list to another.
+ * @brief Push all elements from one list to another.
  *
  * @param reduct Pointer to the Reduct structure.
  * @param list The target list (must be editable).
  * @param other The source list to copy from.
  */
-REDUCT_API void reduct_list_append_list(struct reduct* reduct, reduct_list_t* list, reduct_list_t* other);
+REDUCT_API void reduct_list_push_list(struct reduct* reduct, reduct_list_t* list, reduct_list_t* other);
 
 /**
  * @brief List iterator structure.

@@ -97,6 +97,117 @@ static inline reduct_size_t reduct_error_get_region_length(const char* ptr, cons
     }
 }
 
+static inline void reduct_error_get_row_column_raw(const char* input, reduct_size_t position, reduct_size_t* row,
+    reduct_size_t* column)
+{
+    *row = 1;
+    *column = 1;
+
+    if (input == REDUCT_NULL)
+    {
+        return;
+    }
+
+    for (reduct_size_t i = 0; i < position; i++)
+    {
+        if (input[i] == '\n')
+        {
+            (*row)++;
+            *column = 1;
+        }
+        else
+        {
+            (*column)++;
+        }
+    }
+}
+
+static inline void reduct_error_print_source_line(reduct_file_t file, const char* input, reduct_size_t inputLength,
+    reduct_size_t row, reduct_size_t column, reduct_size_t regionLength, reduct_size_t index)
+{
+    const char* lineStart = input + index;
+    while (lineStart > input && *(lineStart - 1) != '\n')
+    {
+        lineStart--;
+    }
+
+    const char* lineEnd = input + index;
+    while (lineEnd < input + inputLength && *lineEnd != '\n' && *lineEnd != '\r')
+    {
+        lineEnd++;
+    }
+
+    reduct_size_t lineLen = (reduct_size_t)(lineEnd - lineStart);
+
+    REDUCT_FPRINTF(file, " %4zu | %.*s\n", row, (int)lineLen, lineStart);
+    REDUCT_FPRINTF(file, "      | ");
+
+    for (reduct_size_t i = 0; i < column - 1; i++)
+    {
+        REDUCT_FWRITE(" ", 1, 1, file);
+    }
+    reduct_size_t indicatorLen = regionLength > 0 ? regionLength : 1;
+    reduct_size_t maxIndicatorLen = lineLen > (column - 1) ? lineLen - (column - 1) : 1;
+    if (indicatorLen > maxIndicatorLen)
+    {
+        indicatorLen = maxIndicatorLen;
+    }
+    for (reduct_size_t i = 0; i < indicatorLen; i++)
+    {
+        REDUCT_FWRITE("^", 1, 1, file);
+    }
+    REDUCT_FWRITE("\n", 1, 1, file);
+}
+
+static inline void reduct_error_print_context(reduct_file_t file, const char* input, reduct_size_t inputLength,
+    reduct_size_t row, reduct_size_t column, reduct_size_t regionLength, reduct_size_t index)
+{
+    if (row > 1)
+    {
+        const char* lineStartCurr = input + index;
+        while (lineStartCurr > input && *(lineStartCurr - 1) != '\n')
+        {
+            lineStartCurr--;
+        }
+        if (lineStartCurr > input)
+        {
+            const char* lineStartPrev = lineStartCurr - 1;
+            while (lineStartPrev > input && *(lineStartPrev - 1) != '\n')
+            {
+                lineStartPrev--;
+            }
+            const char* lineEndPrev = lineStartCurr - 1;
+            while (lineEndPrev < input + inputLength && *lineEndPrev != '\n' && *lineEndPrev != '\r')
+            {
+                lineEndPrev++;
+            }
+            REDUCT_FPRINTF(file, " %4zu | %.*s\n", row - 1, (int)(lineEndPrev - lineStartPrev), lineStartPrev);
+        }
+    }
+
+    reduct_error_print_source_line(file, input, inputLength, row, column, regionLength, index);
+
+    const char* lineEndCurr = input + index;
+    while (lineEndCurr < input + inputLength && *lineEndCurr != '\n' && *lineEndCurr != '\r')
+    {
+        lineEndCurr++;
+    }
+
+    if (lineEndCurr < input + inputLength && (*lineEndCurr == '\n' || *lineEndCurr == '\r'))
+    {
+        const char* nextLine = lineEndCurr + 1;
+        if (nextLine < input + inputLength)
+        {
+            const char* nextEnd = nextLine;
+            while (nextEnd < input + inputLength && *nextEnd != '\n' && *nextEnd != '\r')
+            {
+                nextEnd++;
+            }
+            REDUCT_FPRINTF(file, " %4zu | %.*s\n", row + 1, (int)(nextEnd - nextLine), nextLine);
+        }
+    }
+}
+
 REDUCT_API void reduct_error_print(reduct_error_t* error, reduct_file_t file)
 {
     REDUCT_ASSERT(error != REDUCT_NULL);
@@ -118,36 +229,50 @@ REDUCT_API void reduct_error_print(reduct_error_t* error, reduct_file_t file)
 
     if (error->input != REDUCT_NULL)
     {
-        const char* lineStart = error->input + error->index;
-        while (lineStart > error->input && *(lineStart - 1) != '\n')
-        {
-            lineStart--;
-        }
-
-        const char* lineEnd = error->input + error->index;
-        while (lineEnd < error->input + error->inputLength && *lineEnd != '\n' && *lineEnd != '\r')
-        {
-            lineEnd++;
-        }
-
-        reduct_size_t lineLen = (reduct_size_t)(lineEnd - lineStart);
-        REDUCT_FPRINTF(file, " %4zu | %.*s\n", row, (int)lineLen, lineStart);
-        REDUCT_FPRINTF(file, "      | ");
-
-        for (reduct_size_t i = 0; i < column - 1; i++)
-        {
-            REDUCT_FWRITE(" ", 1, 1, file);
-        }
-        reduct_size_t indicatorLen = error->regionLength > 0 ? error->regionLength : 1;
-        for (reduct_size_t i = 0; i < indicatorLen; i++)
-        {
-            REDUCT_FWRITE("^", 1, 1, file);
-        }
-        REDUCT_FWRITE("\n", 1, 1, file);
+        reduct_error_print_context(file, error->input, error->inputLength, row, column, error->regionLength,
+            error->index);
     }
     else
     {
         REDUCT_FWRITE("\n", 1, 1, file);
+    }
+
+    if (error->type == REDUCT_ERROR_TYPE_RUNTIME && error->reduct != REDUCT_NULL && error->frameCount > 0)
+    {
+        REDUCT_FPRINTF(file, "\nStack trace:\n");
+        for (reduct_uint8_t i = 0; i < error->frameCount; i++)
+        {
+            reduct_error_frame_t* f = &error->frames[i];
+            const char* fpath = REDUCT_NULL;
+            const char* finput = REDUCT_NULL;
+            reduct_size_t fpos = f->position;
+
+            if (f->inputId != REDUCT_INPUT_ID_NONE)
+            {
+                reduct_input_t* fInput = reduct_input_lookup(error->reduct, f->inputId);
+                if (fInput != REDUCT_NULL)
+                {
+                    fpath = fInput->path[0] != '\0' ? fInput->path : "<eval>";
+                    finput = fInput->buffer;
+                }
+            }
+            else
+            {
+                fpath = "<native>";
+            }
+
+            reduct_size_t frow = 1, fcol = 1;
+            reduct_error_get_row_column_raw(finput, fpos, &frow, &fcol);
+
+            if (fpath != REDUCT_NULL)
+            {
+                REDUCT_FPRINTF(file, "  at %s:%zu:%zu\n", fpath, frow, fcol);
+            }
+            else
+            {
+                REDUCT_FPRINTF(file, "  at <native>\n");
+            }
+        }
     }
 }
 
@@ -157,26 +282,7 @@ REDUCT_API void reduct_error_get_row_column(reduct_error_t* error, reduct_size_t
     REDUCT_ASSERT(row != REDUCT_NULL);
     REDUCT_ASSERT(column != REDUCT_NULL);
 
-    *row = 1;
-    *column = 1;
-
-    if (error->input == REDUCT_NULL)
-    {
-        return;
-    }
-
-    for (reduct_size_t i = 0; i < error->index; i++)
-    {
-        if (error->input[i] == '\n')
-        {
-            (*row)++;
-            *column = 1;
-        }
-        else
-        {
-            (*column)++;
-        }
-    }
+    reduct_error_get_row_column_raw(error->input, error->index, row, column);
 }
 
 REDUCT_API void reduct_error_set(reduct_error_t* error, const char* path, const char* input, reduct_size_t inputLength,
@@ -191,11 +297,24 @@ REDUCT_API void reduct_error_set(reduct_error_t* error, const char* path, const 
     error->regionLength = regionLength;
     error->type = type;
     error->index = position;
+    error->frameCount = 0;
 
     reduct_va_list args;
     REDUCT_VA_START(args, message);
     REDUCT_VSNPRINTF(error->message, REDUCT_ERROR_MAX_LEN, message, args);
     REDUCT_VA_END(args);
+
+    reduct_size_t wrote = REDUCT_STRLEN(error->message);
+    if (wrote == REDUCT_ERROR_MAX_LEN - 1)
+    {
+        if (REDUCT_ERROR_MAX_LEN >= 4)
+        {
+            error->message[REDUCT_ERROR_MAX_LEN - 4] = '.';
+            error->message[REDUCT_ERROR_MAX_LEN - 3] = '.';
+            error->message[REDUCT_ERROR_MAX_LEN - 2] = '.';
+            error->message[REDUCT_ERROR_MAX_LEN - 1] = '\0';
+        }
+    }
 }
 
 REDUCT_API void reduct_error_get_item_params(reduct_t* reduct, reduct_item_t* item, const char** path, const char** input,
@@ -233,9 +352,9 @@ REDUCT_API void reduct_error_throw_runtime(struct reduct* reduct, const char* me
     reduct_size_t regionLength = 0;
     reduct_size_t position = 0;
 
-    if (reduct->evalState != REDUCT_NULL && reduct->evalState->frameCount > 0)
+    if (reduct != REDUCT_NULL && reduct->frameCount > 0)
     {
-        reduct_eval_frame_t* frame = &reduct->evalState->frames[reduct->evalState->frameCount - 1];
+        reduct_eval_frame_t* frame = &reduct->frames[reduct->frameCount - 1];
         if (frame->closure != REDUCT_NULL && frame->closure->function != REDUCT_NULL)
         {
             reduct_function_t* func = frame->closure->function;
@@ -269,6 +388,36 @@ REDUCT_API void reduct_error_throw_runtime(struct reduct* reduct, const char* me
 
     reduct_error_set(reduct->error, path, input, inputLength, regionLength, position, REDUCT_ERROR_TYPE_RUNTIME, "%s",
         formattedMessage);
+
+    if (reduct != REDUCT_NULL)
+    {
+        for (reduct_uint32_t i = reduct->frameCount - 1; i > 0; i--)
+        {
+            if (reduct->error->frameCount >= REDUCT_ERROR_BACKTRACE_MAX)
+            {
+                break;
+            }
+
+            reduct_eval_frame_t* btFrame = &reduct->frames[i - 1];
+            if (btFrame->closure == REDUCT_NULL || btFrame->closure->function == REDUCT_NULL)
+            {
+                continue;
+            }
+
+            reduct_function_t* btFunc = btFrame->closure->function;
+            reduct_item_t* btFuncItem = REDUCT_CONTAINER_OF(btFunc, reduct_item_t, function);
+            reduct_size_t btInstIndex =
+                btFrame->ip > btFunc->insts ? (reduct_size_t)(btFrame->ip - btFunc->insts - 1) : 0;
+            reduct_uint32_t btPos = (btInstIndex < btFunc->instCount && btFunc->positions != REDUCT_NULL)
+                ? btFunc->positions[btInstIndex]
+                : 0;
+
+            reduct->error->frames[reduct->error->frameCount].inputId = btFuncItem->inputId;
+            reduct->error->frames[reduct->error->frameCount].position = btPos;
+            reduct->error->frameCount++;
+        }
+    }
+
     REDUCT_LONGJMP(reduct->error->jmp, REDUCT_TRUE);
 }
 
@@ -276,7 +425,7 @@ REDUCT_API void reduct_error_check_arity(reduct_t* reduct, reduct_size_t argc, r
 {
     if (REDUCT_UNLIKELY(argc != expected))
     {
-        REDUCT_ERROR_RUNTIME(reduct, "%s expects exactly %zu argument(s), got %zu", name, expected,
+        REDUCT_ERROR_RUNTIME(reduct, "%s: expected %zu argument(s), got %zu", name, expected,
             (reduct_size_t)argc);
     }
 }
@@ -285,7 +434,7 @@ REDUCT_API void reduct_error_check_min_arity(reduct_t* reduct, reduct_size_t arg
 {
     if (REDUCT_UNLIKELY(argc < min))
     {
-        REDUCT_ERROR_RUNTIME(reduct, "%s expects at least %zu argument(s), got %zu", name, (reduct_size_t)min,
+        REDUCT_ERROR_RUNTIME(reduct, "%s: expected at least %zu argument(s), got %zu", name, (reduct_size_t)min,
             (reduct_size_t)argc);
     }
 }
@@ -295,7 +444,7 @@ REDUCT_API void reduct_error_check_arity_range(reduct_t* reduct, reduct_size_t a
 {
     if (REDUCT_UNLIKELY(argc < min || argc > max))
     {
-        REDUCT_ERROR_RUNTIME(reduct, "%s expects between %zu and %zu argument(s), got %zu", name, (reduct_size_t)min,
+        REDUCT_ERROR_RUNTIME(reduct, "%s: expected %zu to %zu argument(s), got %zu", name, (reduct_size_t)min,
             (reduct_size_t)max, (reduct_size_t)argc);
     }
 }

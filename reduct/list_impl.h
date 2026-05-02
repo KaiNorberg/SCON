@@ -84,7 +84,7 @@ REDUCT_API reduct_list_t* reduct_list_assoc(struct reduct* reduct, reduct_list_t
 
     if (REDUCT_UNLIKELY(index >= list->length))
     {
-        REDUCT_ERROR_RUNTIME(reduct, "index %zu out of bounds", index);
+        REDUCT_ERROR_RUNTIME(reduct, "index %zu out of bounds for list of length %u", index);
     }
 
     reduct_list_t* newList = reduct_list_new(reduct);
@@ -126,7 +126,7 @@ REDUCT_API reduct_list_t* reduct_list_dissoc(struct reduct* reduct, reduct_list_
     {
         if (_iter.index - 1 != index)
         {
-            reduct_list_append(reduct, newList, val);
+            reduct_list_push(reduct, newList, val);
         }
     }
 
@@ -141,7 +141,7 @@ REDUCT_API reduct_list_t* reduct_list_slice(struct reduct* reduct, reduct_list_t
 
     if (REDUCT_UNLIKELY(start > end || end > list->length))
     {
-        REDUCT_ERROR_RUNTIME(reduct, "invalid slice range [%zu, %zu) for list of length %u", start, end, list->length);
+        REDUCT_ERROR_RUNTIME(reduct, "slice: invalid range [%zu, %zu) for list of length %u", start, end, list->length);
     }
 
     reduct_list_t* newList = reduct_list_new(reduct);
@@ -152,9 +152,36 @@ REDUCT_API reduct_list_t* reduct_list_slice(struct reduct* reduct, reduct_list_t
     {
         if (REDUCT_LIKELY(reduct_list_iter_next(&iter, &val)))
         {
-            reduct_list_append(reduct, newList, val);
+            reduct_list_push(reduct, newList, val);
         }
     }
+
+    return newList;
+}
+
+REDUCT_API reduct_list_t* reduct_list_append(struct reduct* reduct, reduct_list_t* list, reduct_handle_t val)
+{
+    REDUCT_ASSERT(reduct != REDUCT_NULL);
+    REDUCT_ASSERT(list != REDUCT_NULL);
+
+    reduct_list_t* newList = reduct_list_new(reduct);
+    newList->length = list->length;
+    newList->shift = list->shift;
+    newList->root = list->root;
+    newList->tail = list->tail;
+
+    reduct_list_push(reduct, newList, val);
+    return newList;
+}
+
+REDUCT_API reduct_list_t* reduct_list_prepend(struct reduct* reduct, reduct_list_t* list, reduct_handle_t val)
+{
+    REDUCT_ASSERT(reduct != REDUCT_NULL);
+    REDUCT_ASSERT(list != REDUCT_NULL);
+
+    reduct_list_t* newList = reduct_list_new(reduct);
+    reduct_list_push(reduct, newList, val);
+    reduct_list_push_list(reduct, newList, list);
 
     return newList;
 }
@@ -166,7 +193,7 @@ REDUCT_API reduct_handle_t reduct_list_nth(struct reduct* reduct, reduct_list_t*
 
     if (REDUCT_UNLIKELY(index >= list->length))
     {
-        REDUCT_ERROR_RUNTIME(reduct, "index %zu out of bounds", index);
+        REDUCT_ERROR_RUNTIME(reduct, "index %zu out of bounds for list of length %u", index);
     }
 
     reduct_size_t tailOffset = REDUCT_LIST_TAIL_OFFSET(list);
@@ -204,7 +231,7 @@ static reduct_list_node_t* reduct_push_tail(reduct_t* reduct, reduct_uint32_t sh
     return newNode;
 }
 
-REDUCT_API void reduct_list_append(reduct_t* reduct, reduct_list_t* list, reduct_handle_t val)
+REDUCT_API void reduct_list_push(reduct_t* reduct, reduct_list_t* list, reduct_handle_t val)
 {
     REDUCT_ASSERT(list != REDUCT_NULL);
 
@@ -246,7 +273,7 @@ REDUCT_API void reduct_list_append(reduct_t* reduct, reduct_list_t* list, reduct
     list->length++;
 }
 
-REDUCT_API void reduct_list_append_list(reduct_t* reduct, reduct_list_t* list, reduct_list_t* other)
+REDUCT_API void reduct_list_push_list(reduct_t* reduct, reduct_list_t* list, reduct_list_t* other)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
     REDUCT_ASSERT(list != REDUCT_NULL);
@@ -255,7 +282,7 @@ REDUCT_API void reduct_list_append_list(reduct_t* reduct, reduct_list_t* list, r
     reduct_handle_t val;
     REDUCT_LIST_FOR_EACH(&val, other)
     {
-        reduct_list_append(reduct, list, val);
+        reduct_list_push(reduct, list, val);
     }
 }
 

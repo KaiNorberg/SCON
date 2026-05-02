@@ -12,10 +12,9 @@
     (assert! (== (range 0 10 2) (0 2 4 6 8)) "range with three arguments should use the step")
     (assert! (== (range 5 0 -1) (5 4 3 2 1)) "range should support negative steps")
 
-    (assert! (== (concat nums (6 7)) (1 2 3 4 5 6 7)) "concat should join lists")
     (assert! (== (concat "he" "llo") "hello") "concat should join strings")
-    (assert! (== (concat nums 6) (1 2 3 4 5 6)) "concat should append an atom to a list")
-    (assert! (== (concat 0 nums) (0 1 2 3 4 5)) "concat should prepend an atom to a list")
+    (assert! (== (append nums 6) (1 2 3 4 5 6)) "append should add an item to the end of a list")
+    (assert! (== (prepend nums 0) (0 1 2 3 4 5)) "prepend should add an item to the beginning of a list")
 
     (assert! (== (first nums) 1) "first should return the first item of a list")
     (assert! (== (first text) "h") "first should return the first character of a string")
@@ -86,6 +85,8 @@
     (assert! (== (get-in data ("c" "d")) 3) "get-in should retrieve a value from a nested association list using path")
     (assert! (== (get-in data "a") 1) "get-in should work with a single atom path")
     (assert! (== (get-in data ("c" "x") 42) 42) "get-in should return the default value if the path is not found")
+    (assert! (== data.c.d 3) "get-in should work with dot syntax for nested access")
+    (assert! (== data.a 1) "get-in should work with dot syntax for single level access")
 
     (assert! (== (assoc-in data ("c" "d") 4) (("a" 1) ("b" 2) ("c" (("d" 4))))) "assoc-in should update a nested value")
     (assert! (== (assoc-in data ("e") 5) (("a" 1) ("b" 2) ("c" (("d" 3))) ("e" 5))) "assoc-in should create the path if it does not exist")

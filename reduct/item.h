@@ -97,7 +97,7 @@ _Static_assert((sizeof(reduct_item_block_t) & (sizeof(reduct_item_block_t) - 1))
 #endif
 
 /**
- * @brief Allocate a new Reduct item.
+ * @brief Allocate a new item.
  *
  * @param reduct Pointer to the Reduct structure.
  * @return A pointer to the newly created item.
@@ -105,7 +105,7 @@ _Static_assert((sizeof(reduct_item_block_t) & (sizeof(reduct_item_block_t) - 1))
 REDUCT_API reduct_item_t* reduct_item_new(struct reduct* reduct);
 
 /**
- * @brief Deinitialize a Reduct item without adding it to the freelist.
+ * @brief Deinitialize a item without adding it to the freelist.
  *
  * @param reduct Pointer to the Reduct structure.
  * @param item Pointer to the item to deinitialize.
@@ -113,7 +113,7 @@ REDUCT_API reduct_item_t* reduct_item_new(struct reduct* reduct);
 REDUCT_API void reduct_item_deinit(struct reduct* reduct, reduct_item_t* item);
 
 /**
- * @brief Free an Reduct item.
+ * @brief Free an item.
  *
  * @param reduct Pointer to the Reduct structure.
  * @param item Pointer to the item to free.
@@ -121,12 +121,12 @@ REDUCT_API void reduct_item_deinit(struct reduct* reduct, reduct_item_t* item);
 REDUCT_API void reduct_item_free(struct reduct* reduct, reduct_item_t* item);
 
 /**
- * @brief Get the string representation of an Reduct item type.
+ * @brief Get the string representation of the type of an item.
  *
- * @param type The item type.
+ * @param item Pointer to the item.
  * @return The string representation of the item type.
  */
-REDUCT_API const char* reduct_item_type_str(reduct_item_type_t type);
+REDUCT_API const char* reduct_item_type_str(reduct_item_t* item);
 
 /** @} */
 

@@ -810,9 +810,18 @@ REDUCT_API reduct_atom_t* reduct_atom_substr(struct reduct* reduct, reduct_atom_
     subAtom->length = len;
     subAtom->hash = 0;
     subAtom->index = REDUCT_ATOM_INDEX_NONE;
-    subAtom->flags = REDUCT_ATOM_FLAG_SUBSTR;
-    subAtom->string = (char*)str + start;
-    subAtom->parent = atom;
+    if (atom->flags & REDUCT_ATOM_FLAG_LARGE)
+    {
+        subAtom->flags = REDUCT_ATOM_FLAG_LARGE;
+        subAtom->string = (char*)str + start;
+        subAtom->stack = atom->stack;
+    }
+    else
+    {
+        subAtom->flags = 0;
+        subAtom->string = subAtom->small;
+        REDUCT_MEMCPY(subAtom->string, str + start, len);
+    }
     return subAtom;
 }
 
@@ -827,9 +836,9 @@ REDUCT_API reduct_atom_t* reduct_atom_superstr(struct reduct* reduct, reduct_ato
         return reduct_atom_new(reduct, 0);
     }
 
-    if (atom->flags & REDUCT_ATOM_FLAG_LARGE && reduct->atomStack != REDUCT_NULL)
+    if (atom->flags & REDUCT_ATOM_FLAG_LARGE && atom->stack != REDUCT_NULL)
     {
-        reduct_atom_stack_t* stack = reduct->atomStack;
+        reduct_atom_stack_t* stack = atom->stack;
         if (stack->data + stack->count == atom->string + atom->length && stack->count + len - atom->length <= stack->capacity)
         {
             stack->count += len - atom->length;

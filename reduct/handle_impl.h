@@ -70,8 +70,8 @@ REDUCT_API void reduct_handle_promote(struct reduct* reduct, reduct_handle_t* a,
 
     if (itemA->type != REDUCT_ITEM_TYPE_ATOM || itemB->type != REDUCT_ITEM_TYPE_ATOM)
     {
-        REDUCT_ERROR_RUNTIME(reduct, "unsupported operand type %s and %s", reduct_item_type_str(itemA->type),
-            reduct_item_type_str(itemB->type));
+        REDUCT_ERROR_RUNTIME(reduct, "incompatible operand types %s and %s", reduct_item_type_str(itemA),
+            reduct_item_type_str(itemB));
     }
 
     reduct_atom_t* atomA = &itemA->atom;
@@ -91,8 +91,8 @@ REDUCT_API void reduct_handle_promote(struct reduct* reduct, reduct_handle_t* a,
     }
     else
     {
-        REDUCT_ERROR_RUNTIME(reduct, "unsupported operand type %s and %s", reduct_item_type_str(itemA->type),
-            reduct_item_type_str(itemB->type));
+        REDUCT_ERROR_RUNTIME(reduct, "incompatible operand types %s and %s", reduct_item_type_str(itemA),
+            reduct_item_type_str(itemB));
     }
 }
 
@@ -339,7 +339,7 @@ REDUCT_API void reduct_handle_atom_string(reduct_t* reduct, reduct_handle_t* han
     reduct_item_t* item = REDUCT_HANDLE_TO_ITEM(handle);
     if (item->type != REDUCT_ITEM_TYPE_ATOM)
     {
-        REDUCT_ERROR_RUNTIME(reduct, "expected atom, got %s", reduct_item_type_str(item->type));
+        REDUCT_ERROR_RUNTIME(reduct, "expected atom, got %s", reduct_item_type_str(item));
     }
     *outStr = item->atom.string;
     *outLen = item->length;

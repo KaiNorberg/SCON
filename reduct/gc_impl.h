@@ -60,10 +60,6 @@ static void reduct_gc_mark_list(reduct_t* reduct, reduct_list_t* list)
 
 static void reduct_gc_mark_atom(reduct_t* reduct, reduct_atom_t* atom)
 {
-    if (atom->flags & REDUCT_ATOM_FLAG_SUBSTR && atom->parent != REDUCT_NULL)
-    {
-        reduct_gc_mark(reduct, REDUCT_CONTAINER_OF(atom->parent, reduct_item_t, atom));
-    }
     if (atom->flags & REDUCT_ATOM_FLAG_LARGE && atom->stack != REDUCT_NULL)
     {
         reduct_gc_mark(reduct, REDUCT_CONTAINER_OF(atom->stack, reduct_item_t, atomStack));
@@ -137,19 +133,19 @@ REDUCT_API void reduct_gc(reduct_t* reduct)
         reduct_gc_mark(reduct, reduct->constants[i].item);
     }
 
-    if (reduct->evalState != REDUCT_NULL)
+    if (reduct != REDUCT_NULL)
     {
-        for (reduct_uint32_t i = 0; i < reduct->evalState->regCount; i++)
+        for (reduct_uint32_t i = 0; i < reduct->regCount; i++)
         {
-            reduct_handle_t child = reduct->evalState->regs[i];
+            reduct_handle_t child = reduct->regs[i];
             if (REDUCT_HANDLE_IS_ITEM(&child))
             {
                 reduct_gc_mark(reduct, REDUCT_HANDLE_TO_ITEM(&child));
             }
         }
-        for (reduct_uint32_t i = 0; i < reduct->evalState->frameCount; i++)
+        for (reduct_uint32_t i = 0; i < reduct->frameCount; i++)
         {
-            reduct_closure_t* closure = reduct->evalState->frames[i].closure;
+            reduct_closure_t* closure = reduct->frames[i].closure;
             reduct_gc_mark(reduct, REDUCT_CONTAINER_OF(closure, reduct_item_t, closure));
         }
     }

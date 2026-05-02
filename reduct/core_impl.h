@@ -16,6 +16,7 @@ REDUCT_API reduct_t* reduct_new(reduct_error_t* error)
         REDUCT_ERROR_THROW(REDUCT_NULL, error, REDUCT_NULL, INTERNAL, "out of memory");
     }
     reduct->error = error;
+    error->reduct = reduct;
 
     reduct->trueItem = REDUCT_CONTAINER_OF(reduct_atom_new_int(reduct, 1), reduct_item_t, atom);
     reduct->falseItem = REDUCT_CONTAINER_OF(reduct_atom_new_int(reduct, 0), reduct_item_t, atom);
@@ -35,7 +36,6 @@ REDUCT_API reduct_t* reduct_new(reduct_error_t* error)
 
     reduct_intrinsic_register_all(reduct);
 
-    reduct->evalState = REDUCT_NULL;
     reduct->argc = 0;
     reduct->argv = REDUCT_NULL;
 
@@ -110,10 +110,20 @@ REDUCT_API void reduct_free(reduct_t* reduct)
         input = next;
     }
 
-    if (reduct->evalState != REDUCT_NULL)
+    if (reduct->frames != REDUCT_NULL)
     {
-        reduct_eval_state_deinit(reduct->evalState);
-        REDUCT_FREE(reduct->evalState);
+        REDUCT_FREE(reduct->frames);
+        reduct->frames = REDUCT_NULL;
+        reduct->frameCount = 0;
+        reduct->frameCapacity = 0;
+    }
+
+    if (reduct->regs != REDUCT_NULL)
+    {
+        REDUCT_FREE(reduct->regs);
+        reduct->regs = REDUCT_NULL;
+        reduct->regCount = 0;
+        reduct->regCapacity = 0;
     }
 
     REDUCT_FREE(reduct);
@@ -133,7 +143,7 @@ REDUCT_API void reduct_constant_register(reduct_t* reduct, const char* name, red
 
     if (reduct->constantCount >= REDUCT_CONSTANTS_MAX)
     {
-        REDUCT_ERROR_INTERNAL(reduct, "too many constants");
+        REDUCT_ERROR_INTERNAL(reduct, "too many constants, limit is %u", REDUCT_CONSTANTS_MAX);
     }
 
     reduct_size_t len = REDUCT_STRLEN(name);

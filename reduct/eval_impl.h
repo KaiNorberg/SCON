@@ -9,143 +9,129 @@
 #include "parse.h"
 #include "compile.h"
 
-static void reduct_eval_state_init(reduct_t* reduct, reduct_eval_state_t* state)
-{
-    REDUCT_ASSERT(reduct != REDUCT_NULL);
-    REDUCT_ASSERT(state != REDUCT_NULL);
-
-    state->frameCount = 0;
-    state->frameCapacity = REDUCT_EVAL_FRAMES_INITIAL;
-    state->frames = (reduct_eval_frame_t*)REDUCT_MALLOC(sizeof(reduct_eval_frame_t) * state->frameCapacity);
-    if (state->frames == REDUCT_NULL)
-    {
-        REDUCT_ERROR_INTERNAL(reduct, "out of memory");
-    }
-
-    state->regCount = 1;
-    state->regCapacity = REDUCT_EVAL_REGS_INITIAL;
-    state->regs = (reduct_handle_t*)REDUCT_CALLOC(state->regCapacity, sizeof(reduct_handle_t));
-    if (state->regs == REDUCT_NULL)
-    {
-        REDUCT_FREE(state->frames);
-        REDUCT_ERROR_INTERNAL(reduct, "out of memory");
-    }
-    state->regs[0] = reduct_handle_nil(reduct);
-}
-
-REDUCT_API void reduct_eval_state_deinit(reduct_eval_state_t* state)
-{
-    REDUCT_ASSERT(state != REDUCT_NULL);
-
-    REDUCT_FREE(state->frames);
-    REDUCT_FREE(state->regs);
-}
-
-static inline REDUCT_ALWAYS_INLINE void reduct_eval_ensure_regs(reduct_t* reduct, reduct_eval_state_t* state,
+static inline REDUCT_ALWAYS_INLINE void reduct_eval_ensure_regs(reduct_t* reduct,
     reduct_uint32_t neededRegs)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
-    REDUCT_ASSERT(state != REDUCT_NULL);
 
-    if (REDUCT_LIKELY(neededRegs <= state->regCapacity))
+    if (REDUCT_LIKELY(neededRegs <= reduct->regCapacity))
     {
         return;
     }
 
-    reduct_uint32_t oldCapacity = state->regCapacity;
-    while (neededRegs > state->regCapacity)
+    reduct_uint32_t oldCapacity = reduct->regCapacity;
+    while (neededRegs > reduct->regCapacity)
     {
-        state->regCapacity *= REDUCT_EVAL_REGS_GROWTH_FACTOR;
+        reduct->regCapacity *= REDUCT_EVAL_REGS_GROWTH_FACTOR;
     }
-    reduct_handle_t* newRegs = (reduct_handle_t*)REDUCT_REALLOC(state->regs, sizeof(reduct_handle_t) * state->regCapacity);
+    reduct_handle_t* newRegs = (reduct_handle_t*)REDUCT_REALLOC(reduct->regs, sizeof(reduct_handle_t) * reduct->regCapacity);
     if (newRegs == REDUCT_NULL)
     {
-        reduct_eval_state_deinit(state);
         REDUCT_ERROR_INTERNAL(reduct, "out of memory");
     }
-    REDUCT_MEMSET(newRegs + oldCapacity, 0, (state->regCapacity - oldCapacity) * sizeof(reduct_handle_t));
-    state->regs = newRegs;
+    REDUCT_MEMSET(newRegs + oldCapacity, 0, (reduct->regCapacity - oldCapacity) * sizeof(reduct_handle_t));
+    reduct->regs = newRegs;
 }
 
-static inline REDUCT_ALWAYS_INLINE void reduct_eval_push_frame(reduct_t* reduct, reduct_eval_state_t* state,
+static inline REDUCT_ALWAYS_INLINE void reduct_eval_push_frame(reduct_t* reduct,
     reduct_closure_t* closure, reduct_uint32_t target)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
-    REDUCT_ASSERT(state != REDUCT_NULL);
     REDUCT_ASSERT(closure != REDUCT_NULL);
 
-    if (REDUCT_UNLIKELY(state->frameCount >= state->frameCapacity))
+    if (REDUCT_UNLIKELY(reduct->frameCount >= reduct->frameCapacity))
     {
-        state->frameCapacity *= REDUCT_EVAL_FRAMES_GROWTH_FACTOR;
-        reduct_eval_frame_t* newFrames =
-            (reduct_eval_frame_t*)REDUCT_REALLOC(state->frames, sizeof(reduct_eval_frame_t) * state->frameCapacity);
+        reduct->frameCapacity *= REDUCT_EVAL_FRAMES_GROWTH_FACTOR;
+        reduct_eval_frame_t* newFrames = (reduct_eval_frame_t*)REDUCT_REALLOC(reduct->frames,
+                sizeof(reduct_eval_frame_t) * reduct->frameCapacity);
         if (newFrames == REDUCT_NULL)
         {
-            reduct_eval_state_deinit(state);
             REDUCT_ERROR_INTERNAL(reduct, "out of memory");
         }
-        state->frames = newFrames;
+        reduct->frames = newFrames;
     }
 
     reduct_uint32_t neededRegs = target + closure->function->registerCount;
-    reduct_eval_ensure_regs(reduct, state, neededRegs);
+    reduct_eval_ensure_regs(reduct, neededRegs);
 
-    reduct_eval_frame_t* frame = &state->frames[state->frameCount++];
+    reduct_eval_frame_t* frame = &reduct->frames[reduct->frameCount++];
     frame->closure = closure;
     frame->ip = closure->function->insts;
     frame->base = target;
-    frame->prevRegCount = state->regCount;
+    frame->prevRegCount = reduct->regCount;
 
-    state->regCount = neededRegs;
+    reduct->regCount = neededRegs;
 }
 
-static inline REDUCT_ALWAYS_INLINE void reduct_eval_pop_frame(reduct_eval_state_t* state)
+static inline REDUCT_ALWAYS_INLINE void reduct_eval_pop_frame(reduct_t* reduct)
 {
-    REDUCT_ASSERT(state != REDUCT_NULL);
-    REDUCT_ASSERT(state->frameCount > 0);
+    REDUCT_ASSERT(reduct->frameCount > 0);
 
-    reduct_eval_frame_t* frame = &state->frames[--state->frameCount];
+    reduct_eval_frame_t* frame = &reduct->frames[--reduct->frameCount];
 
-    state->regCount = frame->prevRegCount;
+    reduct->regCount = frame->prevRegCount;
 }
 
-static inline REDUCT_ALWAYS_INLINE void reduct_eval_tail_frame(reduct_t* reduct, reduct_eval_state_t* state,
+static inline REDUCT_ALWAYS_INLINE void reduct_eval_tail_frame(reduct_t* reduct,
     reduct_closure_t* closure)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
-    REDUCT_ASSERT(state != REDUCT_NULL);
-    REDUCT_ASSERT(state->frameCount > 0);
+    REDUCT_ASSERT(reduct->frameCount > 0);
     REDUCT_ASSERT(closure != REDUCT_NULL);
 
-    reduct_eval_frame_t* frame = &state->frames[state->frameCount - 1];
+    reduct_eval_frame_t* frame = &reduct->frames[reduct->frameCount - 1];
 
     reduct_uint32_t neededRegs = frame->base + closure->function->registerCount;
-    reduct_eval_ensure_regs(reduct, state, neededRegs);
-    state->regCount = neededRegs;
+    reduct_eval_ensure_regs(reduct, neededRegs);
+    reduct->regCount = neededRegs;
 
     frame->closure = closure;
     frame->ip = closure->function->insts;
 }
 
-static reduct_handle_t reduct_eval_run(reduct_t* reduct, reduct_eval_state_t* state, reduct_uint32_t initialFrameCount)
+static inline REDUCT_ALWAYS_INLINE void reduct_eval_ensure_ready(reduct_t* reduct)
+{
+    if (REDUCT_UNLIKELY(reduct->frameCapacity == 0))
+    {
+        reduct->frameCapacity = REDUCT_EVAL_FRAMES_INITIAL;
+        reduct->frames = (reduct_eval_frame_t*)REDUCT_CALLOC(1, sizeof(reduct_eval_frame_t) * reduct->frameCapacity);
+        if (reduct->frames == REDUCT_NULL)
+        {
+            REDUCT_ERROR_INTERNAL(reduct, "out of memory");
+        }
+    }
+
+    if (REDUCT_UNLIKELY(reduct->regCapacity == 0))
+    {
+        reduct->regCapacity = REDUCT_EVAL_REGS_INITIAL;
+        reduct->regs = (reduct_handle_t*)REDUCT_CALLOC(1, sizeof(reduct_handle_t) * reduct->regCapacity);
+        if (reduct->regs == REDUCT_NULL)
+        {
+            REDUCT_ERROR_INTERNAL(reduct, "out of memory");
+        }
+    }
+}
+
+static inline reduct_handle_t reduct_eval_run(reduct_t* reduct, reduct_uint32_t initialFrameCount)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
-    REDUCT_ASSERT(state != REDUCT_NULL);
 
-    reduct_eval_frame_t* frame = &state->frames[state->frameCount - 1];
+    reduct_eval_frame_t* frame = &reduct->frames[reduct->frameCount - 1];
     reduct_inst_t* ip = frame->ip;
-    reduct_handle_t* base = state->regs + frame->base;
+    reduct_handle_t* base = reduct->regs + frame->base;
     reduct_handle_t* constants = frame->closure->constants;
     reduct_inst_t inst;
-    reduct_opcode_t op;
     reduct_handle_t result = REDUCT_HANDLE_NONE;
 
     /// @todo Write some macro magic to turn this into a switch case if not using GCC or Clang
+
+    // The `frame->ip = ip` line is needed for error checking, even if it does hurt performance.
 #define DISPATCH() \
     do \
     { \
         inst = *ip++; \
-        op = REDUCT_INST_GET_OP(inst); \
+        frame->ip = ip; \
+        reduct_opcode_t op = REDUCT_INST_GET_OP(inst); \
         goto* dispatchTable[op]; \
     } while (0)
 
@@ -243,8 +229,7 @@ _label: \
 
     DISPATCH();
 label_none:
-    frame->ip = ip;
-    REDUCT_ERROR_RUNTIME(reduct, "invalid opcode, %u", inst);
+    REDUCT_ERROR_RUNTIME(reduct, "invalid opcode %u at instruction %zu", inst, (reduct_size_t)(ip - frame->closure->function->insts - 1));
 label_list:
 {
     DECODE_A();
@@ -284,17 +269,31 @@ label_jmpt:
 LABEL_C_OP(label_call, {
     DECODE_A();
     DECODE_B();
-    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&valC), REDUCT_NULL, "attempt to call non-callable %s",
-        reduct_item_type_str(REDUCT_HANDLE_GET_TYPE(&valC)));
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&valC), REDUCT_NULL, "cannot call value of type %s",
+        REDUCT_HANDLE_GET_TYPE_STR(&valC));
     reduct_item_t* item = REDUCT_HANDLE_TO_ITEM(&valC);
+    if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_CLOSURE))
+    {
+        reduct_closure_t* closure = &item->closure;
+        REDUCT_ERROR_RUNTIME_ASSERT(reduct, b == closure->function->arity, REDUCT_NULL, "expected %d arguments, got %d",
+            closure->function->arity, b);
+
+        reduct_eval_push_frame(reduct, closure, frame->base + a);
+
+        frame = &reduct->frames[reduct->frameCount - 1];
+        ip = frame->ip;
+        base = reduct->regs + frame->base;
+        constants = frame->closure->constants;
+
+        DISPATCH();
+    }
     if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_native(reduct, &item->atom)))
     {
         reduct_handle_t* args = &base[a];
-        frame->ip = ip;
         reduct_handle_t result = item->atom.native(reduct, b, args);
 
-        frame = &state->frames[state->frameCount - 1];
-        base = state->regs + frame->base;
+        frame = &reduct->frames[reduct->frameCount - 1];
+        base = reduct->regs + frame->base;
         base[a] = result;
         constants = frame->closure->constants;
 
@@ -302,57 +301,15 @@ LABEL_C_OP(label_call, {
 
         DISPATCH();
     }
-    if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_CLOSURE))
-    {
-        reduct_closure_t* closure = &item->closure;
-        REDUCT_ERROR_RUNTIME_ASSERT(reduct, b == closure->function->arity, REDUCT_NULL, "expected %d arguments, got %d",
-            closure->function->arity, b);
 
-        frame->ip = ip;
-        reduct_eval_push_frame(reduct, state, closure, frame->base + a);
-
-        frame = &state->frames[state->frameCount - 1];
-        ip = frame->ip;
-        base = state->regs + frame->base;
-        constants = frame->closure->constants;
-
-        DISPATCH();
-    }
-
-    frame->ip = ip;
-    REDUCT_ERROR_RUNTIME(reduct, "attempt to call non-callable %s", reduct_item_type_str(item->type));
+    REDUCT_ERROR_RUNTIME(reduct, "cannot call value of type %s", reduct_item_type_str(item));
 })
 LABEL_C_OP(label_tailcall, {
     DECODE_A();
     DECODE_B();
-    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&valC), REDUCT_NULL, "attempt to call non-callable %s",
-        reduct_item_type_str(REDUCT_HANDLE_GET_TYPE(&valC)));
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&valC), REDUCT_NULL, "cannot call value of type %s",
+        REDUCT_HANDLE_GET_TYPE_STR(&valC));
     reduct_item_t* item = REDUCT_HANDLE_TO_ITEM(&valC);
-    if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_native(reduct, &item->atom)))
-    {
-        reduct_handle_t* args = &base[a];
-        frame->ip = ip;
-        reduct_handle_t res = item->atom.native(reduct, b, args);
-
-        frame = &state->frames[state->frameCount - 1];
-        state->regs[frame->base] = res;
-        reduct_eval_pop_frame(state);
-
-        if (REDUCT_UNLIKELY(state->frameCount == initialFrameCount))
-        {
-            result = res;
-            goto eval_end;
-        }
-
-        frame = &state->frames[state->frameCount - 1];
-        ip = frame->ip;
-        base = state->regs + frame->base;
-        constants = frame->closure->constants;
-
-        reduct_gc_if_needed(reduct);
-
-        DISPATCH();
-    }
     if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_CLOSURE))
     {
         reduct_closure_t* closure = &item->closure;
@@ -364,18 +321,41 @@ LABEL_C_OP(label_tailcall, {
             REDUCT_MEMMOVE(base, base + a, b * sizeof(reduct_handle_t));
         }
 
-        reduct_eval_tail_frame(reduct, state, closure);
+        reduct_eval_tail_frame(reduct, closure);
 
-        frame = &state->frames[state->frameCount - 1];
+        frame = &reduct->frames[reduct->frameCount - 1];
         ip = frame->ip;
-        base = state->regs + frame->base;
+        base = reduct->regs + frame->base;
         constants = frame->closure->constants;
 
         DISPATCH();
     }
+    if (REDUCT_LIKELY(item->type == REDUCT_ITEM_TYPE_ATOM && reduct_atom_is_native(reduct, &item->atom)))
+    {
+        reduct_handle_t* args = &base[a];
+        reduct_handle_t res = item->atom.native(reduct, b, args);
 
-    frame->ip = ip;
-    REDUCT_ERROR_RUNTIME(reduct, "attempt to call non-callable %s", reduct_item_type_str(item->type));
+        frame = &reduct->frames[reduct->frameCount - 1];
+        reduct->regs[frame->base] = res;
+        reduct_eval_pop_frame(reduct);
+
+        if (REDUCT_UNLIKELY(reduct->frameCount == initialFrameCount))
+        {
+            result = res;
+            goto eval_end;
+        }
+
+        frame = &reduct->frames[reduct->frameCount - 1];
+        ip = frame->ip;
+        base = reduct->regs + frame->base;
+        constants = frame->closure->constants;
+
+        reduct_gc_if_needed(reduct);
+
+        DISPATCH();
+    }
+
+    REDUCT_ERROR_RUNTIME(reduct, "cannot call value of type %s", reduct_item_type_str(item));
 })
 LABEL_C_OP(label_mov, {
     DECODE_A();
@@ -383,25 +363,25 @@ LABEL_C_OP(label_mov, {
     DISPATCH();
 })
 LABEL_C_OP(label_ret, {
-    state->regs[frame->base] = valC;
-    reduct_eval_pop_frame(state);
-    if (REDUCT_UNLIKELY(state->frameCount == initialFrameCount))
+    reduct->regs[frame->base] = valC;
+    reduct_eval_pop_frame(reduct);
+    if (REDUCT_UNLIKELY(reduct->frameCount == initialFrameCount))
     {
         result = valC;
         goto eval_end;
     }
-    frame = &state->frames[state->frameCount - 1];
+    frame = &reduct->frames[reduct->frameCount - 1];
     ip = frame->ip;
-    base = state->regs + frame->base;
+    base = reduct->regs + frame->base;
     constants = frame->closure->constants;
     DISPATCH();
 })
 LABEL_C_OP(label_append, {
     DECODE_A();
-    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_LIST(&base[a]), REDUCT_NULL, "APPEND expected a list");
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_LIST(&base[a]), REDUCT_NULL, "APPEND: target must be a list");
     reduct_item_t* item = REDUCT_HANDLE_TO_ITEM(&base[a]);
     reduct_list_t* listPtr = &item->list;
-    reduct_list_append(reduct, listPtr, valC);
+    reduct_list_push(reduct, listPtr, valC);
     DISPATCH();
 })
 OP_COMPARE(label_eq, ==)
@@ -451,7 +431,7 @@ LABEL_C_OP(label_shl, {
     {
         left = reduct_get_int(reduct, &valC);
     }
-    REDUCT_ERROR_RUNTIME_ASSERT(reduct, left >= 0 && left < 64, "expected left shift amount 0-63, got %ld", left);
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, left >= 0 && left < 64, "left shift amount must be 0-63, got %ld", left);
     if (REDUCT_LIKELY(REDUCT_HANDLE_IS_INT(&base[b])))
     {
         base[a] = REDUCT_HANDLE_FROM_INT(REDUCT_HANDLE_TO_INT(&base[b]) << left);
@@ -474,7 +454,7 @@ LABEL_C_OP(label_shr, {
     {
         right = reduct_get_int(reduct, &valC);
     }
-    REDUCT_ERROR_RUNTIME_ASSERT(reduct, right >= 0 && right < 64, "expected right shift amount 0-63, got %ld", right);
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, right >= 0 && right < 64, "right shift amount must be 0-63, got %ld", right);
     if (REDUCT_LIKELY(REDUCT_HANDLE_IS_INT(&base[b])))
     {
         base[a] = REDUCT_HANDLE_FROM_INT(REDUCT_HANDLE_TO_INT(&base[b]) >> right);
@@ -512,24 +492,19 @@ eval_end:
     return result;
 }
 
-REDUCT_API reduct_handle_t reduct_eval(struct reduct* reduct, reduct_function_t* function)
+REDUCT_API reduct_handle_t reduct_eval(reduct_t* reduct, reduct_function_t* function)
 {
     REDUCT_ASSERT(reduct != REDUCT_NULL);
     REDUCT_ASSERT(function != REDUCT_NULL);
 
-    if (reduct->evalState == REDUCT_NULL)
-    {
-        reduct->evalState = (reduct_eval_state_t*)REDUCT_MALLOC(sizeof(reduct_eval_state_t));
-        reduct_eval_state_init(reduct, reduct->evalState);
-    }
+    reduct_eval_ensure_ready(reduct);
 
     reduct_closure_t* closure = reduct_closure_new(reduct, function);
-    reduct_eval_state_t* state = reduct->evalState;
-    reduct_uint32_t initialFrameCount = state->frameCount;
+    reduct_uint32_t initialFrameCount = reduct->frameCount;
 
-    reduct_eval_push_frame(reduct, state, closure, state->regCount);
+    reduct_eval_push_frame(reduct, closure, reduct->regCount);
 
-    return reduct_eval_run(reduct, state, initialFrameCount);
+    return reduct_eval_run(reduct, initialFrameCount);
 }
 
 REDUCT_API reduct_handle_t reduct_eval_file(reduct_t* reduct, const char* path)
@@ -547,7 +522,7 @@ REDUCT_API reduct_handle_t reduct_eval_string(reduct_t* reduct, const char* str,
     REDUCT_ASSERT(reduct != REDUCT_NULL);
     REDUCT_ASSERT(str != REDUCT_NULL);
 
-    reduct_handle_t parsed = reduct_parse(reduct, str, len, "eval");
+    reduct_handle_t parsed = reduct_parse(reduct, str, len, "<eval>");
     reduct_function_t* function = reduct_compile(reduct, &parsed);
     return reduct_eval(reduct, function);
 }
@@ -557,12 +532,14 @@ REDUCT_API reduct_handle_t reduct_eval_call(reduct_t* reduct, reduct_handle_t ca
     REDUCT_ASSERT(reduct != REDUCT_NULL);
     REDUCT_ASSERT(argv != REDUCT_NULL || argc == 0);
 
-    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&callable), REDUCT_NULL, "attempt to call non-callable value");
+    REDUCT_ERROR_RUNTIME_ASSERT(reduct, REDUCT_HANDLE_IS_ITEM(&callable), REDUCT_NULL, "cannot call value");
+
+    reduct_eval_ensure_ready(reduct);
 
     reduct_item_t* item = REDUCT_HANDLE_TO_ITEM(&callable);
     if (item->type == REDUCT_ITEM_TYPE_ATOM)
     {
-        REDUCT_ERROR_RUNTIME_ASSERT(reduct, reduct_atom_is_native(reduct, &item->atom), REDUCT_NULL, "attempt to call non-native atom");
+        REDUCT_ERROR_RUNTIME_ASSERT(reduct, reduct_atom_is_native(reduct, &item->atom), REDUCT_NULL, "cannot call atom, only native functions and closures are callable");
         return item->atom.native(reduct, argc, argv);
     }
 
@@ -571,41 +548,30 @@ REDUCT_API reduct_handle_t reduct_eval_call(reduct_t* reduct, reduct_handle_t ca
         reduct_closure_t* closure = &item->closure;
         REDUCT_ERROR_RUNTIME_ASSERT(reduct, argc == closure->function->arity, REDUCT_NULL, "expected %ld arguments, got %ld", closure->function->arity, argc);
 
-        if (reduct->evalState == REDUCT_NULL)
+        reduct_uint32_t target = reduct->regCount;
+
+        if (REDUCT_UNLIKELY(target + argc > reduct->regCapacity))
         {
-            reduct->evalState = (reduct_eval_state_t*)REDUCT_MALLOC(sizeof(reduct_eval_state_t));
-            if (reduct->evalState == REDUCT_NULL)
-            {
-                REDUCT_ERROR_INTERNAL(reduct, "out of memory");
-            }
-            reduct_eval_state_init(reduct, reduct->evalState);
-        }
+            reduct_bool_t argvInRegs = (argv >= reduct->regs && argv < reduct->regs + reduct->regCapacity);
+            reduct_uint32_t argvOffset = argvInRegs ? (reduct_uint32_t)(argv - reduct->regs) : 0;
 
-        reduct_eval_state_t* state = reduct->evalState;
-        reduct_uint32_t target = state->regCount;
-
-        if (REDUCT_UNLIKELY(target + argc > state->regCapacity))
-        {
-            reduct_bool_t argvInRegs = (argv >= state->regs && argv < state->regs + state->regCapacity);
-            reduct_uint32_t argvOffset = argvInRegs ? (reduct_uint32_t)(argv - state->regs) : 0;
-
-            reduct_eval_ensure_regs(reduct, state, target + argc);
+            reduct_eval_ensure_regs(reduct, target + argc);
 
             if (argvInRegs)
             {
-                argv = state->regs + argvOffset;
+                argv = reduct->regs + argvOffset;
             }
         }
 
-        REDUCT_MEMCPY(state->regs + target, argv, argc * sizeof(reduct_handle_t));
+        REDUCT_MEMCPY(reduct->regs + target, argv, argc * sizeof(reduct_handle_t));
 
-        reduct_uint32_t initialFrameCount = state->frameCount;
-        reduct_eval_push_frame(reduct, state, closure, target);
+        reduct_uint32_t initialFrameCount = reduct->frameCount;
+        reduct_eval_push_frame(reduct, closure, target);
 
-        return reduct_eval_run(reduct, state, initialFrameCount);
+        return reduct_eval_run(reduct, initialFrameCount);
     }
 
-    REDUCT_ERROR_RUNTIME(reduct, "attempt to call non-callable value");
+    REDUCT_ERROR_RUNTIME(reduct, "cannot call value");
 }
 
 #endif

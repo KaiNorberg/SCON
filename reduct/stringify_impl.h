@@ -100,8 +100,13 @@ REDUCT_API reduct_size_t reduct_stringify(reduct_t* reduct, reduct_handle_t* han
         const char* str;
         reduct_size_t len;
         reduct_handle_atom_string(reduct, handle, &str, &len);
-        if (buffer != REDUCT_NULL && size > 0)
+        if (buffer != REDUCT_NULL && size > 0 && len != 0)
         {
+            if (REDUCT_HANDLE_TO_ITEM(handle)->flags & REDUCT_ITEM_FLAG_QUOTED)
+            {
+                return REDUCT_SNPRINTF(buffer, size, "\"%.*s\"", (int)len, str);
+            }
+
             reduct_size_t copyLen = (len < size) ? len : size - 1;
             REDUCT_MEMCPY(buffer, str, copyLen);
             buffer[copyLen] = '\0';

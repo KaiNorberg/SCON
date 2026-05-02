@@ -1,3 +1,4 @@
+#include "atom.h"
 #ifndef REDUCT_ITEM_IMPL_H
 #define REDUCT_ITEM_IMPL_H 1
 
@@ -146,13 +147,26 @@ REDUCT_API void reduct_item_free(reduct_t* reduct, reduct_item_t* item)
     reduct->freeList = item;
 }
 
-REDUCT_API const char* reduct_item_type_str(reduct_item_type_t type)
+REDUCT_API const char* reduct_item_type_str(reduct_item_t* item)
 {
-    switch (type)
+    if (item == REDUCT_NULL)
+    {
+        return "none";
+    }
+
+    switch (item->type)
     {
     case REDUCT_ITEM_TYPE_NONE:
         return "none";
     case REDUCT_ITEM_TYPE_ATOM:
+        if (reduct_atom_is_int(&item->atom))
+        {
+            return "int";
+        }
+        if (reduct_atom_is_float(&item->atom))
+        {
+            return "float";
+        }
         return "atom";
     case REDUCT_ITEM_TYPE_ATOM_STACK:
         return "atom stack";

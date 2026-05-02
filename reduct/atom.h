@@ -14,7 +14,27 @@ struct reduct;
  *
  * Atoms represent all strings within a Reduct expression, as such it also represents anything that a string can be,
  * including integers, floats and natives.
+ * 
+ * ## Interning
+ * 
+ * Some atoms, primarily atoms loaded during initial parsing, are "interned", meaning they are stored in a global map to ensure that only one instance of a given string exists at any time. This improves memory usage but primarily it allows us to cache if an atom represents a number or a native function, avoiding repeated parsing or lookups during execution.
  *
+ * @see [Wikipedia String interning](https://en.wikipedia.org/wiki/String_interning)
+ * 
+ * ## Small and Large Strings
+ * 
+ * For small strings, of a length less than `REDUCT_ATOM_SMALL_MAX`, the string data is stored directly within the atom structure. 
+ * 
+ * For larger strings, the data is allocated from a dedicated atom stack, with the atom referencing this stack to prevent the garbage collector from collecting it.
+ * 
+ * ### Substrings and Superstrings
+ * 
+ * The stack system also allows multiple atoms to share the same buffer within a stack. 
+ * 
+ * For example, if we wish to create an atom containing a substring of a large atom, we can simply point to the middle of the existing buffer and reference the same stack.
+ * 
+ * Or, if we wish to create an atom that uses another atom as a prefix, and that other atom happens to be at the end of its stack, we can simply extend the allocation in place and return a new atom pointing to the same buffer.
+ * 
  * @{
  */
 
@@ -43,8 +63,7 @@ typedef reduct_uint8_t reduct_atom_flags_t;
 #define REDUCT_ATOM_FLAG_NATIVE (1 << 3)       ///< Atom is known to represent a native function.
 #define REDUCT_ATOM_FLAG_NUMBER_CHECKED (1 << 4) ///< Atom has been checked for integer/float shaping.
 #define REDUCT_ATOM_FLAG_NATIVE_CHECKED (1 << 5) ///< Atom has been checked for a native function.
-#define REDUCT_ATOM_FLAG_SUBSTR (1 << 6) ///< Atom is a substring of another atom.
-#define REDUCT_ATOM_FLAG_LARGE (1 << 7) ///< Atom has an allocated buffer.
+#define REDUCT_ATOM_FLAG_LARGE (1 << 6) ///< Atom has an allocated buffer within a stack.
 
 #define REDUCT_ATOM_STACK_MIN 1024 ///< The minimum size of an atom stack.
 #define REDUCT_ATOM_STACK_GROWTH 2 ///< The factor by which we increase the minimum size until the needed capacity is reached.
@@ -82,7 +101,6 @@ typedef struct reduct_atom
         struct
         {
             struct reduct_atom_stack* stack; ///< The stack that this atoms string was allocated from, atom must have `REDUCT_ATOM_FLAG_LARGE`.
-            struct reduct_atom* parent; ///< The atom that this atom is a substring of, atom must have `REDUCT_ATOM_FLAG_SUBSTR`.
         };
     };
     union {
